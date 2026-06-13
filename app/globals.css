@@ -165,11 +165,45 @@
   animation: naise-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes naise-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.naise-fade {
+  opacity: 0;
+  animation: naise-fade 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .naise-rise,
-  .naise-pop {
+  .naise-pop,
+  .naise-fade {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
