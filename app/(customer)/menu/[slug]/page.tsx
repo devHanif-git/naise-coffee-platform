@@ -90,8 +90,7 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
 
       <div className="flex flex-col gap-5 px-5 pt-6">
         <header
-          className="flex flex-col gap-2 naise-rise"
-          style={{ animationDelay: "120ms" }}
+          className="flex flex-col gap-2 naise-rise [animation-delay:120ms]"
         >
           <h1 className="font-heading text-2xl font-bold tracking-tight">
             {product.name}
@@ -100,7 +99,7 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
           <PriceTag pricing={pricing} variant="detail" className="mt-1" />
         </header>
 
-        <hr className="border-border naise-rise" style={{ animationDelay: "180ms" }} />
+        <hr className="border-border naise-rise [animation-delay:180ms]" />
 
         <Suspense fallback={null}>
           <ProductCustomizer product={product} />

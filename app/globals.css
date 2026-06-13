@@ -165,6 +165,23 @@
   animation: naise-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+@keyframes naise-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+
+.naise-logo-splash {
+  opacity: 0;
+  animation:
+    naise-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards,
+    naise-breathe 2.6s ease-in-out 0.9s infinite;
+}
+
 @keyframes naise-fade {
   from {
     opacity: 0;
@@ -196,6 +213,7 @@
 @media (prefers-reduced-motion: reduce) {
   .naise-rise,
   .naise-pop,
+  .naise-logo-splash,
   .naise-fade {
     animation: none;
     opacity: 1;

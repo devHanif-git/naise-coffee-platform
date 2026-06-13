@@ -16,7 +16,7 @@ export const discounts: Discount[] = [
     id: "drink-of-the-day",
     label: "Drink of the Day",
     percentOff: 15,
-    productIds: ["spanish-latte"],
+    productIds: ["vanilla-latte"],
   },
   {
     id: "flash-deal",
@@ -45,15 +45,16 @@ export function applyDiscount(
   price: number,
   discount: Discount | undefined,
 ): ProductPricing {
-  if (!discount || discount.percentOff <= 0) {
+  const percentOff = Math.min(100, Math.max(0, discount?.percentOff ?? 0));
+  if (!discount || percentOff === 0) {
     return { original: price, final: price, saving: 0, percentOff: 0 };
   }
-  const final = Math.round((price * (100 - discount.percentOff)) / 100);
+  const final = Math.round((price * (100 - percentOff)) / 100);
   return {
     original: price,
     final,
     saving: price - final,
-    percentOff: discount.percentOff,
+    percentOff,
     discount,
   };
 }
