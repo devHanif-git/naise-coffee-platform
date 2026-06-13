@@ -18,6 +18,26 @@ export type Addon = {
   price: number;
 };
 
+// A CMS-driven discount (e.g. a "discount day"). Targets specific products,
+// whole sections (categories), or both. `percentOff` is a whole-number percent.
+export type Discount = {
+  id: string;
+  label: string;
+  percentOff: number;
+  productIds?: string[];
+  categories?: CategoryType[];
+};
+
+// Resolved pricing for a single price point (base price or a size price).
+// `percentOff` is 0 and `discount` is undefined when nothing applies.
+export type ProductPricing = {
+  original: number;
+  final: number;
+  saving: number;
+  percentOff: number;
+  discount?: Discount;
+};
+
 export type Product = {
   id: string;
   slug: string;

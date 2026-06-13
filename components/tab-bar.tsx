@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, Home, ShoppingCart, Star, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/store/cart";
 
 const tabs = [
   { href: "/home", label: "Home", icon: Home },
@@ -15,9 +16,7 @@ const tabs = [
 
 export function TabBar() {
   const pathname = usePathname();
-
-  // TODO: replace with cart store count, e.g. useCart((s) => s.totalItems)
-  const cartCount = 0;
+  const { totalItems: cartCount } = useCart();
 
   return (
     <nav

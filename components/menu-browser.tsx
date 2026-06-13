@@ -23,6 +23,11 @@ export function MenuBrowser({
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("popular");
 
+  const handleFilterChange = (next: Filter) => {
+    setFilter(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = products.filter((p) => {
@@ -45,41 +50,45 @@ export function MenuBrowser({
 
   return (
     <div className="flex flex-col">
-      <header className="sticky top-0 z-20 bg-black px-5 pb-5 pt-4 text-white">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            aria-label="Go back"
-            className="flex size-8 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-          >
-            <ChevronLeft className="size-6" />
-          </Link>
-          <h1 className="font-heading text-lg font-semibold tracking-[0.25em]">
-            MENU
-          </h1>
-          <div className="size-8" aria-hidden />
-        </div>
+      <div className="sticky top-0 z-20 bg-black">
+        <header className="px-5 pb-5 pt-4 text-white">
+          <div className="flex items-center justify-between">
+            <Link
+              href="/"
+              aria-label="Go back"
+              className="flex size-8 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+            >
+              <ChevronLeft className="size-6" />
+            </Link>
+            <h1 className="font-heading text-lg font-semibold tracking-[0.25em]">
+              MENU
+            </h1>
+            <div className="size-8" aria-hidden />
+          </div>
 
-        <div className="relative mt-4">
-          <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-neutral-400" />
-          <Input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search drinks..."
-            aria-label="Search drinks"
-            className="h-12 rounded-2xl border-0 bg-neutral-800 pl-12 text-base text-white placeholder:text-neutral-400 focus-visible:ring-3 focus-visible:ring-white/30"
+          <div className="relative mt-4">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-neutral-400" />
+            <Input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search drinks..."
+              aria-label="Search drinks"
+              className="h-12 rounded-2xl border-0 bg-neutral-800 pl-12 text-base text-white placeholder:text-neutral-400 focus-visible:ring-3 focus-visible:ring-white/30"
+            />
+          </div>
+        </header>
+
+        <div className="bg-white px-5 pt-4">
+          <CategoryTabs
+            categories={categories}
+            value={filter}
+            onChange={handleFilterChange}
           />
         </div>
-      </header>
+      </div>
 
       <div className="flex flex-col gap-4 px-5 py-5">
-        <CategoryTabs
-          categories={categories}
-          value={filter}
-          onChange={setFilter}
-        />
-
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Sort by

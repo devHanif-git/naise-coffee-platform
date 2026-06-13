@@ -1,29 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
 import type { Product } from "@/types/menu";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/store/cart";
+import { applyDiscount, getProductDiscount } from "@/data/discounts";
 
 export function ProductCustomizer({ product }: { product: Product }) {
-  const maxAddons = product.maxAddons ?? product.addons.length;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editKey = searchParams.get("edit") ?? undefined;
+  const { items, addItem, updateItem } = useCart();
+  const maxAddons = Math.min(
+    product.addons.length,
+    Math.max(0, product.maxAddons ?? product.addons.length),
+  );
   const sizes = product.sizes ?? [];
   const hasSizes = sizes.length > 0;
 
   const [sizeId, setSizeId] = useState(sizes[0]?.id);
   const [addonIds, setAddonIds] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
+  const [prefilled, setPrefilled] = useState(false);
+
+  // When editing a cart line (?edit=<key>), prefill the controls from it. The
+  // cart loads from localStorage in an effect, so we wait until the matching
+  // line is available, then apply once.
+  useEffect(() => {
+    if (!editKey || prefilled) return;
+    const line = items.find((i) => i.key === editKey);
+    if (!line) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time prefill once the persisted cart line is available */
+    if (line.sizeId) setSizeId(line.sizeId);
+    setAddonIds(line.addonIds);
+    setQuantity(line.quantity);
+    setPrefilled(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [editKey, prefilled, items]);
 
   const selectedSize = sizes.find((s) => s.id === sizeId);
   const atAddonLimit = addonIds.length >= maxAddons;
 
+  // Discount applies to the drink price only; add-ons are charged in full.
+  const discount = getProductDiscount(product);
   const addonsTotal = product.addons
     .filter((a) => addonIds.includes(a.id))
     .reduce((sum, a) => sum + a.price, 0);
-  const basePrice = hasSizes ? (selectedSize?.price ?? 0) : (product.price ?? 0);
-  const unitPrice = basePrice + addonsTotal;
+  const baseOriginal = hasSizes
+    ? (selectedSize?.price ?? 0)
+    : (product.price ?? 0);
+  const basePricing = applyDiscount(baseOriginal, discount);
+  const onSale = basePricing.percentOff > 0;
+  const unitPrice = basePricing.final + addonsTotal;
   const total = unitPrice * quantity;
+  const totalOriginal = (baseOriginal + addonsTotal) * quantity;
 
   function toggleAddon(id: string) {
     setAddonIds((prev) => {
@@ -34,7 +67,35 @@ export function ProductCustomizer({ product }: { product: Product }) {
   }
 
   function addToCart() {
-    // TODO: wire to cart store once it exists in store/.
+    const selectedAddons = product.addons.filter((a) =>
+      addonIds.includes(a.id),
+    );
+    const input = {
+      productId: product.id,
+      slug: product.slug,
+      name: product.name,
+      image: product.image,
+      sizeId: selectedSize?.id,
+      sizeName: selectedSize?.name,
+      addonIds,
+      addonNames: selectedAddons.map((a) => a.name),
+      unitPrice,
+      unitOriginalPrice: baseOriginal + addonsTotal,
+      discountLabel: onSale ? discount?.label : undefined,
+      discountPercentOff: onSale ? basePricing.percentOff : undefined,
+      quantity,
+    };
+
+    if (editKey) {
+      const merged = updateItem(editKey, input);
+      router.push(
+        merged ? `/cart?merged=${encodeURIComponent(product.name)}` : "/cart",
+      );
+      return;
+    }
+
+    addItem(input);
+    router.push("/menu");
   }
 
   return (
@@ -51,6 +112,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
             <div className="grid grid-cols-2 gap-3">
               {sizes.map((size) => {
                 const active = size.id === sizeId;
+                const sizePricing = applyDiscount(size.price, discount);
                 return (
                   <button
                     key={size.id}
@@ -65,14 +127,35 @@ export function ProductCustomizer({ product }: { product: Product }) {
                     )}
                   >
                     <span className="text-base font-bold">{size.name}</span>
-                    <span
-                      className={cn(
-                        "text-sm",
-                        active ? "text-neutral-300" : "text-muted-foreground",
-                      )}
-                    >
-                      {formatPrice(size.price)}
-                    </span>
+                    {onSale ? (
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "text-sm font-semibold",
+                            active ? "text-rose-300" : "text-rose-600",
+                          )}
+                        >
+                          {formatPrice(sizePricing.final)}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-xs line-through",
+                            active ? "text-neutral-400" : "text-muted-foreground",
+                          )}
+                        >
+                          {formatPrice(size.price)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          "text-sm",
+                          active ? "text-neutral-300" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatPrice(size.price)}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -113,7 +196,11 @@ export function ProductCustomizer({ product }: { product: Product }) {
                         )}
                       >
                         {checked && (
-                          <Check className="size-4" strokeWidth={3} aria-hidden />
+                          <Check
+                            className="size-4"
+                            strokeWidth={3}
+                            aria-hidden
+                          />
                         )}
                       </span>
                       <span className="flex-1 text-sm font-medium">
@@ -168,11 +255,22 @@ export function ProductCustomizer({ product }: { product: Product }) {
             className="flex h-14 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span className="text-sm font-bold uppercase tracking-wider">
-              Add to Cart
+              {editKey ? "Update Cart" : "Add to Cart"}
             </span>
-            <span className="text-sm font-medium text-neutral-300">
-              {formatPrice(total)}
-            </span>
+            {onSale ? (
+              <span className="flex items-center gap-1.5">
+                <span className="text-sm font-semibold text-white">
+                  {formatPrice(total)}
+                </span>
+                <span className="text-sm text-neutral-400 line-through">
+                  {formatPrice(totalOriginal)}
+                </span>
+              </span>
+            ) : (
+              <span className="text-sm font-medium text-neutral-300">
+                {formatPrice(total)}
+              </span>
+            )}
           </button>
         </div>
       </div>
