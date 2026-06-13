@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Star } from "lucide-react";
-import { getBasePrice, getProduct, products } from "@/data/menu";
-import { formatPrice } from "@/lib/format";
+import { Star } from "lucide-react";
+import { getProduct, products } from "@/data/menu";
+import { getProductPricing } from "@/data/discounts";
 import { ProductCustomizer } from "@/components/product-customizer";
+import { ProductBackButton } from "@/components/product-back-button";
+import { PriceTag } from "@/components/price-tag";
 
 export function generateStaticParams() {
   return products.map((p) => ({ slug: p.slug }));
@@ -41,21 +43,27 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
     notFound();
   }
 
-  const basePrice = getBasePrice(product);
+  const pricing = getProductPricing(product);
+  const onSale = pricing.percentOff > 0;
 
   return (
     <article className="flex flex-col">
       <div className="relative aspect-square w-full bg-black naise-pop">
-        <Link
-          href="/menu"
-          aria-label="Go back"
-          className="absolute left-5 top-4 z-10 flex size-8 items-center justify-center rounded-full text-white outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+        <Suspense
+          fallback={
+            <span className="absolute left-5 top-4 z-10 size-8" aria-hidden />
+          }
         >
-          <ChevronLeft className="size-6" />
-        </Link>
+          <ProductBackButton />
+        </Suspense>
 
-        {(product.isBestSeller || product.isNew) && (
+        {(product.isBestSeller || product.isNew || onSale) && (
           <div className="absolute right-4 top-4 z-10 flex items-center gap-1.5">
+            {onSale && (
+              <span className="inline-flex items-center rounded-full bg-rose-600 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-rose-600/30">
+                {pricing.percentOff}% Off
+              </span>
+            )}
             {product.isBestSeller && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-black shadow-lg shadow-black/20">
                 <Star className="size-3.5 fill-black" strokeWidth={0} aria-hidden />
@@ -89,12 +97,14 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
             {product.name}
           </h1>
           <p className="text-sm text-muted-foreground">{product.description}</p>
-          <p className="mt-1 text-lg font-bold">{formatPrice(basePrice)}</p>
+          <PriceTag pricing={pricing} variant="detail" className="mt-1" />
         </header>
 
         <hr className="border-border naise-rise" style={{ animationDelay: "180ms" }} />
 
-        <ProductCustomizer product={product} />
+        <Suspense fallback={null}>
+          <ProductCustomizer product={product} />
+        </Suspense>
       </div>
     </article>
   );

@@ -10,7 +10,14 @@ export type CartItem = {
   sizeName?: string;
   addonIds: string[];
   addonNames: string[];
-  // Price per unit in sen (base size price + selected add-ons).
+  // Price per unit in sen (discounted base size price + selected add-ons).
   unitPrice: number;
+  // Per-unit price before any discount (original base + add-ons). Equals
+  // `unitPrice` when no promotion applies.
+  unitOriginalPrice: number;
+  // Promotion applied to this line, if any. Carried so the cart can show the
+  // promo treatment without re-deriving it from the catalogue.
+  discountLabel?: string;
+  discountPercentOff?: number;
   quantity: number;
 };
