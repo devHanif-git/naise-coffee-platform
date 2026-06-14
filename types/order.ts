@@ -8,6 +8,10 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
+// Per-drink fulfilment status. A barista works each line through
+// pending -> preparing -> done; when every line is done the order is complete.
+export type ItemStatus = "pending" | "preparing" | "done";
+
 export type OrderLine = {
   name: string;
   quantity: number;
@@ -17,6 +21,8 @@ export type OrderLine = {
   unitPrice: number;
   // unitPrice * quantity, in sen.
   lineTotal: number;
+  // Fulfilment progress for this drink. New lines start "pending".
+  status: ItemStatus;
 };
 
 export type Order = {
@@ -32,6 +38,9 @@ export type Order = {
   // Amount due, in sen.
   total: number;
   notes?: string;
+  // Receipt image for a QR/transfer payment, shown in the manage screen's
+  // proof-of-payment section. Absent for cash and other on-counter methods.
+  proofOfPaymentUrl?: string;
   // ISO timestamp.
   createdAt: string;
 };

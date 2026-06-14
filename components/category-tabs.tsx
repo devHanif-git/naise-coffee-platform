@@ -23,7 +23,7 @@ export function CategoryTabs({
     <div
       role="tablist"
       aria-label="Menu categories"
-      className="-mx-5 flex gap-2 overflow-x-auto border-b border-border px-5 pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="-mx-5 flex gap-2 overflow-x-auto border-b border-border px-5 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {tabs.map((tab) => {
         const active = tab.type === value;
@@ -34,7 +34,7 @@ export function CategoryTabs({
             aria-selected={active}
             onClick={() => onChange(tab.type)}
             className={cn(
-              "shrink-0 rounded-full border px-5 py-2 text-sm font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              "shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               active
                 ? "border-black bg-black text-white"
                 : "border-border bg-white text-foreground hover:bg-muted",

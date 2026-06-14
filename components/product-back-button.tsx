@@ -15,7 +15,7 @@ export function ProductBackButton() {
       aria-label="Go back"
       className="absolute left-5 top-4 z-10 flex size-8 items-center justify-center rounded-full text-white outline-none focus-visible:ring-3 focus-visible:ring-white/40"
     >
-      <ChevronLeft className="size-6" />
+      <ChevronLeft className="size-5" />
     </Link>
   );
 }
