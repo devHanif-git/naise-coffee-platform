@@ -13,7 +13,9 @@ export function ProductCustomizer({ product }: { product: Product }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editKey = searchParams.get("edit") ?? undefined;
-  const { items, addItem, updateItem } = useCart();
+  const { items, hydrated, addItem, updateItem } = useCart();
+  const editLine = editKey ? items.find((i) => i.key === editKey) : undefined;
+  const isEditing = Boolean(editKey && editLine);
   const maxAddons = Math.min(
     product.addons.length,
     Math.max(0, product.maxAddons ?? product.addons.length),
@@ -86,7 +88,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
       quantity,
     };
 
-    if (editKey) {
+    if (isEditing && editKey) {
       const merged = updateItem(editKey, input);
       router.push(
         merged ? `/cart?merged=${encodeURIComponent(product.name)}` : "/cart",
@@ -103,8 +105,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
       <div className="flex flex-col gap-6 pb-32">
         {hasSizes && (
           <section
-            className="flex flex-col gap-3 naise-rise"
-            style={{ animationDelay: "240ms" }}
+            className="flex flex-col gap-3 naise-rise [animation-delay:240ms]"
           >
             <h2 className="text-xs font-bold uppercase tracking-wider">
               Choose Size
@@ -165,8 +166,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
 
         {product.addons.length > 0 && (
           <section
-            className="flex flex-col gap-1 naise-rise"
-            style={{ animationDelay: "300ms" }}
+            className="flex flex-col gap-1 naise-rise [animation-delay:300ms]"
           >
             <h2 className="text-xs font-bold uppercase tracking-wider">
               Add-on{" "}
@@ -219,8 +219,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
       </div>
 
       <div
-        className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 py-3 naise-fade"
-        style={{ animationDelay: "360ms" }}
+        className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 py-3 naise-fade [animation-delay:360ms]"
       >
         <div className="flex items-center gap-3">
           <div className="flex h-14 items-center gap-1 rounded-full bg-neutral-100 p-1">
@@ -255,7 +254,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
             className="flex h-14 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span className="text-sm font-bold uppercase tracking-wider">
-              {editKey ? "Update Cart" : "Add to Cart"}
+              {isEditing ? "Update Cart" : "Add to Cart"}
             </span>
             {onSale ? (
               <span className="flex items-center gap-1.5">

@@ -182,8 +182,7 @@ export function CheckoutScreen() {
       </section>
 
       <section
-        className="mt-7 flex flex-col gap-3 naise-rise"
-        style={{ animationDelay: "60ms" }}
+        className="mt-7 flex flex-col gap-3 naise-rise [animation-delay:60ms]"
       >
         <h2 className="text-xs font-bold uppercase tracking-wider">
           Order Summary
@@ -233,8 +232,7 @@ export function CheckoutScreen() {
       </section>
 
       <section
-        className="mt-7 flex flex-col gap-3 border-t border-border pt-5 naise-rise"
-        style={{ animationDelay: "120ms" }}
+        className="mt-7 flex flex-col gap-3 border-t border-border pt-5 naise-rise [animation-delay:120ms]"
       >
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-muted-foreground">Subtotal</span>
@@ -257,8 +255,7 @@ export function CheckoutScreen() {
       </section>
 
       <p
-        className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground naise-rise"
-        style={{ animationDelay: "180ms" }}
+        className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground naise-rise [animation-delay:180ms]"
       >
         <ShieldCheck className="size-3.5" strokeWidth={2} aria-hidden />
         Your order is confirmed over WhatsApp after payment.
@@ -267,8 +264,7 @@ export function CheckoutScreen() {
       <button
         type="button"
         onClick={placeOrder}
-        className="mt-5 flex h-14 w-full items-center justify-between rounded-2xl bg-black px-6 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise"
-        style={{ animationDelay: "240ms" }}
+        className="mt-5 flex h-14 w-full items-center justify-between rounded-2xl bg-black px-6 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:240ms]"
       >
         <span className="text-sm font-bold uppercase tracking-wider">
           Place Order

@@ -136,8 +136,7 @@ export function CartScreen() {
           </ul>
 
           <section
-            className="mt-7 flex flex-col gap-2 naise-rise"
-            style={{ animationDelay: "180ms" }}
+            className="mt-7 flex flex-col gap-2 naise-rise [animation-delay:180ms]"
           >
             <label
               htmlFor="order-notes"
@@ -163,8 +162,7 @@ export function CartScreen() {
           </section>
 
           <section
-            className="mt-7 flex flex-col gap-3 border-t border-border pt-5 naise-rise"
-            style={{ animationDelay: "240ms" }}
+            className="mt-7 flex flex-col gap-3 border-t border-border pt-5 naise-rise [animation-delay:240ms]"
           >
             <div className="flex items-baseline justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
@@ -194,8 +192,7 @@ export function CartScreen() {
           </section>
 
           <div
-            className="mt-6 pb-6 naise-rise"
-            style={{ animationDelay: "300ms" }}
+            className="mt-6 pb-6 naise-rise [animation-delay:300ms]"
           >
             <button
               type="button"

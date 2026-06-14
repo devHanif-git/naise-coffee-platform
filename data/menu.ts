@@ -77,6 +77,7 @@ const productList: Product[] = [
     image: images.coffeeWithLogo,
     sizes: size(1390),
     addons: coffeeAddons,
+    isBestSeller: true,
   },
   {
     id: "vanilla-latte",
@@ -87,6 +88,7 @@ const productList: Product[] = [
     image: images.coffeeWithLogo,
     sizes: size(1290),
     addons: coffeeAddons,
+    isBestSeller: true,
   },
   {
     id: "mocha",
@@ -154,6 +156,10 @@ export function getProduct(slug: string): Product | undefined {
 
 export function getProductsByCategory(category: Product["category"]): Product[] {
   return products.filter((p) => p.category === category);
+}
+
+export function getBestSellers(): Product[] {
+  return products.filter((p) => p.isBestSeller);
 }
 
 // Lowest price to show as the product's "from" price. Falls back to the flat

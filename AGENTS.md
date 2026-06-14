@@ -136,6 +136,19 @@ It is acceptable to step outside plain Tailwind utility classes for:
 - Global resets, font-face declarations, and CSS variables in `globals.css`.
 - Arbitrary one-off values where no token fits — use Tailwind arbitrary values (`w-[37px]`) rather than a new CSS file.
 
+Inline `style` is only for values computed at runtime. Static, hardcoded values must use Tailwind arbitrary values, not inline `style`.
+
+```tsx
+// NO — static value via inline style
+<div style={{ animationDelay: "60ms" }} />
+
+// YES — static value via Tailwind arbitrary value
+<div className="[animation-delay:60ms]" />
+
+// YES — genuinely dynamic value stays inline
+<div style={{ animationDelay: `${delay}ms` }} />
+```
+
 Everywhere else, use Tailwind utilities.
 
 ---

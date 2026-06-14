@@ -109,13 +109,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const newKey = buildKey(input.productId, input.sizeId, input.addonIds);
       const quantity = input.quantity ?? 1;
       // A merge happens when the edited options now match a *different* line.
-      const merged = items.some(
-        (i) => i.key === newKey && i.key !== oldKey,
-      );
+      let merged = false;
       setItems((prev) => {
         const collision = prev.find(
           (i) => i.key === newKey && i.key !== oldKey,
         );
+        merged = !!collision;
         if (collision) {
           // Fold the edited line into the matching one, then drop the original.
           return prev
@@ -133,7 +132,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       });
       return merged;
     },
-    [items],
+    [],
   );
 
   const incrementItem = useCallback((key: string) => {

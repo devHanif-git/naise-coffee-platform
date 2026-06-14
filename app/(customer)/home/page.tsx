@@ -1,14 +1,71 @@
 import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { getBestSellers } from "@/data/menu";
+import { images } from "@/constants/images";
+import { Button } from "@/components/ui/button";
+import { BestSellerCarousel } from "@/components/best-seller-carousel";
+import { RewardsBanner } from "@/components/rewards-banner";
+import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
-  title: "Home",
+  title: "Naise Coffee",
+  description:
+    "Order coffee, non-coffee, and matcha from Naise Coffee. Customize your drink, earn Beans, and check out over WhatsApp.",
+  openGraph: {
+    title: "Naise Coffee",
+    description:
+      "Order coffee, non-coffee, and matcha from Naise Coffee. Customize your drink, earn Beans, and check out over WhatsApp.",
+    type: "website",
+  },
 };
 
 export default function HomePage() {
+  const bestSellers = getBestSellers();
+
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-      <h1 className="font-heading text-2xl font-semibold">Home</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Coming soon.</p>
+    <main className="flex flex-1 flex-col">
+      {/* Full-bleed black hero: brand wordmark, tagline, primary CTA. */}
+      <section className="flex flex-col items-center bg-black px-6 pb-9 pt-8 text-white">
+        <Image
+          src={images.logoTransparent}
+          alt="Naise Coffee"
+          width={640}
+          height={640}
+          priority
+          className="naise-pop h-auto w-52 sm:w-56"
+        />
+
+        <p className="naise-rise [animation-delay:35ms] -mt-2 max-w-[17rem] text-balance text-center font-heading text-lg font-semibold leading-snug text-white/90">
+          Coffee first, everything else can wait.
+        </p>
+
+        <Button
+          asChild
+          size="lg"
+          className="naise-rise [animation-delay:55ms] mt-3.5 h-14 w-full rounded-full bg-white text-sm font-semibold uppercase tracking-[0.15em] text-black transition-transform hover:scale-[1.02] hover:bg-white active:scale-[0.99]"
+        >
+          <Link href="/menu">Browse Menu</Link>
+        </Button>
+      </section>
+
+      {/* White sheet that curves up over the hero (overlap card). The panel
+          stays static and only fades in — translating it would drag the sheet's
+          straight white edge up through the black hero and flash a flat white
+          box. Fading is position-free, so the curve resolves cleanly in place;
+          the upward motion comes from the content rising inside via Reveal. */}
+      <div className=" relative z-10 -mt-6 flex flex-col gap-7 rounded-t-[1.75rem] bg-background pb-8 pt-7">
+        {/* naise-fade [animation-delay:90ms] */}
+        {bestSellers.length > 0 && (
+          <Reveal>
+            <BestSellerCarousel products={bestSellers} />
+          </Reveal>
+        )}
+
+        <Reveal delay={80}>
+          <RewardsBanner />
+        </Reveal>
+      </div>
     </main>
   );
 }
