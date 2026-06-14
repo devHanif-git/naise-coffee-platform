@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,7 +11,6 @@ import {
   ChevronLeft,
   CreditCard,
   Loader2,
-  PartyPopper,
   QrCode,
   ShieldCheck,
   Smartphone,
@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
+import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
@@ -113,22 +114,38 @@ export function CheckoutScreen() {
   if (placedNumber) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center px-5 py-16 text-center">
-        <div className="flex size-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 naise-rise">
-          <PartyPopper className="size-8" strokeWidth={2} aria-hidden />
+        <div className="relative size-32 naise-pop sm:size-36">
+          <Image
+            src={images.celebration}
+            alt="A cup celebrating with confetti"
+            fill
+            sizes="(min-width: 640px) 144px, 128px"
+            className="object-contain"
+          />
         </div>
-        <h1 className="mt-5 font-heading text-2xl font-bold tracking-tight naise-rise [animation-delay:60ms]">
-          Order placed!
-        </h1>
-        <p className="mt-2 max-w-[18rem] text-sm leading-relaxed text-muted-foreground naise-rise [animation-delay:120ms]">
-          The store has been notified and is preparing your order. Your order
-          reference is below.
+        <p className="mt-4 text-[0.625rem] font-semibold uppercase tracking-[0.25em] text-muted-foreground naise-rise [animation-delay:60ms]">
+          Order Confirmed
         </p>
-        <span className="mt-5 rounded-2xl bg-neutral-100 px-5 py-2.5 font-heading text-lg font-bold tracking-tight tabular-nums naise-rise [animation-delay:180ms]">
-          {placedNumber}
-        </span>
+        <h1 className="mt-2 font-heading text-2xl font-bold tracking-tight naise-rise [animation-delay:120ms]">
+          You&rsquo;re all set!
+        </h1>
+        <p className="mt-2 max-w-[17rem] text-xs leading-relaxed text-muted-foreground naise-rise [animation-delay:180ms]">
+          The store has been notified and is brewing your order. Show this
+          reference when you collect it.
+        </p>
+
+        <div className="mt-6 inline-flex flex-col items-center rounded-2xl bg-black px-6 py-3 text-white naise-rise [animation-delay:240ms]">
+          <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+            Order Ref
+          </span>
+          <span className="mt-0.5 font-heading text-xl font-bold tracking-tight tabular-nums">
+            {placedNumber}
+          </span>
+        </div>
+
         <Link
           href="/menu"
-          className="mt-8 flex h-13 items-center justify-center rounded-2xl bg-black px-8 text-sm font-bold uppercase tracking-wider text-white transition-transform hover:scale-[1.02] active:scale-[0.98] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:240ms]"
+          className="mt-7 flex h-12 items-center justify-center rounded-2xl bg-black px-7 text-xs font-bold uppercase tracking-wider text-white transition-transform hover:scale-[1.02] active:scale-[0.98] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:300ms]"
         >
           Back to menu
         </Link>
@@ -137,28 +154,28 @@ export function CheckoutScreen() {
   }
 
   return (
-    <main className="flex flex-1 flex-col px-5 pt-6 pb-8">
+    <main className="flex flex-1 flex-col px-5 pt-5 pb-8">
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         <button
           type="button"
           onClick={() => router.push("/cart")}
           aria-label="Go back to cart"
-          className="flex size-9 items-center justify-center justify-self-start rounded-full -ml-1.5 text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-8 items-center justify-center justify-self-start rounded-full -ml-1.5 text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <ChevronLeft className="size-6" strokeWidth={2.5} aria-hidden />
+          <ChevronLeft className="size-5" strokeWidth={2.5} aria-hidden />
         </button>
-        <h1 className="font-heading text-lg font-bold uppercase tracking-tight">
+        <h1 className="font-heading text-base font-bold uppercase tracking-tight">
           Checkout
         </h1>
         <span aria-hidden />
       </header>
 
-      <section className="mt-6 flex flex-col gap-3 naise-rise">
-        <h2 className="text-xs font-bold uppercase tracking-wider">
+      <section className="mt-5 flex flex-col gap-2.5 naise-rise">
+        <h2 className="text-[0.6875rem] font-bold uppercase tracking-wider">
           Payment Method
         </h2>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2.5">
           {featured.map((method) => {
             const Icon = methodIcons[method.id];
             const active = selected === method.id;
@@ -169,16 +186,16 @@ export function CheckoutScreen() {
                 onClick={() => setSelected(method.id)}
                 aria-pressed={active}
                 className={cn(
-                  "relative flex flex-col items-start gap-2.5 rounded-2xl p-4 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "relative flex flex-col items-start gap-2 rounded-2xl p-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                   active
                     ? "bg-black text-white"
                     : "bg-neutral-100 text-foreground hover:bg-neutral-200",
                 )}
               >
                 {active && (
-                  <span className="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-white">
+                  <span className="absolute right-3 top-3 flex size-4 items-center justify-center rounded-full bg-white">
                     <Check
-                      className="size-3.5 text-black"
+                      className="size-3 text-black"
                       strokeWidth={3}
                       aria-hidden
                     />
@@ -186,17 +203,17 @@ export function CheckoutScreen() {
                 )}
                 <span
                   className={cn(
-                    "flex size-10 items-center justify-center rounded-xl transition-colors",
+                    "flex size-9 items-center justify-center rounded-xl transition-colors",
                     active ? "bg-white/15" : "bg-white",
                   )}
                 >
-                  <Icon className="size-5" strokeWidth={2} aria-hidden />
+                  <Icon className="size-4" strokeWidth={2} aria-hidden />
                 </span>
                 <span className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold">{method.name}</span>
+                  <span className="text-xs font-bold">{method.name}</span>
                   <span
                     className={cn(
-                      "text-xs leading-snug",
+                      "text-[0.6875rem] leading-snug",
                       active ? "text-neutral-300" : "text-muted-foreground",
                     )}
                   >
@@ -219,18 +236,18 @@ export function CheckoutScreen() {
                   onClick={() => setSelected(method.id)}
                   aria-pressed={active}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                     active
                       ? "border-black bg-neutral-50"
                       : "border-border bg-white hover:bg-neutral-50",
                   )}
                 >
-                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-neutral-100">
-                    <Icon className="size-5" strokeWidth={2} aria-hidden />
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100">
+                    <Icon className="size-4" strokeWidth={2} aria-hidden />
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-sm font-bold">{method.name}</span>
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="text-xs font-bold">{method.name}</span>
+                    <span className="truncate text-[0.6875rem] text-muted-foreground">
                       {method.description}
                     </span>
                   </div>
@@ -254,9 +271,9 @@ export function CheckoutScreen() {
       </section>
 
       <section
-        className="mt-7 flex flex-col gap-3 naise-rise [animation-delay:60ms]"
+        className="mt-6 flex flex-col gap-2.5 naise-rise [animation-delay:60ms]"
       >
-        <h2 className="text-xs font-bold uppercase tracking-wider">
+        <h2 className="text-[0.6875rem] font-bold uppercase tracking-wider">
           Order Summary
         </h2>
         <ul className="flex flex-col divide-y divide-border rounded-2xl bg-neutral-50 px-4">
@@ -268,15 +285,15 @@ export function CheckoutScreen() {
             return (
               <li
                 key={item.key}
-                className="flex items-center gap-3 py-3.5 text-sm"
+                className="flex items-center gap-3 py-3 text-xs"
               >
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-black text-xs font-bold tabular-nums text-white">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-black text-[0.6875rem] font-bold tabular-nums text-white">
                   {item.quantity}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-medium">{item.name}</span>
                   {subtitle && (
-                    <span className="truncate text-xs text-muted-foreground">
+                    <span className="truncate text-[0.6875rem] text-muted-foreground">
                       {subtitle}
                     </span>
                   )}
@@ -289,9 +306,9 @@ export function CheckoutScreen() {
           })}
         </ul>
         {notes.trim() && (
-          <div className="flex items-start gap-2 rounded-2xl bg-neutral-50 px-4 py-3 text-sm">
+          <div className="flex items-start gap-2 rounded-2xl bg-neutral-50 px-4 py-2.5 text-xs">
             <StickyNote
-              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+              className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
               strokeWidth={2}
               aria-hidden
             />
@@ -304,30 +321,30 @@ export function CheckoutScreen() {
       </section>
 
       <section
-        className="mt-7 flex flex-col gap-3 border-t border-border pt-5 naise-rise [animation-delay:120ms]"
+        className="mt-6 flex flex-col gap-3 border-t border-border pt-4 naise-rise [animation-delay:120ms]"
       >
-        <div className="flex items-baseline justify-between text-sm">
+        <div className="flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground">Subtotal</span>
           <span className="tabular-nums">{formatPrice(totalOriginal)}</span>
         </div>
         {hasSaving && (
-          <div className="flex items-baseline justify-between text-sm font-medium text-rose-600">
+          <div className="flex items-baseline justify-between text-xs font-medium text-rose-600">
             <span>Promo savings</span>
             <span className="tabular-nums">−{formatPrice(totalSaving)}</span>
           </div>
         )}
-        <div className="flex items-baseline justify-between text-sm">
+        <div className="flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground">Delivery/Pick-up</span>
           <span className="tabular-nums">{formatPrice(0)}</span>
         </div>
-        <div className="flex items-baseline justify-between text-base font-bold">
+        <div className="flex items-baseline justify-between text-sm font-bold">
           <span>Total</span>
           <span className="tabular-nums">{formatPrice(totalPrice)}</span>
         </div>
       </section>
 
       <p
-        className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground naise-rise [animation-delay:180ms]"
+        className="mt-4 flex items-center justify-center gap-1.5 text-[0.6875rem] text-muted-foreground naise-rise [animation-delay:180ms]"
       >
         <ShieldCheck className="size-3.5" strokeWidth={2} aria-hidden />
         Your order goes straight to the store once you place it.
@@ -336,10 +353,10 @@ export function CheckoutScreen() {
       {error && (
         <div
           role="alert"
-          className="mt-5 flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 naise-rise"
+          className="mt-4 flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-2.5 text-xs text-rose-700 naise-rise"
         >
           <TriangleAlert
-            className="mt-0.5 size-4 shrink-0"
+            className="mt-0.5 size-3.5 shrink-0"
             strokeWidth={2}
             aria-hidden
           />
@@ -351,21 +368,21 @@ export function CheckoutScreen() {
         type="button"
         onClick={placeOrder}
         disabled={submitting}
-        className="mt-5 flex h-14 w-full items-center justify-between rounded-2xl bg-black px-6 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 naise-rise [animation-delay:240ms]"
+        className="mt-4 flex h-12 w-full items-center justify-between rounded-2xl bg-black px-5 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 naise-rise [animation-delay:240ms]"
       >
         {submitting ? (
           <span className="flex w-full items-center justify-center gap-2">
-            <Loader2 className="size-5 animate-spin" strokeWidth={2.5} aria-hidden />
-            <span className="text-sm font-bold uppercase tracking-wider">
+            <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+            <span className="text-xs font-bold uppercase tracking-wider">
               Placing Order
             </span>
           </span>
         ) : (
           <>
-            <span className="text-sm font-bold uppercase tracking-wider">
+            <span className="text-xs font-bold uppercase tracking-wider">
               Place Order
             </span>
-            <span className="text-sm font-bold tabular-nums">
+            <span className="text-xs font-bold tabular-nums">
               {formatPrice(totalPrice)}
             </span>
           </>

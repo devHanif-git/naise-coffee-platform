@@ -102,15 +102,15 @@ export function ProductCustomizer({ product }: { product: Product }) {
 
   return (
     <>
-      <div className="flex flex-col gap-6 pb-32">
+      <div className="flex flex-col gap-5 pb-32">
         {hasSizes && (
           <section
-            className="flex flex-col gap-3 naise-rise [animation-delay:240ms]"
+            className="flex flex-col gap-2.5 naise-rise [animation-delay:240ms]"
           >
-            <h2 className="text-xs font-bold uppercase tracking-wider">
+            <h2 className="text-[0.6875rem] font-bold uppercase tracking-wider">
               Choose Size
             </h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2.5">
               {sizes.map((size) => {
                 const active = size.id === sizeId;
                 const sizePricing = applyDiscount(size.price, discount);
@@ -121,18 +121,18 @@ export function ProductCustomizer({ product }: { product: Product }) {
                     onClick={() => setSizeId(size.id)}
                     aria-pressed={active}
                     className={cn(
-                      "flex flex-col items-center gap-0.5 rounded-2xl px-4 py-3.5 text-center transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "flex flex-col items-center gap-0.5 rounded-2xl px-3 py-3 text-center transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       active
                         ? "bg-black text-white"
                         : "bg-neutral-100 text-foreground hover:bg-neutral-200",
                     )}
                   >
-                    <span className="text-base font-bold">{size.name}</span>
+                    <span className="text-sm font-bold">{size.name}</span>
                     {onSale ? (
                       <span className="flex items-center gap-1.5">
                         <span
                           className={cn(
-                            "text-sm font-semibold",
+                            "text-xs font-semibold",
                             active ? "text-rose-300" : "text-rose-600",
                           )}
                         >
@@ -140,7 +140,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
                         </span>
                         <span
                           className={cn(
-                            "text-xs line-through",
+                            "text-[0.6875rem] line-through",
                             active ? "text-neutral-400" : "text-muted-foreground",
                           )}
                         >
@@ -150,7 +150,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
                     ) : (
                       <span
                         className={cn(
-                          "text-sm",
+                          "text-xs",
                           active ? "text-neutral-300" : "text-muted-foreground",
                         )}
                       >
@@ -168,7 +168,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
           <section
             className="flex flex-col gap-1 naise-rise [animation-delay:300ms]"
           >
-            <h2 className="text-xs font-bold uppercase tracking-wider">
+            <h2 className="text-[0.6875rem] font-bold uppercase tracking-wider">
               Add-on{" "}
               <span className="font-normal normal-case tracking-normal text-muted-foreground">
                 (Choose up to {maxAddons})
@@ -185,11 +185,11 @@ export function ProductCustomizer({ product }: { product: Product }) {
                       onClick={() => toggleAddon(addon.id)}
                       disabled={disabled}
                       aria-pressed={checked}
-                      className="flex w-full items-center gap-3 py-3 text-left outline-none disabled:opacity-40 focus-visible:[&>span:first-child]:ring-3 focus-visible:[&>span:first-child]:ring-ring/50"
+                      className="flex w-full items-center gap-3 py-2.5 text-left outline-none disabled:opacity-40 focus-visible:[&>span:first-child]:ring-3 focus-visible:[&>span:first-child]:ring-ring/50"
                     >
                       <span
                         className={cn(
-                          "flex size-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+                          "flex size-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
                           checked
                             ? "border-black bg-black text-white"
                             : "border-neutral-300 bg-white",
@@ -197,16 +197,16 @@ export function ProductCustomizer({ product }: { product: Product }) {
                       >
                         {checked && (
                           <Check
-                            className="size-4"
+                            className="size-3.5"
                             strokeWidth={3}
                             aria-hidden
                           />
                         )}
                       </span>
-                      <span className="flex-1 text-sm font-medium">
+                      <span className="flex-1 text-xs font-medium">
                         {addon.name}
                       </span>
-                      <span className="text-sm font-medium text-muted-foreground">
+                      <span className="text-xs font-medium text-muted-foreground">
                         {formatPrice(addon.price)}
                       </span>
                     </button>
@@ -222,18 +222,18 @@ export function ProductCustomizer({ product }: { product: Product }) {
         className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 py-3 naise-fade [animation-delay:360ms]"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-14 items-center gap-1 rounded-full bg-neutral-100 p-1">
+          <div className="flex h-12 items-center gap-1 rounded-full bg-neutral-100 p-1">
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
               disabled={quantity <= 1}
               aria-label="Decrease quantity"
-              className="flex size-12 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Minus className="size-4" strokeWidth={2.5} aria-hidden />
             </button>
             <span
-              className="w-7 text-center text-lg font-bold tabular-nums"
+              className="w-6 text-center text-base font-bold tabular-nums"
               aria-live="polite"
             >
               {quantity}
@@ -242,7 +242,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
               type="button"
               onClick={() => setQuantity((q) => q + 1)}
               aria-label="Increase quantity"
-              className="flex size-12 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <Plus className="size-4" strokeWidth={2.5} aria-hidden />
             </button>
@@ -251,22 +251,22 @@ export function ProductCustomizer({ product }: { product: Product }) {
           <button
             type="button"
             onClick={addToCart}
-            className="flex h-14 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex h-12 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <span className="text-sm font-bold uppercase tracking-wider">
+            <span className="text-xs font-bold uppercase tracking-wider">
               {isEditing ? "Update Cart" : "Add to Cart"}
             </span>
             {onSale ? (
               <span className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-white">
+                <span className="text-xs font-semibold text-white">
                   {formatPrice(total)}
                 </span>
-                <span className="text-sm text-neutral-400 line-through">
+                <span className="text-xs text-neutral-400 line-through">
                   {formatPrice(totalOriginal)}
                 </span>
               </span>
             ) : (
-              <span className="text-sm font-medium text-neutral-300">
+              <span className="text-xs font-medium text-neutral-300">
                 {formatPrice(total)}
               </span>
             )}

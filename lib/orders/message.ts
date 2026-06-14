@@ -4,7 +4,15 @@ import type { Order } from "@/types/order";
 // Builds the plain-text message posted to the team's Telegram group. Kept
 // simple and readable so handoff stays systematic; the manage link is the
 // entry point to full order detail.
-export function buildOrderMessage(order: Order, manageUrl: string): string {
+//
+// When the manage link is delivered as a tappable inline button (production),
+// pass includeLink=false to keep the body clean. Locally, where Telegram
+// rejects localhost button URLs, pass true to fall back to a raw-text link.
+export function buildOrderMessage(
+  order: Order,
+  manageUrl: string,
+  includeLink = true,
+): string {
   const itemLines = order.items.map((item) => {
     const options = [item.sizeName, ...item.addonNames]
       .filter(Boolean)
@@ -29,9 +37,9 @@ export function buildOrderMessage(order: Order, manageUrl: string): string {
     parts.push("", `Note: ${order.notes.trim()}`);
   }
 
-  // Remove the <a> tags and just put the raw URL on its own line
-  parts.push("", `🔗 Manage Order:`);
-  parts.push(manageUrl);
+  if (includeLink) {
+    parts.push("", "🔗 Manage Order:", manageUrl);
+  }
 
   return parts.join("\n");
 }

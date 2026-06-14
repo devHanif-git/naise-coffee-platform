@@ -44,6 +44,7 @@ export async function placeOrder(
     addonNames: item.addonNames,
     unitPrice: item.unitPrice,
     lineTotal: item.unitPrice * item.quantity,
+    status: "pending",
   }));
 
   const order = createOrder({
@@ -56,10 +57,20 @@ export async function placeOrder(
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const manageUrl = `${baseUrl}/manage/${order.token}`;
-  const message = buildOrderMessage(order, manageUrl);
+
+  // Telegram inline buttons require a publicly reachable https URL — it rejects
+  // localhost/private hosts. Use a tappable button when we can, and fall back
+  // to a raw-text link in the body (e.g. local dev) otherwise.
+  const canUseButton = /^https:\/\//i.test(manageUrl) && !isLocalUrl(manageUrl);
+  const message = buildOrderMessage(order, manageUrl, !canUseButton);
 
   try {
-    await sendTelegramMessage(message);
+    await sendTelegramMessage(
+      message,
+      canUseButton
+        ? { buttons: [[{ text: "📋 Manage Order", url: manageUrl }]] }
+        : {},
+    );
   } catch (err) {
     // The order is created either way; surface a clear failure so the customer
     // can retry or fall back to WhatsApp rather than silently dropping it.
@@ -68,4 +79,21 @@ export async function placeOrder(
   }
 
   return { ok: true, orderNumber: order.orderNumber };
+}
+
+// True for hosts Telegram won't accept in an inline button URL (localhost and
+// private/loopback addresses). Keeps local dev working via the text fallback.
+function isLocalUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname;
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host === "::1" ||
+      host.endsWith(".local")
+    );
+  } catch {
+    return true;
+  }
 }
