@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Apple,
@@ -8,10 +9,13 @@ import {
   Check,
   ChevronLeft,
   CreditCard,
+  Loader2,
+  PartyPopper,
   QrCode,
   ShieldCheck,
   Smartphone,
   StickyNote,
+  TriangleAlert,
   Wallet,
   Zap,
   type LucideIcon,
@@ -21,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
 import type { PaymentMethodId } from "@/types/payment";
+import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
 // wallets use a representative lucide glyph (no official logos shipped yet);
@@ -38,30 +43,97 @@ const methodIcons: Record<PaymentMethodId, LucideIcon> = {
 
 export function CheckoutScreen() {
   const router = useRouter();
-  const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes } =
+  const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
   const [selected, setSelected] =
     useState<PaymentMethodId>(defaultPaymentMethodId);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Set once the order is placed; switches the screen to the confirmation view.
+  const [placedNumber, setPlacedNumber] = useState<string | null>(null);
 
   const hasItems = items.length > 0;
 
   // Nothing to check out: once the persisted cart has loaded and is empty,
   // send the customer back to the cart rather than showing a dead screen.
+  // Skipped after a successful order — the cart is intentionally cleared then
+  // and the confirmation view takes over.
   useEffect(() => {
-    if (hydrated && !hasItems) router.replace("/cart");
-  }, [hydrated, hasItems, router]);
+    if (hydrated && !hasItems && !placedNumber) router.replace("/cart");
+  }, [hydrated, hasItems, placedNumber, router]);
 
   // Avoid a flash of the empty/redirecting state before localStorage loads.
-  if (!hydrated || !hasItems) return null;
+  if (!placedNumber && (!hydrated || !hasItems)) return null;
 
   const featured = paymentMethods.filter((m) => m.featured);
   const others = paymentMethods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
 
-  function placeOrder() {
-    // TODO: wire payment gateway for the selected method (`selected`), persist
-    // the order to Supabase, then hand off to WhatsApp with the order summary.
-    // Intentionally a no-op until the payment API integration lands.
+  async function placeOrder() {
+    // Only Cash is wired end to end for now: it creates the order and notifies
+    // the store over Telegram. Other methods await their payment integration.
+    if (selected !== "cash") {
+      setError("This payment method isn't available yet. Please choose Cash.");
+      return;
+    }
+
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await placeOrderAction({
+        items: items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          sizeName: item.sizeName,
+          addonNames: item.addonNames,
+          unitPrice: item.unitPrice,
+        })),
+        paymentMethod: "Cash",
+        notes,
+        subtotal: totalOriginal,
+        total: totalPrice,
+      });
+
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      // Order is in and the store has been notified. Clear the cart and show
+      // the confirmation; reading placedNumber keeps the success view mounted.
+      setPlacedNumber(result.orderNumber);
+      clear();
+    } catch {
+      setError("Something went wrong placing your order. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (placedNumber) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center px-5 py-16 text-center">
+        <div className="flex size-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 naise-rise">
+          <PartyPopper className="size-8" strokeWidth={2} aria-hidden />
+        </div>
+        <h1 className="mt-5 font-heading text-2xl font-bold tracking-tight naise-rise [animation-delay:60ms]">
+          Order placed!
+        </h1>
+        <p className="mt-2 max-w-[18rem] text-sm leading-relaxed text-muted-foreground naise-rise [animation-delay:120ms]">
+          The store has been notified and is preparing your order. Your order
+          reference is below.
+        </p>
+        <span className="mt-5 rounded-2xl bg-neutral-100 px-5 py-2.5 font-heading text-lg font-bold tracking-tight tabular-nums naise-rise [animation-delay:180ms]">
+          {placedNumber}
+        </span>
+        <Link
+          href="/menu"
+          className="mt-8 flex h-13 items-center justify-center rounded-2xl bg-black px-8 text-sm font-bold uppercase tracking-wider text-white transition-transform hover:scale-[1.02] active:scale-[0.98] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:240ms]"
+        >
+          Back to menu
+        </Link>
+      </main>
+    );
   }
 
   return (
@@ -258,20 +330,46 @@ export function CheckoutScreen() {
         className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground naise-rise [animation-delay:180ms]"
       >
         <ShieldCheck className="size-3.5" strokeWidth={2} aria-hidden />
-        Your order is confirmed over WhatsApp after payment.
+        Your order goes straight to the store once you place it.
       </p>
+
+      {error && (
+        <div
+          role="alert"
+          className="mt-5 flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 naise-rise"
+        >
+          <TriangleAlert
+            className="mt-0.5 size-4 shrink-0"
+            strokeWidth={2}
+            aria-hidden
+          />
+          <p className="min-w-0 flex-1">{error}</p>
+        </div>
+      )}
 
       <button
         type="button"
         onClick={placeOrder}
-        className="mt-5 flex h-14 w-full items-center justify-between rounded-2xl bg-black px-6 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:240ms]"
+        disabled={submitting}
+        className="mt-5 flex h-14 w-full items-center justify-between rounded-2xl bg-black px-6 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 naise-rise [animation-delay:240ms]"
       >
-        <span className="text-sm font-bold uppercase tracking-wider">
-          Place Order
-        </span>
-        <span className="text-sm font-bold tabular-nums">
-          {formatPrice(totalPrice)}
-        </span>
+        {submitting ? (
+          <span className="flex w-full items-center justify-center gap-2">
+            <Loader2 className="size-5 animate-spin" strokeWidth={2.5} aria-hidden />
+            <span className="text-sm font-bold uppercase tracking-wider">
+              Placing Order
+            </span>
+          </span>
+        ) : (
+          <>
+            <span className="text-sm font-bold uppercase tracking-wider">
+              Place Order
+            </span>
+            <span className="text-sm font-bold tabular-nums">
+              {formatPrice(totalPrice)}
+            </span>
+          </>
+        )}
       </button>
     </main>
   );

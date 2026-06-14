@@ -73,7 +73,7 @@ export function BestSellerCarousel({ products }: { products: Product[] }) {
                     className="absolute left-2 top-2 z-10 size-24 -rotate-[25deg] rounded-full object-contain drop-shadow-sm"
                   />
                   {onSale && (
-                    <span className="absolute right-3 top-3 z-10 inline-flex rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-background">
+                    <span className="absolute right-4 top-4 z-10 inline-flex rounded-full bg-rose-600 px-4 py-1.5 text-base font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-background">
                       {pricing.percentOff}% Off
                     </span>
                   )}
