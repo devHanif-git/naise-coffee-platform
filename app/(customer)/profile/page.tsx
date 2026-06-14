@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
+export const runtime = 'edge';
+
 export const metadata: Metadata = {
   title: "Profile",
 };
