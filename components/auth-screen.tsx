@@ -47,7 +47,11 @@ export function AuthScreen() {
   // Where to land after sign-in. Defaults to Home; the profile/checkout entry
   // points pass ?redirect=… so the customer returns to where they were (with
   // their cart intact — it lives in localStorage, untouched by auth).
-  const redirect = params.get("redirect") || "/home";
+  const rawRedirect = params.get("redirect") || "/home";
+  const redirect =
+    rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/home";
 
   // Phone flow is two steps: enter number, then the 6-digit OTP. `null` = the
   // method chooser is showing; "phone" = the number/OTP form.
@@ -57,7 +61,10 @@ export function AuthScreen() {
   const [otp, setOtp] = useState("");
   const [pending, setPending] = useState<"google" | "phone" | null>(null);
 
-  function finish(method: "google" | "phone", extra: Parameters<typeof signIn>[0]) {
+  function finish(
+    method: "google" | "phone",
+    extra: Parameters<typeof signIn>[0],
+  ) {
     setPending(method);
     // Simulate the round-trip to the provider so the mock feels real.
     setTimeout(() => {
@@ -82,7 +89,7 @@ export function AuthScreen() {
 
   function onVerifyOtp(e: React.FormEvent) {
     e.preventDefault();
-    if (otp.trim().length < 4) return;
+    if (otp.trim().length !== 6) return;
     finish("phone", { method: "phone", phone: phone.trim() });
   }
 
@@ -149,7 +156,11 @@ export function AuthScreen() {
               className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border bg-white text-sm font-semibold text-foreground outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {pending === "google" ? (
-                <Loader2 className="size-5 animate-spin" strokeWidth={2.5} aria-hidden />
+                <Loader2
+                  className="size-5 animate-spin"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
               ) : (
                 <GoogleIcon className="size-5" />
               )}
@@ -189,7 +200,9 @@ export function AuthScreen() {
                   inputMode="numeric"
                   autoComplete="tel-national"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/[^\d]/g, ""))}
+                  onChange={(e) =>
+                    setPhone(e.target.value.replace(/[^\d]/g, ""))
+                  }
                   placeholder="12 345 6789"
                   className="h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
@@ -229,7 +242,11 @@ export function AuthScreen() {
               className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {pending === "phone" ? (
-                <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+                <Loader2
+                  className="size-4 animate-spin"
+                  strokeWidth={2.5}
+                  aria-hidden
+                />
               ) : otpSent ? (
                 "Verify & continue"
               ) : (

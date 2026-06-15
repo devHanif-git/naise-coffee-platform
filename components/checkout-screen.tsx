@@ -115,6 +115,7 @@ export function CheckoutScreen() {
   // Place Order entry point. Guests see the nudge first; from there they sign
   // in or continue (which calls placeOrder directly). Members place straight.
   function onPlaceOrder() {
+    if (submitting) return;
     if (!isAuthenticated) {
       setShowGuestModal(true);
       return;
@@ -130,6 +131,7 @@ export function CheckoutScreen() {
   const totalRewardCost = redeemedRewards.reduce((sum, r) => sum + r.cost, 0);
 
   async function placeOrder() {
+    if (submitting) return;
     // Cash is members-only (pay-at-counter); a guest should never reach here
     // with it selected, but guard server-side intent anyway.
     const method = paymentMethods.find((m) => m.id === selected);
