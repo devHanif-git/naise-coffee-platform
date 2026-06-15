@@ -56,14 +56,14 @@ export function MenuBrowser({
             <Link
               href="/"
               aria-label="Go back"
-              className="flex size-8 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+              className="flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
             >
-              <ChevronLeft className="size-5" />
+              <ChevronLeft className="size-6" />
             </Link>
-            <h1 className="font-heading text-base font-semibold tracking-[0.25em]">
+            <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
               MENU
             </h1>
-            <div className="size-8" aria-hidden />
+            <div className="size-9" aria-hidden />
           </div>
 
           <div className="relative mt-3">

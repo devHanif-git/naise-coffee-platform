@@ -1,0 +1,113 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ChevronLeft, Camera } from "lucide-react";
+import { useProfile } from "@/store/profile";
+import { ProfileAvatar } from "@/components/profile-avatar";
+
+// Edit Profile — photo and display name only (security lives in Settings).
+// Writes to the localStorage-backed profile store, then returns to /profile.
+export function ProfileEditScreen() {
+  const router = useRouter();
+  const { profile, updateProfile } = useProfile();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [displayName, setDisplayName] = useState(profile.displayName);
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl);
+
+  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAvatarUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    updateProfile({ displayName: displayName.trim() || profile.displayName, avatarUrl });
+    router.push("/profile");
+  }
+
+  return (
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
+        <Link
+          href="/profile"
+          aria-label="Back to profile"
+          className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <ChevronLeft className="size-6" aria-hidden />
+        </Link>
+        <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
+          Edit Profile
+        </h1>
+        <div className="size-9" aria-hidden />
+      </header>
+
+      <form onSubmit={onSave} className="flex flex-col gap-7 px-5 pb-8 pt-2">
+        {/* Avatar with change-photo control. */}
+        <section className="flex flex-col items-center gap-3 naise-rise">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            aria-label="Change photo"
+            className="relative rounded-full outline-none transition-transform hover:scale-[1.02] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <ProfileAvatar
+              name={displayName}
+              avatarUrl={avatarUrl}
+              size={104}
+              className="text-3xl"
+            />
+            <span className="absolute bottom-0 right-0 flex size-8 items-center justify-center rounded-full border-2 border-background bg-black text-white">
+              <Camera className="size-4" strokeWidth={2} aria-hidden />
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="text-xs font-semibold text-foreground underline-offset-2 hover:underline"
+          >
+            Change photo
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={onPickPhoto}
+            className="hidden"
+          />
+        </section>
+
+        {/* Display name. */}
+        <section className="flex flex-col gap-2 naise-rise [animation-delay:80ms]">
+          <label
+            htmlFor="displayName"
+            className="text-xs font-bold uppercase tracking-wide text-muted-foreground"
+          >
+            Display Name
+          </label>
+          <input
+            id="displayName"
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            maxLength={40}
+            placeholder="Your name"
+            className="h-12 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          />
+        </section>
+
+        <button
+          type="submit"
+          className="mt-1 flex h-12 w-full items-center justify-center rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:140ms]"
+        >
+          Save Changes
+        </button>
+      </form>
+    </div>
+  );
+}

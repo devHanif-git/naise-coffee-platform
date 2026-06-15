@@ -43,11 +43,15 @@ export type Order = {
   proofOfPaymentUrl?: string;
   // ISO timestamp.
   createdAt: string;
+  // ISO timestamp set when every drink is done and the order flips to
+  // completed; cleared if a drink is re-opened. Absent until then. Maps to
+  // orders.completed_at in Supabase later.
+  completedAt?: string;
 };
 
 // The fields a caller supplies when placing an order. The store fills in the
-// token, order number, status, and timestamp.
+// token, order number, status, and timestamps.
 export type OrderDraft = Omit<
   Order,
-  "token" | "orderNumber" | "status" | "createdAt"
+  "token" | "orderNumber" | "status" | "createdAt" | "completedAt"
 >;

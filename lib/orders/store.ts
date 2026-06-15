@@ -80,10 +80,17 @@ export function setItemStatus(
   const items = order.items.map((item, i) =>
     i === itemIndex ? { ...item, status } : item,
   );
+  const derived = deriveOrderStatus(items);
   const updated: Order = {
     ...order,
     items,
-    status: deriveOrderStatus(items),
+    status: derived,
+    // Stamp the completion time when the order first flips to completed; clear
+    // it if a drink is re-opened and the order is no longer done.
+    completedAt:
+      derived === "completed"
+        ? (order.completedAt ?? new Date().toISOString())
+        : undefined,
   };
   store.orders.set(token, updated);
   return updated;
@@ -193,6 +200,7 @@ function seedStore(): OrderStore {
       status: "completed",
       paymentMethod: "Cash",
       createdAt: minutesAgo(24),
+      completedAt: minutesAgo(18),
       items: [
         {
           name: "Matcha Latte",

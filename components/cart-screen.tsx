@@ -76,11 +76,11 @@ export function CartScreen() {
           type="button"
           onClick={() => router.push("/menu")}
           aria-label="Go back"
-          className="flex size-8 items-center justify-center justify-self-start rounded-full -ml-1.5 text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-9 items-center justify-center justify-self-start rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <ChevronLeft className="size-5" strokeWidth={2.5} aria-hidden />
+          <ChevronLeft className="size-6" aria-hidden />
         </button>
-        <h1 className="font-heading text-base font-bold uppercase tracking-tight">
+        <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
           Your Cart
         </h1>
         {hasItems ? (
@@ -104,7 +104,7 @@ export function CartScreen() {
               alt=""
               fill
               sizes="128px"
-              className="object-contain p-3"
+              className="object-contain p-8"
             />
           </div>
           <div className="flex flex-col gap-1.5">

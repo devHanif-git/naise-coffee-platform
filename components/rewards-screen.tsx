@@ -14,11 +14,18 @@ import {
   Minus,
 } from "lucide-react";
 import type { RewardsSummary } from "@/types/reward";
-import { rewardTiers, RECENT_ACTIVITY_LIMIT } from "@/data/rewards";
+import { rewardTiers, getTierProgress, RECENT_ACTIVITY_LIMIT } from "@/data/rewards";
 import { RewardsInfoModal } from "@/components/rewards-info-modal";
 import { RewardsTiersModal } from "@/components/rewards-tiers-modal";
+import { RewardsReferralModal } from "@/components/rewards-referral-modal";
+import { useStreak } from "@/hooks/use-streak";
+import { useBeans } from "@/store/beans";
 import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
+
+// Dev-only streak controls (advance day / reset) are gated to non-production so
+// they never ship to customers.
+const SHOW_STREAK_DEV_CONTROLS = process.env.NODE_ENV !== "production";
 
 // The full Rewards screen. Client component because it owns the info-modal
 // state and the "?" trigger. Data is passed in (mocked today, server-fetched
@@ -27,12 +34,37 @@ import { cn } from "@/lib/utils";
 export function RewardsScreen({ data }: { data: RewardsSummary }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
   const rewardsRef = useRef<HTMLElement>(null);
+  const streak = useStreak();
+  const beansStore = useBeans();
 
-  const toDrink = Math.max(0, data.nextDrinkAt - data.beans);
-  const drinkPct = Math.min(100, Math.round((data.beans / data.nextDrinkAt) * 100));
-  const tierPct = Math.min(100, Math.round((data.beans / data.tierMax) * 100));
-  const toNextTier = Math.max(0, data.tierMax - data.beans);
+  // Until the persisted stores load from localStorage, render the server-
+  // provided mock values so the first client render matches the server HTML (no
+  // hydration mismatch). Once hydrated, the live, persisted values take over.
+  const streakDays = streak.hydrated ? streak.streakDays : data.streakDays;
+  const week = streak.hydrated ? streak.week : data.week;
+  const beans = beansStore.hydrated ? beansStore.balance : data.beans;
+  const activity = beansStore.hydrated ? beansStore.activity : data.activity;
+
+  // "Free drink" is a recurring goal, not a one-time target: a free drink costs
+  // the cheapest reward's Beans, so the goal cycles every `drinkCost` Beans.
+  // This keeps the hero meaningful past the first drink — progress shows where
+  // you are within the current lap, and the target rolls forward each time you
+  // cross it. Falls back to the mock nextDrinkAt if there are no rewards.
+  const drinkCost =
+    data.rewards.length > 0
+      ? Math.min(...data.rewards.map((r) => r.cost))
+      : data.nextDrinkAt;
+  const earnedDrinks = drinkCost > 0 ? Math.floor(beans / drinkCost) : 0;
+  const drinkTarget = (earnedDrinks + 1) * drinkCost;
+  const toDrink = Math.max(0, drinkTarget - beans);
+  const drinkPct =
+    drinkCost > 0 ? Math.round(((beans % drinkCost) / drinkCost) * 100) : 0;
+  // Tier standing derived from the live balance against rewardTiers, so this
+  // screen and the tiers modal always show the same current tier (the static
+  // data.tier/nextTier/tierMax were drifting out of sync once beans changed).
+  const tier = getTierProgress(beans);
 
   return (
     <div className="flex flex-col">
@@ -46,7 +78,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
         >
           <ChevronLeft className="size-6" aria-hidden />
         </Link>
-        <h1 className="font-heading text-sm font-bold uppercase tracking-[0.25em]">
+        <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
           Rewards
         </h1>
         <button
@@ -65,7 +97,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
             content sits in a constrained left column so nothing overlaps it. */}
         <section
           aria-labelledby="beans-balance"
-          className="relative overflow-hidden rounded-[1.75rem] bg-black px-6 py-7 text-white"
+          className="relative overflow-hidden rounded-[1.75rem] bg-black px-6 py-7 text-white naise-rise"
         >
           <Image
             src={images.latteArt}
@@ -73,7 +105,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
             width={320}
             height={320}
             aria-hidden
-            className="pointer-events-none absolute -bottom-2 -right-4 z-0 h-auto w-40 object-contain sm:w-48"
+            className="pointer-events-none absolute -bottom-6 -right-10 z-0 h-auto w-40 object-contain sm:w-44"
           />
 
           <div className="relative z-10 flex max-w-[60%] flex-col">
@@ -84,17 +116,29 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               id="beans-balance"
               className="mt-2 font-heading text-6xl font-bold leading-none tracking-tight tabular-nums"
             >
-              {data.beans.toLocaleString()}
+              {beans.toLocaleString()}
               <span className="ml-2 align-baseline text-lg font-medium text-white/80">
                 Beans
               </span>
             </p>
             <p className="mt-3 text-[0.8125rem] leading-snug text-white/70">
+              {earnedDrinks > 0 && (
+                <>
+                  <span className="font-heading font-bold uppercase tracking-wide text-white">
+                    Free Drink
+                  </span>{" "}
+                  unlocked!{" "}
+                </>
+              )}
               <span className="font-semibold text-white">{toDrink.toLocaleString()}</span>{" "}
               more Beans to your{" "}
-              <span className="font-heading font-bold uppercase tracking-wide text-white">
-                Free Drink
-              </span>
+              {earnedDrinks > 0 ? (
+                "next one"
+              ) : (
+                <span className="font-heading font-bold uppercase tracking-wide text-white">
+                  Free Drink
+                </span>
+              )}
             </p>
 
             <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-white/15">
@@ -104,8 +148,8 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               />
             </div>
             <div className="mt-2 flex justify-between text-[0.6875rem] font-medium text-white/55 tabular-nums">
-              <span>{data.beans.toLocaleString()}</span>
-              <span>{data.nextDrinkAt.toLocaleString()}</span>
+              <span>{beans.toLocaleString()}</span>
+              <span>{drinkTarget.toLocaleString()}</span>
             </div>
 
             <button
@@ -125,17 +169,19 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
         </section>
 
         {/* Streak + Tier summary row. */}
-        <section className="grid grid-cols-2">
+        <section className="grid grid-cols-2 naise-rise [animation-delay:80ms]">
           <div className="min-w-0 pr-5">
             <p className="flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
               <Flame className="size-4 text-foreground" strokeWidth={2.5} aria-hidden />
               Your Streak
             </p>
             <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
-              {data.streakDays} <span className="font-medium">Days</span>
+              {streakDays} <span className="font-medium">Days</span>
             </p>
             <p className="mt-1 text-xs leading-snug text-muted-foreground">
-              Buy coffee tomorrow to keep your streak alive.
+              {streak.checkedInToday
+                ? "Checked in today. Come back tomorrow to keep it alive."
+                : "Buy coffee today to keep your streak alive."}
             </p>
           </div>
 
@@ -144,19 +190,21 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               Your Tier
             </p>
             <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
-              {data.tier}
+              {tier.current.name}
             </p>
             <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-              {data.beans.toLocaleString()} / {data.tierMax.toLocaleString()} Beans
+              {tier.isMaxTier
+                ? `${beans.toLocaleString()} Beans · Top tier`
+                : `${beans.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
             </p>
           </div>
         </section>
 
         {/* Weekly stamp card — earned days are filled checks, upcoming are
             dashed outlines. */}
-        <section aria-label="Weekly streak" className="-mt-3">
+        <section aria-label="Weekly streak" className="-mt-3 naise-rise [animation-delay:140ms]">
           <ul className="flex justify-between">
-            {data.week.map((day) => (
+            {week.map((day) => (
               <li key={day.label} className="flex flex-col items-center gap-1.5">
                 <span
                   className={cn(
@@ -196,18 +244,51 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               </div>
             ))}
           </div>
+
+          {SHOW_STREAK_DEV_CONTROLS && (
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={streak.devAdvanceDay}
+                className="flex-1 rounded-full border border-dashed border-neutral-300 py-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Dev: Skip a day
+              </button>
+              <button
+                type="button"
+                onClick={streak.devReset}
+                className="flex-1 rounded-full border border-dashed border-neutral-300 py-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Dev: Reset streak
+              </button>
+            </div>
+          )}
         </section>
 
         {/* Tier progress + tiers CTA. */}
-        <section aria-label="Tier progress" className="-mt-3">
+        <section aria-label="Tier progress" className="-mt-3 naise-rise [animation-delay:200ms]">
           <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
             <div
               className="h-full rounded-full bg-black transition-[width] duration-500"
-              style={{ width: `${tierPct}%` }}
+              style={{ width: `${tier.progressPct}%` }}
             />
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            You&apos;re {toNextTier.toLocaleString()} Beans away from {data.nextTier} tier.
+            {tier.isMaxTier ? (
+              <>
+                You&apos;ve reached{" "}
+                <span className="font-semibold text-foreground">
+                  {tier.current.name}
+                </span>
+                , our top tier. Enjoy every perk — keep earning Beans for free
+                drinks.
+              </>
+            ) : (
+              <>
+                You&apos;re {tier.toNext.toLocaleString()} Beans away from{" "}
+                {tier.next!.name} tier.
+              </>
+            )}
           </p>
           <button
             type="button"
@@ -223,7 +304,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
           ref={rewardsRef}
           aria-labelledby="available-rewards"
           id="available-rewards"
-          className="scroll-mt-20"
+          className="scroll-mt-20 naise-rise [animation-delay:260ms]"
         >
           <div className="flex items-center justify-between">
             <h2
@@ -243,7 +324,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
 
           <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {data.rewards.map((reward) => {
-              const affordable = data.beans >= reward.cost;
+              const affordable = beans >= reward.cost;
               return (
                 <li
                   key={reward.id}
@@ -263,13 +344,22 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
                     <p className="mt-0.5 text-[0.6875rem] text-muted-foreground tabular-nums">
                       {reward.cost.toLocaleString()} Beans
                     </p>
-                    <button
-                      type="button"
-                      disabled={!affordable}
-                      className="mt-2.5 h-8 w-full rounded-full bg-black text-[0.6875rem] font-semibold uppercase tracking-wide text-white outline-none transition-transform hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
-                    >
-                      Redeem
-                    </button>
+                    {affordable ? (
+                      <Link
+                        href={`/menu/${reward.productSlug}?reward=${reward.id}`}
+                        className="mt-2.5 flex h-8 w-full items-center justify-center rounded-full bg-black text-[0.6875rem] font-semibold uppercase tracking-wide text-white outline-none transition-transform hover:scale-[1.02] active:scale-[0.98] focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        Redeem
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-2.5 h-8 w-full rounded-full bg-black text-[0.6875rem] font-semibold uppercase tracking-wide text-white outline-none cursor-not-allowed opacity-40"
+                      >
+                        Redeem
+                      </button>
+                    )}
                   </div>
                 </li>
               );
@@ -278,7 +368,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
         </section>
 
         {/* Invite friends. */}
-        <section aria-labelledby="invite-heading">
+        <section aria-labelledby="invite-heading" className="naise-rise [animation-delay:320ms]">
           <div className="relative overflow-hidden rounded-[1.5rem] bg-black px-5 py-6 text-white">
             <Image
               src={images.celebration}
@@ -304,6 +394,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               </p>
               <button
                 type="button"
+                onClick={() => setReferralOpen(true)}
                 className="mt-4 h-10 rounded-full bg-white px-5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-black outline-none transition-transform hover:scale-[1.02] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-white/40"
               >
                 Share Referral
@@ -316,7 +407,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
         <section
           id="activity"
           aria-labelledby="activity-heading"
-          className="scroll-mt-20"
+          className="scroll-mt-20 naise-rise [animation-delay:380ms]"
         >
           <div className="flex items-center justify-between">
             <h2
@@ -335,7 +426,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
           </div>
 
           <ul className="mt-3 flex flex-col divide-y divide-border rounded-2xl border border-border">
-            {data.activity.slice(0, RECENT_ACTIVITY_LIMIT).map((item) => {
+            {activity.slice(0, RECENT_ACTIVITY_LIMIT).map((item) => {
               const earned = item.amount > 0;
               return (
                 <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
@@ -373,9 +464,12 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
       {tiersOpen && (
         <RewardsTiersModal
           tiers={rewardTiers}
-          beans={data.beans}
+          beans={beans}
           onClose={() => setTiersOpen(false)}
         />
+      )}
+      {referralOpen && (
+        <RewardsReferralModal onClose={() => setReferralOpen(false)} />
       )}
     </div>
   );
