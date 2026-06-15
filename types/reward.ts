@@ -7,6 +7,9 @@ export type Reward = {
   name: string;
   cost: number;
   image: string;
+  // The menu item this reward grants for free. Redeeming opens this product so
+  // the customer can pick size/add-ons; the base drink is then free.
+  productSlug: string;
 };
 
 // A loyalty tier. `threshold` is the Bean total that unlocks the tier; `perk`
@@ -24,10 +27,13 @@ export type StreakDay = {
   done: boolean;
 };
 
-// A streak milestone reward (e.g. 3 days = 50 Beans).
+// A streak milestone reward (e.g. 3 days = 50 Beans). `reward` is the display
+// label; `beans` is the amount credited when the streak reaches `days`. The
+// 30-day "Free Drink" is delivered as Beans equal to the cheapest reward.
 export type StreakMilestone = {
   days: number;
   reward: string;
+  beans: number;
 };
 
 // A single line in the recent Bean activity feed. Positive `amount` is earned,

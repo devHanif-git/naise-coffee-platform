@@ -10,7 +10,9 @@ import {
   Check,
   ChevronLeft,
   CreditCard,
+  Flame,
   Loader2,
+  Lock,
   QrCode,
   ShieldCheck,
   Smartphone,
@@ -24,8 +26,13 @@ import { formatPrice } from "@/lib/format";
 import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
+import { useAuth } from "@/store/auth";
+import { useStreak } from "@/hooks/use-streak";
+import { useBeans } from "@/store/beans";
+import { getStreakAwards, type StreakAward } from "@/data/rewards";
 import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
 import type { PaymentMethodId } from "@/types/payment";
+import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
@@ -46,12 +53,20 @@ export function CheckoutScreen() {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
+  const { isAuthenticated, hydrated: authHydrated } = useAuth();
+  const { checkIn } = useStreak();
+  const { canAfford, spendAndEarn, creditBeans, earnRate } = useBeans();
   const [selected, setSelected] =
     useState<PaymentMethodId>(defaultPaymentMethodId);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Set once the order is placed; switches the screen to the confirmation view.
   const [placedNumber, setPlacedNumber] = useState<string | null>(null);
+  // Streak bonuses earned by placing this order, shown on the confirmation.
+  const [streakAwards, setStreakAwards] = useState<StreakAward[]>([]);
+  // Guest nudge shown at Place Order (or when a guest taps a members-only
+  // method like Cash). Dismissed by signing in or choosing to continue.
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   const hasItems = items.length > 0;
 
@@ -63,18 +78,74 @@ export function CheckoutScreen() {
     if (hydrated && !hasItems && !placedNumber) router.replace("/cart");
   }, [hydrated, hasItems, placedNumber, router]);
 
+  // A guest can't keep Cash selected (it's pay-at-counter, members only). Once
+  // the auth state has loaded, move them to the first prepaid method so the
+  // selector never sits on a locked option.
+  useEffect(() => {
+    if (!authHydrated || isAuthenticated) return;
+    const current = paymentMethods.find((m) => m.id === selected);
+    if (current?.requiresAuth) {
+      const fallback = paymentMethods.find((m) => !m.requiresAuth);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile selection once auth state is known
+      if (fallback) setSelected(fallback.id);
+    }
+  }, [authHydrated, isAuthenticated, selected]);
+
   // Avoid a flash of the empty/redirecting state before localStorage loads.
   if (!placedNumber && (!hydrated || !hasItems)) return null;
 
   const featured = paymentMethods.filter((m) => m.featured);
   const others = paymentMethods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
+  // Beans this order would earn if the customer were signed in — drives the
+  // guest nudge's headline. Mirrors the store's earn rule (floor of RM × rate).
+  const beansAtStake = Math.floor((totalPrice / 100) * earnRate);
+
+  // Selecting a members-only method (Cash) as a guest opens the sign-in nudge
+  // instead of switching to it; otherwise it's a normal selection.
+  function selectMethod(id: PaymentMethodId) {
+    const method = paymentMethods.find((m) => m.id === id);
+    if (!isAuthenticated && method?.requiresAuth) {
+      setShowGuestModal(true);
+      return;
+    }
+    setSelected(id);
+  }
+
+  // Place Order entry point. Guests see the nudge first; from there they sign
+  // in or continue (which calls placeOrder directly). Members place straight.
+  function onPlaceOrder() {
+    if (!isAuthenticated) {
+      setShowGuestModal(true);
+      return;
+    }
+    void placeOrder();
+  }
+
+  // Rewards being redeemed in this order, with their Bean costs. Reward lines
+  // are always quantity 1; the cost is settled against the balance at checkout.
+  const redeemedRewards = items
+    .filter((item) => item.isReward)
+    .map((item) => ({ name: item.name, cost: item.rewardCost ?? 0 }));
+  const totalRewardCost = redeemedRewards.reduce((sum, r) => sum + r.cost, 0);
 
   async function placeOrder() {
-    // Only Cash is wired end to end for now: it creates the order and notifies
-    // the store over Telegram. Other methods await their payment integration.
-    if (selected !== "cash") {
-      setError("This payment method isn't available yet. Please choose Cash.");
+    // Cash is members-only (pay-at-counter); a guest should never reach here
+    // with it selected, but guard server-side intent anyway.
+    const method = paymentMethods.find((m) => m.id === selected);
+    if (!method) return;
+    if (method.requiresAuth && !isAuthenticated) {
+      setShowGuestModal(true);
+      return;
+    }
+
+    // Re-validate Beans cover the redeemed rewards. The balance could have
+    // changed since the reward was added to the cart (another order, another
+    // tab), so this is the authoritative check before committing.
+    if (totalRewardCost > 0 && !canAfford(totalRewardCost)) {
+      setError(
+        "You don't have enough Beans to redeem the reward in your cart. Remove it to continue.",
+      );
       return;
     }
 
@@ -89,7 +160,7 @@ export function CheckoutScreen() {
           addonNames: item.addonNames,
           unitPrice: item.unitPrice,
         })),
-        paymentMethod: "Cash",
+        paymentMethod: method.name,
         notes,
         subtotal: totalOriginal,
         total: totalPrice,
@@ -100,8 +171,23 @@ export function CheckoutScreen() {
         return;
       }
 
-      // Order is in and the store has been notified. Clear the cart and show
-      // the confirmation; reading placedNumber keeps the success view mounted.
+      // Order is in and the store has been notified. The Beans ledger and
+      // streak only apply to members — a guest who chose to continue earns
+      // nothing (that's exactly what the sign-in nudge was holding back).
+      if (isAuthenticated) {
+        // Settle the Beans ledger (deduct redeemed reward costs, earn Beans on
+        // the paid total) and mark today's streak — placing an order is the
+        // real-world trigger for both. If today's check-in landed on a streak
+        // checkpoint (3rd day of the week, a completed week, or a 30-day mark),
+        // credit those bonuses too and note them on the confirmation screen.
+        spendAndEarn({ paidTotal: totalPrice, rewards: redeemedRewards });
+        const checkInResult = checkIn();
+        if (checkInResult.isNewCheckIn) {
+          const awards = getStreakAwards(checkInResult.streakDays);
+          for (const award of awards) creditBeans(award.beans, award.label);
+          if (awards.length > 0) setStreakAwards(awards);
+        }
+      }
       setPlacedNumber(result.orderNumber);
       clear();
     } catch {
@@ -143,6 +229,20 @@ export function CheckoutScreen() {
           </span>
         </div>
 
+        {streakAwards.length > 0 && (
+          <div className="mt-4 flex flex-col items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 naise-rise [animation-delay:270ms]">
+            <span className="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              <Flame className="size-3.5" strokeWidth={2.5} aria-hidden />
+              Streak Bonus
+            </span>
+            {streakAwards.map((award) => (
+              <span key={award.label} className="text-xs font-semibold text-emerald-800">
+                +{award.beans.toLocaleString()} Beans · {award.label}
+              </span>
+            ))}
+          </div>
+        )}
+
         <Link
           href="/menu"
           className="mt-7 flex h-12 items-center justify-center rounded-2xl bg-black px-7 text-xs font-bold uppercase tracking-wider text-white transition-transform hover:scale-[1.02] active:scale-[0.98] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:300ms]"
@@ -160,11 +260,11 @@ export function CheckoutScreen() {
           type="button"
           onClick={() => router.push("/cart")}
           aria-label="Go back to cart"
-          className="flex size-8 items-center justify-center justify-self-start rounded-full -ml-1.5 text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-9 items-center justify-center justify-self-start rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
-          <ChevronLeft className="size-5" strokeWidth={2.5} aria-hidden />
+          <ChevronLeft className="size-6" aria-hidden />
         </button>
-        <h1 className="font-heading text-base font-bold uppercase tracking-tight">
+        <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
           Checkout
         </h1>
         <span aria-hidden />
@@ -179,17 +279,20 @@ export function CheckoutScreen() {
           {featured.map((method) => {
             const Icon = methodIcons[method.id];
             const active = selected === method.id;
+            const locked = method.requiresAuth && !isAuthenticated;
             return (
               <button
                 key={method.id}
                 type="button"
-                onClick={() => setSelected(method.id)}
+                onClick={() => selectMethod(method.id)}
                 aria-pressed={active}
                 className={cn(
                   "relative flex flex-col items-start gap-2 rounded-2xl p-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                   active
                     ? "bg-black text-white"
-                    : "bg-neutral-100 text-foreground hover:bg-neutral-200",
+                    : locked
+                      ? "bg-neutral-100 text-muted-foreground hover:bg-neutral-200"
+                      : "bg-neutral-100 text-foreground hover:bg-neutral-200",
                 )}
               >
                 {active && (
@@ -199,6 +302,11 @@ export function CheckoutScreen() {
                       strokeWidth={3}
                       aria-hidden
                     />
+                  </span>
+                )}
+                {locked && !active && (
+                  <span className="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-white text-muted-foreground">
+                    <Lock className="size-3" strokeWidth={2.5} aria-hidden />
                   </span>
                 )}
                 <span
@@ -233,7 +341,7 @@ export function CheckoutScreen() {
               <li key={method.id}>
                 <button
                   type="button"
-                  onClick={() => setSelected(method.id)}
+                  onClick={() => selectMethod(method.id)}
                   aria-pressed={active}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-2xl border p-2.5 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -297,9 +405,15 @@ export function CheckoutScreen() {
                       {subtitle}
                     </span>
                   )}
+                  {item.isReward && (
+                    <span className="text-[0.6875rem] font-semibold text-emerald-600">
+                      Reward Redeem
+                      {item.rewardCost ? ` · ${item.rewardCost.toLocaleString()} Beans` : ""}
+                    </span>
+                  )}
                 </div>
                 <span className="shrink-0 font-semibold tabular-nums">
-                  {formatPrice(lineTotal)}
+                  {item.isReward && lineTotal === 0 ? "RM 0.00" : formatPrice(lineTotal)}
                 </span>
               </li>
             );
@@ -366,7 +480,7 @@ export function CheckoutScreen() {
 
       <button
         type="button"
-        onClick={placeOrder}
+        onClick={onPlaceOrder}
         disabled={submitting}
         className="mt-4 flex h-12 w-full items-center justify-between rounded-2xl bg-black px-5 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 naise-rise [animation-delay:240ms]"
       >
@@ -388,6 +502,18 @@ export function CheckoutScreen() {
           </>
         )}
       </button>
+
+      {showGuestModal && (
+        <GuestSignInModal
+          beansAtStake={beansAtStake}
+          redirect="/checkout"
+          onClose={() => setShowGuestModal(false)}
+          onContinueAsGuest={() => {
+            setShowGuestModal(false);
+            void placeOrder();
+          }}
+        />
+      )}
     </main>
   );
 }

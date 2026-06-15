@@ -9,6 +9,7 @@ export const paymentMethods: PaymentMethod[] = [
     name: "Cash",
     description: "Pay at the counter on pickup",
     featured: true,
+    requiresAuth: true,
   },
   {
     id: "duitnow-qr",

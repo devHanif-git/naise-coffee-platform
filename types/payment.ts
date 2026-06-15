@@ -16,4 +16,8 @@ export type PaymentMethod = {
   description: string;
   // Featured methods render as large cards at the top of the selector.
   featured?: boolean;
+  // Methods only available to signed-in members. Cash (pay-at-counter) is
+  // gated this way — guests must use a prepaid method or sign in. Selecting a
+  // gated method as a guest prompts sign-in rather than placing the order.
+  requiresAuth?: boolean;
 };

@@ -19,5 +19,12 @@ export type CartItem = {
   // promo treatment without re-deriving it from the catalogue.
   discountLabel?: string;
   discountPercentOff?: number;
+  // Set when this line was added by redeeming a Beans reward. The base drink is
+  // free (its price is excluded from unitPrice); add-ons are still charged.
+  // `rewardCost` is the Bean price, settled at checkout. Reward lines are always
+  // quantity 1.
+  isReward?: boolean;
+  rewardId?: string;
+  rewardCost?: number;
   quantity: number;
 };

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { ChevronRight, Receipt } from "lucide-react";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, formatOrderTime } from "@/lib/format";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
 import { updateDrinkStatus } from "@/app/(admin)/manage/actions";
@@ -29,6 +29,13 @@ export function OrderDetail({
   const [statuses, setStatuses] = useState<DrinkStatus[]>(() =>
     order.items.map((item) => item.status),
   );
+  // Completion timestamp. Seeded from the order (set for orders already
+  // complete when loaded) and stamped client-side when the last drink is
+  // marked done; cleared if a drink is re-opened. The store stamps the same
+  // field server-side for real orders, so a refresh keeps this value.
+  const [completedAt, setCompletedAt] = useState<string | undefined>(
+    order.completedAt,
+  );
   const [showReceipt, setShowReceipt] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -37,11 +44,17 @@ export function OrderDetail({
 
   // Optimistically set a drink's status, then persist (for real orders).
   function applyStatus(index: number, status: DrinkStatus) {
-    setStatuses((prev) => {
-      const next = [...prev];
-      next[index] = status;
-      return next;
-    });
+    const next = [...statuses];
+    next[index] = status;
+    setStatuses(next);
+
+    // Stamp the completion time the moment the last drink is done; clear it if
+    // a drink is re-opened so it isn't shown for an order that's no longer done.
+    const nowAllDone = next.length > 0 && next.every((s) => s === "done");
+    setCompletedAt((prev) =>
+      nowAllDone ? (prev ?? new Date().toISOString()) : undefined,
+    );
+
     if (persist) {
       startTransition(async () => {
         await updateDrinkStatus(order.token, index, status);
@@ -71,6 +84,12 @@ export function OrderDetail({
         <h1 className="font-heading text-2xl font-bold tracking-tight tabular-nums">
           {order.orderNumber}
         </h1>
+        <time
+          dateTime={order.createdAt}
+          className="text-xs text-muted-foreground tabular-nums"
+        >
+          {formatOrderTime(order.createdAt)}
+        </time>
       </header>
 
       {/* Order-level progress: how many drinks are done. */}
@@ -101,6 +120,18 @@ export function OrderDetail({
         {justCompleted && (
           <p className="text-xs font-medium text-emerald-700">
             All drinks ready — buyer will be notified for pickup.
+            {completedAt && (
+              <>
+                {" "}
+                <span className="text-emerald-700/70">
+                  Completed{" "}
+                  <time dateTime={completedAt} className="tabular-nums">
+                    {formatOrderTime(completedAt)}
+                  </time>
+                  .
+                </span>
+              </>
+            )}
           </p>
         )}
       </section>

@@ -7,6 +7,8 @@ import type { Product } from "@/types/menu";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
+import { useBeans } from "@/store/beans";
+import { rewardsSummary } from "@/data/rewards";
 import { applyDiscount, getProductDiscount } from "@/data/discounts";
 
 export function ProductCustomizer({ product }: { product: Product }) {
@@ -14,8 +16,28 @@ export function ProductCustomizer({ product }: { product: Product }) {
   const searchParams = useSearchParams();
   const editKey = searchParams.get("edit") ?? undefined;
   const { items, hydrated, addItem, updateItem } = useCart();
+  const { canAfford } = useBeans();
   const editLine = editKey ? items.find((i) => i.key === editKey) : undefined;
   const isEditing = Boolean(editKey && editLine);
+
+  // Reward mode: arriving via ?reward=<id> redeems that reward as a free drink.
+  // Only valid when the reward exists, targets this product, and the balance
+  // covers it (re-checked again at checkout). Editing an existing reward line
+  // (?edit=<key>) stays in reward mode using the line's stored reward, without
+  // re-validating affordability — the cost was already committed at redemption.
+  const rewardId = searchParams.get("reward") ?? undefined;
+  const reward = rewardId
+    ? rewardsSummary.rewards.find((r) => r.id === rewardId)
+    : undefined;
+  const newReward =
+    Boolean(reward) &&
+    reward!.productSlug === product.slug &&
+    canAfford(reward!.cost);
+  const isReward = newReward || Boolean(editLine?.isReward);
+  // The reward this line carries: the URL reward when redeeming fresh, or the
+  // line's own reward id/cost when editing.
+  const activeRewardId = newReward ? reward!.id : editLine?.rewardId;
+  const activeRewardCost = newReward ? reward!.cost : editLine?.rewardCost ?? 0;
   const maxAddons = Math.min(
     product.addons.length,
     Math.max(0, product.maxAddons ?? product.addons.length),
@@ -55,10 +77,16 @@ export function ProductCustomizer({ product }: { product: Product }) {
     ? (selectedSize?.price ?? 0)
     : (product.price ?? 0);
   const basePricing = applyDiscount(baseOriginal, discount);
-  const onSale = basePricing.percentOff > 0;
-  const unitPrice = basePricing.final + addonsTotal;
-  const total = unitPrice * quantity;
-  const totalOriginal = (baseOriginal + addonsTotal) * quantity;
+  // In reward mode the base drink is free; add-ons are still charged on top, so
+  // a redeemed line can exceed RM0.00. Discounts don't apply (the drink is
+  // already free) and quantity is locked to 1 — one reward, one drink.
+  const onSale = !isReward && basePricing.percentOff > 0;
+  const drinkPrice = isReward ? 0 : basePricing.final;
+  const drinkOriginal = isReward ? 0 : baseOriginal;
+  const effectiveQuantity = isReward ? 1 : quantity;
+  const unitPrice = drinkPrice + addonsTotal;
+  const total = unitPrice * effectiveQuantity;
+  const totalOriginal = (drinkOriginal + addonsTotal) * effectiveQuantity;
 
   function toggleAddon(id: string) {
     setAddonIds((prev) => {
@@ -82,10 +110,13 @@ export function ProductCustomizer({ product }: { product: Product }) {
       addonIds,
       addonNames: selectedAddons.map((a) => a.name),
       unitPrice,
-      unitOriginalPrice: baseOriginal + addonsTotal,
+      unitOriginalPrice: drinkOriginal + addonsTotal,
       discountLabel: onSale ? discount?.label : undefined,
       discountPercentOff: onSale ? basePricing.percentOff : undefined,
-      quantity,
+      isReward: isReward || undefined,
+      rewardId: isReward ? activeRewardId : undefined,
+      rewardCost: isReward ? activeRewardCost : undefined,
+      quantity: effectiveQuantity,
     };
 
     if (isEditing && editKey) {
@@ -97,7 +128,9 @@ export function ProductCustomizer({ product }: { product: Product }) {
     }
 
     addItem(input);
-    router.push("/menu");
+    // A redeemed reward returns to Rewards (where the redemption started); a
+    // normal add returns to the menu to keep browsing.
+    router.push(isReward ? "/rewards" : "/menu");
   }
 
   return (
@@ -222,31 +255,33 @@ export function ProductCustomizer({ product }: { product: Product }) {
         className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 py-3 naise-fade [animation-delay:360ms]"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-12 items-center gap-1 rounded-full bg-neutral-100 p-1">
-            <button
-              type="button"
-              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              disabled={quantity <= 1}
-              aria-label="Decrease quantity"
-              className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <Minus className="size-4" strokeWidth={2.5} aria-hidden />
-            </button>
-            <span
-              className="w-6 text-center text-base font-bold tabular-nums"
-              aria-live="polite"
-            >
-              {quantity}
-            </span>
-            <button
-              type="button"
-              onClick={() => setQuantity((q) => q + 1)}
-              aria-label="Increase quantity"
-              className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <Plus className="size-4" strokeWidth={2.5} aria-hidden />
-            </button>
-          </div>
+          {!isReward && (
+            <div className="flex h-12 items-center gap-1 rounded-full bg-neutral-100 p-1">
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={quantity <= 1}
+                aria-label="Decrease quantity"
+                className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <Minus className="size-4" strokeWidth={2.5} aria-hidden />
+              </button>
+              <span
+                className="w-6 text-center text-base font-bold tabular-nums"
+                aria-live="polite"
+              >
+                {quantity}
+              </span>
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => q + 1)}
+                aria-label="Increase quantity"
+                className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <Plus className="size-4" strokeWidth={2.5} aria-hidden />
+              </button>
+            </div>
+          )}
 
           <button
             type="button"
@@ -254,9 +289,18 @@ export function ProductCustomizer({ product }: { product: Product }) {
             className="flex h-12 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span className="text-xs font-bold uppercase tracking-wider">
-              {isEditing ? "Update Cart" : "Add to Cart"}
+              {isReward ? "Redeem Reward" : isEditing ? "Update Cart" : "Add to Cart"}
             </span>
-            {onSale ? (
+            {isReward ? (
+              <span className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-white">
+                  {addonsTotal > 0 ? formatPrice(total) : "Free Drink"}
+                </span>
+                <span className="text-xs text-neutral-400">
+                  · {activeRewardCost.toLocaleString()} Beans
+                </span>
+              </span>
+            ) : onSale ? (
               <span className="flex items-center gap-1.5">
                 <span className="text-xs font-semibold text-white">
                   {formatPrice(total)}

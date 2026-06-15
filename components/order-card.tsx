@@ -22,7 +22,7 @@ export function OrderCard({ order, delay = 0 }: { order: Order; delay?: number }
         <header className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-heading text-lg font-bold tracking-tight tabular-nums">
-              #{order.orderNumber.replace(/^NAISE-0*/, "")}
+              #{order.orderNumber.replace(/^NAISE-0*(?=\d)/, "")}
             </h3>
             <span
               className={cn(
@@ -35,7 +35,9 @@ export function OrderCard({ order, delay = 0 }: { order: Order; delay?: number }
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span className="tabular-nums">{timeAgo(order.createdAt)}</span>
+            <span className="tabular-nums" suppressHydrationWarning>
+              {timeAgo(order.createdAt)}
+            </span>
             <span className="font-medium">{order.paymentMethod}</span>
           </div>
         </header>

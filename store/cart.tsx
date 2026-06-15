@@ -14,13 +14,21 @@ const STORAGE_KEY = "naise-cart";
 const NOTES_STORAGE_KEY = "naise-cart-notes";
 
 // Identifies a line by product + size + sorted add-ons. Same drink, different
-// settings => different key => separate line.
+// settings => different key => separate line. A reward line carries its
+// rewardId so it never merges with a paid line (or another reward) of the same
+// drink — each redemption is its own free line.
 export function buildKey(
   productId: string,
   sizeId: string | undefined,
   addonIds: string[],
+  rewardId?: string,
 ): string {
-  return [productId, sizeId ?? "", [...addonIds].sort().join(",")].join("|");
+  return [
+    productId,
+    sizeId ?? "",
+    [...addonIds].sort().join(","),
+    rewardId ?? "",
+  ].join("|");
 }
 
 type AddInput = Omit<CartItem, "key" | "quantity"> & { quantity?: number };
@@ -87,7 +95,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items, notes, hydrated]);
 
   const addItem = useCallback((input: AddInput) => {
-    const key = buildKey(input.productId, input.sizeId, input.addonIds);
+    const key = buildKey(input.productId, input.sizeId, input.addonIds, input.rewardId);
     const quantity = input.quantity ?? 1;
     setItems((prev) => {
       const existing = prev.find((i) => i.key === key);
@@ -106,7 +114,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const updateItem = useCallback(
     (oldKey: string, input: AddInput) => {
-      const newKey = buildKey(input.productId, input.sizeId, input.addonIds);
+      const newKey = buildKey(input.productId, input.sizeId, input.addonIds, input.rewardId);
       const quantity = input.quantity ?? 1;
       // A merge happens when the edited options now match a *different* line.
       // Decide this from the current items before queuing the update so the
