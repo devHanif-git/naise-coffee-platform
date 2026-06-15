@@ -4,8 +4,6 @@ import { canManageOrders } from "@/lib/auth/session";
 import { listOrders } from "@/lib/orders/store";
 import { ManageOrdersScreen } from "@/components/manage-orders-screen";
 
-export const runtime = "edge";
-
 // Internal management view — keep it out of search results.
 export const metadata: Metadata = {
   title: "Manage Orders",

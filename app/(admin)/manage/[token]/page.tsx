@@ -5,8 +5,6 @@ import { OrderDetail } from "@/components/order-detail";
 import { canManageOrders } from "@/lib/auth/session";
 import { getOrderByToken } from "@/lib/orders/store";
 
-export const runtime = 'edge';
-
 // Management view is internal — keep it out of search results.
 export const metadata: Metadata = {
   title: "Manage Order",

@@ -4,8 +4,6 @@ import { ChevronLeft, PackageX } from "lucide-react";
 import { getOrderByToken } from "@/lib/orders/store";
 import { CustomerOrderDetail } from "@/components/customer-order-detail";
 
-export const runtime = "edge";
-
 export const metadata: Metadata = {
   title: "Order Detail",
 };

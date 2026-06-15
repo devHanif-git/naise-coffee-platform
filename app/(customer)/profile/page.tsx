@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { listOrders } from "@/lib/orders/store";
 import { ProfileScreen } from "@/components/profile-screen";
 
-export const runtime = "edge";
-
 export const metadata: Metadata = {
   title: "Profile",
   description: "Your Naise Coffee profile, rewards, and recent orders.",

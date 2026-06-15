@@ -8,8 +8,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export const runtime = "edge";
-
 export const metadata: Metadata = {
   title: "Settings",
   description: "Account and security settings for your Naise Coffee profile.",
