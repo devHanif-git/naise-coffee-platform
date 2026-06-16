@@ -9,54 +9,151 @@ import {
   useState,
 } from "react";
 import type { CustomerProfile, ProfileEdit } from "@/types/profile";
-import { mockProfile } from "@/data/profile";
-
-const PROFILE_KEY = "naise-profile";
+import { useAuth } from "@/store/auth";
+import { createClient } from "@/lib/supabase/client";
 
 type ProfileContextValue = {
-  // True once the persisted profile has loaded from localStorage.
+  // True once the profile row has been fetched for the signed-in user (or we've
+  // settled that there's no signed-in user). Lets the UI avoid flashing stale
+  // values before the real profile loads.
   hydrated: boolean;
   profile: CustomerProfile;
-  // Merges a partial edit (display name / avatar) into the stored profile.
-  updateProfile: (edit: ProfileEdit) => void;
+  // Persists a partial edit (display name / avatar) to the `profiles` row and
+  // updates local state. Throws on failure so the caller can surface an error.
+  updateProfile: (edit: ProfileEdit) => Promise<void>;
 };
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
+// Fallback shown for guests / before the first fetch resolves. Members never
+// see these values — the real row replaces them as soon as it loads.
+const EMPTY_PROFILE: CustomerProfile = {
+  displayName: "Naise Member",
+  memberSince: new Date().toISOString(),
+};
+
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  // Start from the mock so the first client render matches the server HTML; the
-  // persisted profile loads in the effect below (same approach as the Beans
-  // store, avoiding a hydration mismatch).
-  const [profile, setProfile] = useState<CustomerProfile>(mockProfile);
+  const { user, hydrated: authHydrated } = useAuth();
+  const [profile, setProfile] = useState<CustomerProfile>(EMPTY_PROFILE);
   const [hydrated, setHydrated] = useState(false);
+  const [supabase] = useState(() => createClient());
 
+  // Load the signed-in user's profile row from Supabase. Re-runs whenever the
+  // signed-in identity changes (sign-in / sign-out / account switch).
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PROFILE_KEY);
-      if (raw) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
-        setProfile({ ...mockProfile, ...(JSON.parse(raw) as CustomerProfile) });
+    if (!authHydrated) return;
+
+    // Guests have no profile row; reset to the fallback and mark hydrated.
+    if (!user) {
+      setProfile(EMPTY_PROFILE);
+      setHydrated(true);
+      return;
+    }
+
+    let active = true;
+    setHydrated(false);
+
+    // maybeSingle() returns null (not a PGRST116 error) when the row is absent,
+    // so we can distinguish "row missing" from a real query failure. A signed-in
+    // user must always have a profile row (the signup trigger creates it); if
+    // it's somehow gone — e.g. deleted in the dashboard — we self-heal by
+    // recreating it from the session identity rather than showing stale data.
+    (async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("display_name, avatar_url, phone, created_at")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!active) return;
+
+      if (error) {
+        // Genuine query/RLS failure (not a missing row). Fall back to the
+        // session identity so the screen still shows something real.
+        setProfile({
+          displayName: user.name,
+          avatarUrl: user.avatarUrl,
+          memberSince: user.createdAt ?? new Date().toISOString(),
+        });
+        setHydrated(true);
+        return;
       }
-    } catch {
-      // Ignore malformed/unavailable storage; keep the mock starting value.
-    }
-    setHydrated(true);
-  }, []);
 
-  // Persist after the initial load so we never clobber stored values with the
-  // mock starting state.
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    } catch {
-      // Storage may be full/unavailable; profile still works in-memory.
-    }
-  }, [profile, hydrated]);
+      if (data) {
+        setProfile({
+          displayName: data.display_name ?? user.name,
+          avatarUrl: data.avatar_url ?? undefined,
+          memberSince: data.created_at ?? new Date().toISOString(),
+          phone: data.phone ?? undefined,
+        });
+        setHydrated(true);
+        return;
+      }
 
-  const updateProfile = useCallback((edit: ProfileEdit) => {
-    setProfile((prev) => ({ ...prev, ...edit }));
-  }, []);
+      // Row missing — recreate it from the session identity (insert_self RLS
+      // allows a user to create their own row). Keeps the invariant intact so
+      // edits below always have a row to write to.
+      const { data: healed } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          display_name: user.name,
+          avatar_url: user.avatarUrl ?? null,
+        })
+        .select("display_name, avatar_url, phone, created_at")
+        .single();
+      if (!active) return;
+
+      setProfile({
+        displayName: healed?.display_name ?? user.name,
+        avatarUrl: healed?.avatar_url ?? user.avatarUrl,
+        memberSince: healed?.created_at ?? user.createdAt ?? new Date().toISOString(),
+        phone: healed?.phone ?? undefined,
+      });
+      setHydrated(true);
+    })();
+
+    return () => {
+      active = false;
+    };
+    // Keyed on the user *id*, not the whole user object. Supabase re-validates
+    // the session on tab refocus and fires an auth event, which rebuilds the
+    // user object (new reference, same id). Depending on the object would
+    // re-run this effect on every refocus — flipping `hydrated` back to false
+    // and replaying the skeleton. Keying on the id only re-fetches on a real
+    // identity change (sign-in / sign-out / account switch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authHydrated, supabase]);
+
+  // Persist an edit to the `profiles` row (RLS allows self-update only), then
+  // mirror it into local state. No-op for guests (no row to write).
+  const updateProfile = useCallback(
+    async (edit: ProfileEdit) => {
+      if (!user) return;
+      // Upsert (not update): a plain UPDATE matching zero rows succeeds with 0
+      // rows affected and throws nothing, so a deleted row would silently fail
+      // to persist while the UI looked saved. Upserting recreates the row if
+      // missing. The .select().single() confirms what actually landed and
+      // surfaces an error if nothing did (e.g. RLS denial).
+      const { data, error } = await supabase
+        .from("profiles")
+        .upsert({
+          id: user.id,
+          display_name: edit.displayName,
+          avatar_url: edit.avatarUrl ?? null,
+        })
+        .select("display_name, avatar_url, phone, created_at")
+        .single();
+      if (error) throw error;
+      setProfile((prev) => ({
+        ...prev,
+        displayName: data.display_name ?? edit.displayName,
+        avatarUrl: data.avatar_url ?? undefined,
+        memberSince: data.created_at ?? prev.memberSince,
+        phone: data.phone ?? prev.phone,
+      }));
+    },
+    [user, supabase],
+  );
 
   const value = useMemo<ProfileContextValue>(
     () => ({ hydrated, profile, updateProfile }),

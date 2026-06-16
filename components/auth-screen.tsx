@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Coffee, Flame, Loader2, Phone, Star } from "lucide-react";
 import { images } from "@/constants/images";
 import { useAuth } from "@/store/auth";
+import { createClient } from "@/lib/supabase/client";
 
 // Google "G" mark — lucide ships no brand glyphs, so this is an inline SVG
 // (allowed image-rule exception). Kept here next to its only use.
@@ -61,6 +62,9 @@ export function AuthScreen() {
   const [otp, setOtp] = useState("");
   const [pending, setPending] = useState<"google" | "phone" | null>(null);
 
+  // MOCKED — phone/OTP is not yet wired to Supabase. It still uses the local
+  // auth-store mock (`signIn`) until WhatsApp/WABA is approved (a later plan).
+  // Google sign-in below is the real Supabase OAuth flow; this is not.
   function finish(
     method: "google" | "phone",
     extra: Parameters<typeof signIn>[0],
@@ -73,12 +77,21 @@ export function AuthScreen() {
     }, 700);
   }
 
-  function onGoogle() {
-    finish("google", {
-      method: "google",
-      email: "member@gmail.com",
-      name: "Naise Member",
+  async function onGoogle() {
+    setPending("google");
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
+      },
     });
+    if (error) {
+      setPending(null);
+      // TODO: surface a toast; for now log so failures aren't silent.
+      console.error("Google sign-in failed", error);
+    }
+    // On success the browser navigates away to Google — no further work here.
   }
 
   function onSendOtp(e: React.FormEvent) {

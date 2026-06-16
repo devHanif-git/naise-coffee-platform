@@ -57,12 +57,27 @@ const menuRows = [
 // Their recent orders are still shown — scoped server-side to the per-browser
 // owner id, which carries over to the account they later register.
 export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
-  const { profile } = useProfile();
+  const { profile, hydrated: profileHydrated } = useProfile();
   const { balance } = useBeans();
-  const { isAuthenticated, signOut } = useAuth();
+  const { isAuthenticated, hydrated: authHydrated, signOut } = useAuth();
   const [signOutOpen, setSignOutOpen] = useState(false);
 
   const tier = getTierProgress(balance);
+
+  // Identity shown in the hero comes straight from the profile store, which is
+  // now backed by the `profiles` row (display_name / avatar_url / created_at)
+  // and falls back to the session identity internally if the row is missing.
+  // So an edited display name/photo always wins, and there's no mock left.
+  const displayName = profile.displayName;
+  const avatarUrl = profile.avatarUrl;
+  const memberSince = profile.memberSince;
+
+  // Both stores must settle before we know what to show. Until then we render a
+  // neutral skeleton hero rather than guessing — otherwise the screen flashes
+  // through three states on load (guest → fallback name → real profile) as auth
+  // resolves and then the profile row fetches. Gating on both flags collapses
+  // that into a single reveal.
+  const ready = authHydrated && profileHydrated;
 
   return (
     <div className="flex flex-col">
@@ -84,23 +99,42 @@ export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
 
       <main className="flex flex-col gap-7 px-5 pb-8 pt-2">
         {/* Identity hero. Members see avatar + display name + member-since;
-            guests see a silhouette + "Guest" + a sign-in nudge. */}
-        {isAuthenticated ? (
+            guests see a silhouette + "Guest" + a sign-in nudge. Until both the
+            auth and profile stores settle we show a neutral skeleton so the
+            screen reveals the resolved identity once, with no flash-through. */}
+        {!ready ? (
+          <section className="flex flex-col items-center text-center">
+            <span
+              aria-hidden
+              className="size-22 animate-pulse rounded-full bg-neutral-100"
+              style={{ width: 88, height: 88 }}
+            />
+            <span
+              aria-hidden
+              className="mt-3 h-7 w-40 animate-pulse rounded-md bg-neutral-100"
+            />
+            <span
+              aria-hidden
+              className="mt-2 h-3.5 w-28 animate-pulse rounded bg-neutral-100"
+            />
+            <span className="sr-only">Loading profile…</span>
+          </section>
+        ) : isAuthenticated ? (
           <section className="flex flex-col items-center text-center naise-rise">
             <ProfileAvatar
-              name={profile.displayName}
-              avatarUrl={profile.avatarUrl}
+              name={displayName}
+              avatarUrl={avatarUrl}
               size={88}
               className="text-2xl"
             />
             <h2 className="mt-3 font-heading text-2xl font-bold tracking-tight">
-              {profile.displayName}
+              {displayName}
             </h2>
             <p
               className="mt-0.5 text-xs text-muted-foreground"
               suppressHydrationWarning
             >
-              {memberSinceLabel(profile.memberSince)}
+              {memberSinceLabel(memberSince)}
             </p>
           </section>
         ) : (
@@ -122,8 +156,9 @@ export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
         )}
 
         {/* Beans + tier summary — members only. Hidden for guests since
-            they can't earn or redeem until they have an account. */}
-        {isAuthenticated && (
+            they can't earn or redeem until they have an account. Gated on
+            `ready` so it doesn't pop in during the skeleton stage. */}
+        {ready && isAuthenticated && (
           <Link
             href="/rewards"
             aria-label="View your rewards"
@@ -152,8 +187,9 @@ export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
         )}
 
         {/* Account menu rows — members only. Edit Profile / Settings need an
-            account to act on; guests don't see them. */}
-        {isAuthenticated && (
+            account to act on; guests don't see them. Gated on `ready` so the
+            rows don't flash in before identity resolves. */}
+        {ready && isAuthenticated && (
           <section
             aria-label="Account"
             className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border naise-rise [animation-delay:140ms]"
@@ -240,8 +276,14 @@ export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
             buttons just swap on toggle — no entry animation, no transition
             between them — so dropping the `naise-rise` class here is
             intentional. Auth is mocked via the localStorage-backed auth
-            store until Supabase Auth lands. */}
-        {isAuthenticated ? (
+            store until Supabase Auth lands. Gated on `ready` so the button
+            doesn't flip from Sign In to Sign Out as identity resolves. */}
+        {!ready ? (
+          <span
+            aria-hidden
+            className="h-12 w-full animate-pulse rounded-full bg-neutral-100"
+          />
+        ) : isAuthenticated ? (
           <button
             type="button"
             onClick={() => setSignOutOpen(true)}

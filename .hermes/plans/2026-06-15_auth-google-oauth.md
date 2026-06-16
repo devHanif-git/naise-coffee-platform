@@ -76,8 +76,9 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 Add the real values to `.env.local` (gitignored):
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://hodukwhqjhjzyfxlsovp.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_MLdycDnv7gtNWLHoxa0SIQ_jO2BeKl4
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<paste publishable key from Supabase → Settings → API Keys>
 ```
+> Do NOT paste real key values into this plan (or any tracked file). Keys belong only in the gitignored `.env.local` / `.dev.vars`.
 Mirror both into `.dev.vars.example` (names) and `.dev.vars` (values) so the `opennextjs-cloudflare preview` Worker runtime sees them too.
 
 **Verify:** `grep PUBLISHABLE .env.local .dev.vars` shows the key in both; `.env.example`/`.dev.vars.example` carry the names only.

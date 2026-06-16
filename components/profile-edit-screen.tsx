@@ -3,32 +3,65 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Camera } from "lucide-react";
+import { ChevronLeft, Camera, Loader2 } from "lucide-react";
+import { useAuth } from "@/store/auth";
 import { useProfile } from "@/store/profile";
+import { uploadAvatar } from "@/lib/supabase/avatar";
 import { ProfileAvatar } from "@/components/profile-avatar";
 
 // Edit Profile — photo and display name only (security lives in Settings).
-// Writes to the localStorage-backed profile store, then returns to /profile.
+// Persists to the Supabase `profiles` row: the picked photo is uploaded to the
+// `avatars` Storage bucket, then its public URL + the display name are written
+// to the row via the profile store. Returns to /profile on success.
 export function ProfileEditScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { profile, updateProfile } = useProfile();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState(profile.displayName);
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl);
+  // Preview shown in the avatar. Starts at the stored URL; swaps to a local
+  // object URL the moment a new file is picked (instant feedback before upload).
+  const [previewUrl, setPreviewUrl] = useState(profile.avatarUrl);
+  // The newly-picked file, held until save so we only upload on confirm.
+  const [pickedFile, setPickedFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setAvatarUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setError(null);
+    setPickedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
   }
 
-  function onSave(e: React.FormEvent) {
+  async function onSave(e: React.FormEvent) {
     e.preventDefault();
-    updateProfile({ displayName: displayName.trim() || profile.displayName, avatarUrl });
-    router.push("/profile");
+    if (saving) return;
+    if (!user) {
+      setError("You need to be signed in to edit your profile.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      // Upload the new photo first (if one was picked) so we persist a real
+      // Storage URL, not the temporary local preview.
+      let avatarUrl = profile.avatarUrl;
+      if (pickedFile) {
+        avatarUrl = await uploadAvatar(pickedFile, user.id);
+      }
+      await updateProfile({
+        displayName: displayName.trim() || profile.displayName,
+        avatarUrl,
+      });
+      router.push("/profile");
+    } catch {
+      setError("Couldn't save your changes. Please try again.");
+      setSaving(false);
+    }
   }
 
   return (
@@ -58,7 +91,7 @@ export function ProfileEditScreen() {
           >
             <ProfileAvatar
               name={displayName}
-              avatarUrl={avatarUrl}
+              avatarUrl={previewUrl}
               size={104}
               className="text-3xl"
             />
@@ -76,7 +109,7 @@ export function ProfileEditScreen() {
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             onChange={onPickPhoto}
             className="hidden"
           />
@@ -101,11 +134,19 @@ export function ProfileEditScreen() {
           />
         </section>
 
+        {error && (
+          <p className="text-center text-xs font-medium text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+
         <button
           type="submit"
-          className="mt-1 flex h-12 w-full items-center justify-center rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:140ms]"
+          disabled={saving}
+          className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 naise-rise [animation-delay:140ms]"
         >
-          Save Changes
+          {saving && <Loader2 className="size-4 animate-spin" aria-hidden />}
+          {saving ? "Saving…" : "Save Changes"}
         </button>
       </form>
     </div>

@@ -8,18 +8,15 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { Session } from "@supabase/supabase-js";
 import type { AuthMethod, AuthUser } from "@/types/auth";
 import { getOrCreateOwnerId, setOwnerId } from "@/lib/auth/owner-id";
+import { createClient } from "@/lib/supabase/client";
 
-const AUTH_KEY = "naise-auth";
-// Set the moment a guest becomes a member; consumed once to show the welcome
-// modal, then cleared. Kept separate from the user record so signing out and
-// back in (an existing member) never re-triggers the new-user celebration.
-const WELCOME_KEY = "naise-auth-welcome";
-// Tracks identities (email/phone) that have signed in on this browser before.
-// Lets us suppress the welcome modal when a returning member signs back in
-// without needing a real backend lookup. JSON-encoded array of strings.
-const KNOWN_IDENTITIES_KEY = "naise-auth-known";
+// Local mock session for the PHONE path only. Google now goes through real
+// Supabase OAuth (no localStorage). Phone/OTP stays mocked until WhatsApp/WABA
+// lands, so its session is still persisted here to survive reloads.
+const PHONE_MOCK_KEY = "naise-auth-phone-mock";
 
 type SignInInput = {
   method: AuthMethod;
@@ -29,15 +26,15 @@ type SignInInput = {
 };
 
 type AuthContextValue = {
-  // True once the persisted session has loaded from localStorage. Lets the UI
-  // avoid flashing the guest state before we know whether someone is signed in.
+  // True once we've checked the Supabase session (and the phone mock). Lets the
+  // UI avoid flashing the guest state before we know who's signed in.
   hydrated: boolean;
   user: AuthUser | null;
   isAuthenticated: boolean;
   // Whether a freshly-registered user is owed the one-time welcome modal.
   showWelcome: boolean;
-  // Mock sign-in/registration. Creates a session and, for a brand-new identity,
-  // arms the welcome modal. Wire to Supabase Auth (OAuth / phone OTP) later.
+  // MOCK sign-in — PHONE path only (the localStorage mock). Google uses real
+  // Supabase OAuth via signInWithOAuth in the auth screen, not this.
   signIn: (input: SignInInput) => void;
   signOut: () => void;
   // Dismisses the one-time welcome modal (clears the flag so it never re-shows).
@@ -46,153 +43,177 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// A friendly default name when sign-in didn't carry one (e.g. phone OTP before
-// the profile is filled in). Google sign-in supplies the account name.
-function defaultName(input: SignInInput): string {
-  if (input.name?.trim()) return input.name.trim();
-  if (input.method === "phone" && input.phone) return input.phone;
-  return "Naise Member";
+// Maps a real Supabase session to the app's AuthUser shape. Name falls back
+// through the Google identity fields, then email, then a friendly default.
+function userFromSession(session: Session): AuthUser {
+  const u = session.user;
+  const meta = u.user_metadata ?? {};
+  const name =
+    (typeof meta.full_name === "string" && meta.full_name) ||
+    (typeof meta.name === "string" && meta.name) ||
+    u.email ||
+    "Naise Member";
+  // Google returns the avatar under `avatar_url` (and sometimes `picture`).
+  const avatarUrl =
+    (typeof meta.avatar_url === "string" && meta.avatar_url) ||
+    (typeof meta.picture === "string" && meta.picture) ||
+    undefined;
+  const provider = (u.app_metadata?.provider as AuthMethod) ?? "google";
+  return {
+    id: u.id,
+    method: provider === "phone" ? "phone" : "google",
+    email: u.email ?? undefined,
+    phone: u.phone ?? undefined,
+    name,
+    avatarUrl,
+    // Real account creation time, drives the accurate "Member since" label.
+    createdAt: u.created_at ?? undefined,
+  };
 }
 
-// Stable per-identity key used to recognize a returning member. Phone
-// numbers are normalised by stripping spaces; email is lowercased. The key
-// includes the method so a Google account and a phone number that happen to
-// share a string don't collide.
-function identityKey(input: SignInInput): string | null {
-  if (input.method === "google" && input.email) {
-    return `google:${input.email.trim().toLowerCase()}`;
-  }
-  if (input.method === "phone" && input.phone) {
-    return `phone:${input.phone.replace(/\s+/g, "")}`;
-  }
-  return null;
+// Atomically claims the one-time welcome greeting for a user. Flips
+// profiles.welcomed_at from null -> now() and returns true ONLY for the single
+// call that won the flip; every later call (tab refocus re-emitting SIGNED_IN,
+// reload, a second device) matches zero rows and returns false. The DB enforces
+// "exactly once per account" — no time window or client-side guard needed, and
+// it's truly one-time across every device, not just this browser.
+async function claimWelcome(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ welcomed_at: new Date().toISOString() })
+    .eq("id", userId)
+    .is("welcomed_at", null)
+    .select("id");
+  if (error) return false;
+  return (data?.length ?? 0) > 0;
 }
 
-function readKnownIdentities(): Set<string> {
+function readPhoneMock(): AuthUser | null {
   try {
-    const raw = localStorage.getItem(KNOWN_IDENTITIES_KEY);
-    if (!raw) return new Set();
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set();
-    return new Set(parsed.filter((v): v is string => typeof v === "string"));
+    const raw = localStorage.getItem(PHONE_MOCK_KEY);
+    return raw ? (JSON.parse(raw) as AuthUser) : null;
   } catch {
-    return new Set();
-  }
-}
-
-function writeKnownIdentities(known: Set<string>): void {
-  try {
-    localStorage.setItem(
-      KNOWN_IDENTITIES_KEY,
-      JSON.stringify([...known]),
-    );
-  } catch {
-    // Non-fatal; worst case we re-show the welcome modal next time.
+    return null;
   }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Start signed-out so the first client render matches the server HTML; the
-  // persisted session loads in the effect below (same approach as the cart,
-  // profile, and Beans stores — avoids a hydration mismatch).
+  // real session loads in the effect below (avoids a hydration mismatch).
   const [user, setUser] = useState<AuthUser | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  // Stable client across renders/subscription lifetime. Lazy initializer so
+  // the browser client is created exactly once (not on every render) without
+  // touching a ref during render.
+  const [supabase] = useState(() => createClient());
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(AUTH_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
-      if (raw) setUser(JSON.parse(raw) as AuthUser);
-      if (localStorage.getItem(WELCOME_KEY) === "1") setShowWelcome(true);
-    } catch {
-      // Ignore malformed/unavailable storage; start as a guest.
-    }
-    // Make sure every visitor has an owner id from first paint, so guest
-    // orders attribute correctly even before they ever sign in.
+    // Every visitor gets an owner id from first paint so guest orders attribute
+    // correctly even before they ever sign in. Unchanged from the mock era.
     getOrCreateOwnerId();
-    setHydrated(true);
-  }, []);
 
-  // Persist the session after the initial load so we never clobber a stored
-  // session with the signed-out starting state.
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      if (user) localStorage.setItem(AUTH_KEY, JSON.stringify(user));
-      else localStorage.removeItem(AUTH_KEY);
-    } catch {
-      // Storage may be full/unavailable; session still works in-memory.
-    }
-  }, [user, hydrated]);
+    let active = true;
 
+    // Seed from the current Supabase session; fall back to the phone mock.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active) return;
+      if (session) {
+        setUser(userFromSession(session));
+        // Attempt the one-time welcome claim. This is the reliable path for the
+        // OAuth redirect return and for reloads (where onAuthStateChange emits
+        // INITIAL_SESSION, not SIGNED_IN). The claim is atomic and idempotent —
+        // only the call that flips welcomed_at null -> now() shows the modal.
+        claimWelcome(supabase, session.user.id).then((won) => {
+          if (active && won) setShowWelcome(true);
+        });
+      } else {
+        const mock = readPhoneMock();
+        if (mock) setUser(mock);
+      }
+      setHydrated(true);
+    });
+
+    // Keep the session live. Fires on sign-in (incl. the OAuth redirect return),
+    // token refresh, and sign-out. Phone-mock sign-ins don't touch Supabase, so
+    // they're handled directly in signIn().
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if (event === "SIGNED_OUT" || !session) {
+        setUser(null);
+        return;
+      }
+      setUser(userFromSession(session));
+      // Try to claim the one-time welcome. supabase-js re-emits SIGNED_IN on
+      // every tab refocus, but the claim is atomic — it only succeeds for the
+      // single call that flips welcomed_at from null, so a refocus can never
+      // re-pop the modal. No time window or client-side guard needed.
+      if (event === "SIGNED_IN") {
+        const userId = session.user.id;
+        claimWelcome(supabase, userId).then((won) => {
+          if (active && won) setShowWelcome(true);
+        });
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  // MOCK — phone path only. Sets a local session and persists it so it survives
+  // a reload (there's no Supabase session backing it yet). Google never calls
+  // this. Remove when phone/OTP is wired to real Supabase auth.
   const signIn = useCallback((input: SignInInput) => {
-    // Adopt the existing per-browser owner id as the user's id. This is the
-    // mechanism that carries guest orders into the new account: every order
-    // placed before sign-in already has this same ownerId, so the profile's
-    // `listOrdersFor(ownerId)` query keeps showing them. (In Supabase later,
-    // the user's auth.uid() takes over and we run a one-shot UPDATE keyed on
-    // this id to migrate the rows.)
     const ownerId = getOrCreateOwnerId();
-
-    // Returning identity? Skip the welcome modal. New identity? Arm it and
-    // remember the identity for next time. A sign-in that doesn't carry an
-    // identity key (shouldn't happen with Google/phone, but defensive) is
-    // treated as new.
-    const key = identityKey(input);
-    const known = readKnownIdentities();
-    const isReturning = key !== null && known.has(key);
-
     const next: AuthUser = {
       id: ownerId,
       method: input.method,
       email: input.email,
       phone: input.phone,
-      name: defaultName(input),
+      name: input.name?.trim() || input.phone || "Naise Member",
     };
     setUser(next);
-    // Keep the cookie/localStorage owner id pinned to the user's id so future
-    // server reads see the same value.
     setOwnerId(ownerId);
-
-    if (!isReturning) {
-      setShowWelcome(true);
-      try {
-        localStorage.setItem(WELCOME_KEY, "1");
-      } catch {
-        // Non-fatal; the in-memory flag still drives this session's modal.
-      }
-      if (key !== null) {
-        known.add(key);
-        writeKnownIdentities(known);
-      }
-    } else {
-      // Returning member — make sure no stale welcome flag fires.
-      setShowWelcome(false);
-      try {
-        localStorage.removeItem(WELCOME_KEY);
-      } catch {
-        // Non-fatal.
-      }
+    try {
+      localStorage.setItem(PHONE_MOCK_KEY, JSON.stringify(next));
+    } catch {
+      // Non-fatal; session still works in-memory for this tab.
     }
+    // Phone mock: show the welcome on sign-in. Unlike the real path, signIn is
+    // only ever called from an explicit button press (never by onAuthStateChange
+    // on refocus), so there's no re-trigger to guard against. The mock has no DB
+    // row, so the atomic welcomed_at claim doesn't apply here.
+    setShowWelcome(true);
   }, []);
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    // Clear the real Supabase session (no-op if only the phone mock is active).
+    await supabase.auth.signOut();
     setUser(null);
     setShowWelcome(false);
+    try {
+      localStorage.removeItem(PHONE_MOCK_KEY);
+    } catch {
+      // Non-fatal.
+    }
     // Intentionally keep the owner id intact. A signed-out browser is back to
-    // being a "guest" — orders placed in this state should still attach to
-    // the same id, so when the same person signs in again (or registers)
-    // their full history follows them.
-  }, []);
+    // being a "guest" — orders placed in this state should still attach to the
+    // same id, so signing in again carries the full history over.
+  }, [supabase]);
 
   const dismissWelcome = useCallback(() => {
+    // Just clear the in-memory flag. The persistent greeted record was written
+    // at arm-time, so dismissal doesn't need to touch storage — and crucially,
+    // a later refocus that re-emits SIGNED_IN won't re-arm because the user id
+    // is already recorded as greeted.
     setShowWelcome(false);
-    try {
-      localStorage.removeItem(WELCOME_KEY);
-    } catch {
-      // Non-fatal; the in-memory flag is already cleared.
-    }
   }, []);
 
   const value = useMemo<AuthContextValue>(
