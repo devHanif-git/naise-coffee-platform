@@ -13,13 +13,13 @@ export const rewardTiers: RewardTier[] = [
     id: "bold",
     name: "Bold",
     threshold: 1000,
-    perk: "1.25× Beans and a free birthday drink.",
+    perk: "A free birthday drink and member-only offers.",
   },
   {
     id: "naise-club",
     name: "Naise Club",
     threshold: 3000,
-    perk: "1.5× Beans, free upsizes, and early access to new drinks.",
+    perk: "Free upsizes and early access to new drinks.",
   },
 ];
 

@@ -30,6 +30,11 @@ export type Order = {
   token: string;
   // Human reference, e.g. NAISE-000001.
   orderNumber: string;
+  // The browser/account that placed this order. Stable id from
+  // `lib/auth/owner-id` — same value for a guest and the member they later
+  // become, so guest orders carry over to the new account on sign-up. Maps
+  // onto `orders.user_id` (auth.uid()) in Supabase later.
+  ownerId: string;
   status: OrderStatus;
   paymentMethod: string;
   items: OrderLine[];

@@ -6,4 +6,9 @@
   "compatibility_date": "2025-03-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  // Public, non-sensitive vars. Secrets (TELEGRAM_*) are set via `wrangler secret put`
+  // or the dashboard, never here — this file is committed to git.
+  "vars": {
+    "NEXT_PUBLIC_SITE_URL": "https://naisecoffee.utemride.my",
+  },
 }

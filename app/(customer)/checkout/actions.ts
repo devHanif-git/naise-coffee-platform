@@ -22,6 +22,10 @@ export type PlaceOrderInput = {
   // Pre-discount and amount-due totals, in sen.
   subtotal: number;
   total: number;
+  // Stable per-browser id (`naise_owner_id`). Used so a guest's orders carry
+  // over to the account they later register — the new account adopts this
+  // same id. Validated to a non-empty string before persisting.
+  ownerId: string;
 };
 
 export type PlaceOrderResult =
@@ -36,6 +40,11 @@ export async function placeOrder(
   if (input.items.length === 0) {
     return { ok: false, error: "Your cart is empty." };
   }
+  if (!input.ownerId) {
+    // The owner id should always be supplied by the client — guard so we
+    // never persist an order with no attribution (RLS will require it later).
+    return { ok: false, error: "Missing session id. Refresh and try again." };
+  }
 
   const lines: OrderLine[] = input.items.map((item) => ({
     name: item.name,
@@ -48,6 +57,7 @@ export async function placeOrder(
   }));
 
   const order = createOrder({
+    ownerId: input.ownerId,
     paymentMethod: input.paymentMethod,
     items: lines,
     subtotal: input.subtotal,

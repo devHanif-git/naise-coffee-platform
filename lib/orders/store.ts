@@ -18,6 +18,14 @@ const globalForOrders = globalThis as unknown as {
   __naiseOrderStore?: OrderStore;
 };
 
+// Seeds carry a fixed `SEED_OWNER_ID` so they only show up on the staff
+// `/manage` board (which uses the unfiltered `listOrders`), not in any real
+// customer's profile history (`listOrdersFor` matches on the visitor's owner
+// id, which will never equal this constant). Declared above the store
+// initializer because `seedStore()` runs at module evaluation time and
+// references this constant — a `const` declared later would TDZ.
+const SEED_OWNER_ID = "seed-store";
+
 const store: OrderStore = (globalForOrders.__naiseOrderStore ??= seedStore());
 
 // The order's overall status is derived from its drinks: every drink done means
@@ -64,6 +72,18 @@ export function listOrders(): Order[] {
   );
 }
 
+// Orders belonging to one customer (guest or member), newest first. Used by
+// the customer profile/orders surfaces to scope the history to "this browser".
+// Maps onto `select * from orders where user_id = auth.uid() order by
+// created_at desc` under RLS once Supabase lands. A null/empty owner id
+// matches no orders — the page should render the empty state.
+export function listOrdersFor(ownerId: string | null | undefined): Order[] {
+  if (!ownerId) return [];
+  return [...store.orders.values()]
+    .filter((o) => o.ownerId === ownerId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
 // Set one drink's fulfilment status, then re-derive the order's overall status
 // from all its drinks. Returns the updated order (or null if unknown). Replace
 // with a Supabase update + realtime broadcast later; the signature stays the
@@ -108,6 +128,9 @@ export function cancelOrder(token: string): Order | null {
 // Seed a handful of mock orders so the manage screen has content before
 // Supabase. Timestamps are relative to process start. Remove once real orders
 // flow through createOrder against the database.
+//
+// Seeds use the module-level `SEED_OWNER_ID` (declared near the top so it's
+// available when the global store is first initialized).
 function seedStore(): OrderStore {
   const orders = new Map<string, Order>();
   const now = Date.now();
@@ -117,6 +140,7 @@ function seedStore(): OrderStore {
     {
       token: "seed-1023",
       orderNumber: "NAISE-001023",
+      ownerId: SEED_OWNER_ID,
       status: "pending",
       paymentMethod: "DuitNow QR",
       proofOfPaymentUrl: "/brand/coffee_with_logo.png",
@@ -147,6 +171,7 @@ function seedStore(): OrderStore {
     {
       token: "seed-1022",
       orderNumber: "NAISE-001022",
+      ownerId: SEED_OWNER_ID,
       status: "preparing",
       paymentMethod: "Cash",
       createdAt: minutesAgo(5),
@@ -167,6 +192,7 @@ function seedStore(): OrderStore {
     {
       token: "seed-1021",
       orderNumber: "NAISE-001021",
+      ownerId: SEED_OWNER_ID,
       status: "pending",
       paymentMethod: "DuitNow QR",
       proofOfPaymentUrl: "/brand/coffee_with_logo.png",
@@ -197,6 +223,7 @@ function seedStore(): OrderStore {
     {
       token: "seed-1020",
       orderNumber: "NAISE-001020",
+      ownerId: SEED_OWNER_ID,
       status: "completed",
       paymentMethod: "Cash",
       createdAt: minutesAgo(24),

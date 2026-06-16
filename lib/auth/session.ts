@@ -1,15 +1,23 @@
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 import { MANAGE_ROLES, type Role } from "@/types/auth";
 
-// PLACEHOLDER until Supabase Auth lands. For now the role is read from a
-// `naise_role` cookie so the management gate can be exercised in development.
-// Replace this with the Supabase server client + a `profiles.role` lookup, and
-// back it with RLS — do not rely on this for real security.
+// Reads the signed-in user's role from `profiles` (RLS-backed). Returns null
+// for guests. Replaces the old `naise_role` cookie placeholder — staff/admin
+// roles are now assigned in Supabase, not via a dev toggle.
 export async function getSessionRole(): Promise<Role | null> {
-  const store = await cookies();
-  const value = store.get("naise_role")?.value;
-  const allowed: Role[] = ["admin", "manager", "staff", "customer"];
-  return allowed.includes(value as Role) ? (value as Role) : null;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (error || !data) return null;
+  return data.role as Role;
 }
 
 // Whether the current session may open an order management link.

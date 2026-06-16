@@ -21,7 +21,13 @@ export type AuthUser = {
   method: AuthMethod;
   // Set for Google sign-in (the account email); absent for phone sign-in.
   email?: string;
-  // Set for phone sign-in (E.164-ish, e.g. "+60123456789"); absent for Google.
+  // Set for phone sign-in (E.164-ish, e.g. "+601****6789"); absent for Google.
   phone?: string;
   name: string;
+  // Profile photo URL from the identity provider (Google avatar). Absent for
+  // phone sign-in. Rendered directly via <img>, so no next/image config needed.
+  avatarUrl?: string;
+  // ISO timestamp of account creation (Supabase `auth.users.created_at`).
+  // Drives the accurate "Member since" label; absent for the phone mock.
+  createdAt?: string;
 };
