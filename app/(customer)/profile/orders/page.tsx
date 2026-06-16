@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
-import { listOrders } from "@/lib/orders/store";
+import { listOrdersFor } from "@/lib/orders/store";
+import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
 import { CustomerOrderCard } from "@/components/customer-order-card";
 
 export const metadata: Metadata = {
@@ -9,8 +10,12 @@ export const metadata: Metadata = {
   description: "Your full order history at Naise Coffee.",
 };
 
-export default function ProfileOrdersPage() {
-  const orders = listOrders();
+export default async function ProfileOrdersPage() {
+  // Scope to this browser's owner id so guests only see their own orders and
+  // members don't see another customer's history. Maps onto an RLS-scoped
+  // `select * from orders where user_id = auth.uid()` once Supabase lands.
+  const ownerId = await getOwnerIdFromCookie();
+  const orders = listOrdersFor(ownerId);
 
   return (
     <div className="flex flex-col">

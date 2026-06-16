@@ -34,6 +34,7 @@ import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
 import type { PaymentMethodId } from "@/types/payment";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
+import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
 // wallets use a representative lucide glyph (no official logos shipped yet);
@@ -166,6 +167,10 @@ export function CheckoutScreen() {
         notes,
         subtotal: totalOriginal,
         total: totalPrice,
+        // Per-browser stable id; minted on first call and reused thereafter.
+        // Same id is adopted by the auth store on sign-in, so guest orders
+        // automatically belong to the registered account afterwards.
+        ownerId: getOrCreateOwnerId(),
       });
 
       if (!result.ok) {

@@ -9,12 +9,17 @@ import {
   useState,
 } from "react";
 import type { AuthMethod, AuthUser } from "@/types/auth";
+import { getOrCreateOwnerId, setOwnerId } from "@/lib/auth/owner-id";
 
 const AUTH_KEY = "naise-auth";
 // Set the moment a guest becomes a member; consumed once to show the welcome
 // modal, then cleared. Kept separate from the user record so signing out and
 // back in (an existing member) never re-triggers the new-user celebration.
 const WELCOME_KEY = "naise-auth-welcome";
+// Tracks identities (email/phone) that have signed in on this browser before.
+// Lets us suppress the welcome modal when a returning member signs back in
+// without needing a real backend lookup. JSON-encoded array of strings.
+const KNOWN_IDENTITIES_KEY = "naise-auth-known";
 
 type SignInInput = {
   method: AuthMethod;
@@ -49,6 +54,43 @@ function defaultName(input: SignInInput): string {
   return "Naise Member";
 }
 
+// Stable per-identity key used to recognize a returning member. Phone
+// numbers are normalised by stripping spaces; email is lowercased. The key
+// includes the method so a Google account and a phone number that happen to
+// share a string don't collide.
+function identityKey(input: SignInInput): string | null {
+  if (input.method === "google" && input.email) {
+    return `google:${input.email.trim().toLowerCase()}`;
+  }
+  if (input.method === "phone" && input.phone) {
+    return `phone:${input.phone.replace(/\s+/g, "")}`;
+  }
+  return null;
+}
+
+function readKnownIdentities(): Set<string> {
+  try {
+    const raw = localStorage.getItem(KNOWN_IDENTITIES_KEY);
+    if (!raw) return new Set();
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((v): v is string => typeof v === "string"));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeKnownIdentities(known: Set<string>): void {
+  try {
+    localStorage.setItem(
+      KNOWN_IDENTITIES_KEY,
+      JSON.stringify([...known]),
+    );
+  } catch {
+    // Non-fatal; worst case we re-show the welcome modal next time.
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Start signed-out so the first client render matches the server HTML; the
   // persisted session loads in the effect below (same approach as the cart,
@@ -66,6 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore malformed/unavailable storage; start as a guest.
     }
+    // Make sure every visitor has an owner id from first paint, so guest
+    // orders attribute correctly even before they ever sign in.
+    getOrCreateOwnerId();
     setHydrated(true);
   }, []);
 
@@ -82,28 +127,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, hydrated]);
 
   const signIn = useCallback((input: SignInInput) => {
+    // Adopt the existing per-browser owner id as the user's id. This is the
+    // mechanism that carries guest orders into the new account: every order
+    // placed before sign-in already has this same ownerId, so the profile's
+    // `listOrdersFor(ownerId)` query keeps showing them. (In Supabase later,
+    // the user's auth.uid() takes over and we run a one-shot UPDATE keyed on
+    // this id to migrate the rows.)
+    const ownerId = getOrCreateOwnerId();
+
+    // Returning identity? Skip the welcome modal. New identity? Arm it and
+    // remember the identity for next time. A sign-in that doesn't carry an
+    // identity key (shouldn't happen with Google/phone, but defensive) is
+    // treated as new.
+    const key = identityKey(input);
+    const known = readKnownIdentities();
+    const isReturning = key !== null && known.has(key);
+
     const next: AuthUser = {
-      id: crypto.randomUUID(),
+      id: ownerId,
       method: input.method,
       email: input.email,
       phone: input.phone,
       name: defaultName(input),
     };
     setUser(next);
-    // Arm the one-time welcome. In the mock there's no existing-account
-    // lookup, so every sign-in is treated as a new member; the flag itself
-    // guarantees it only ever fires once per browser.
-    setShowWelcome(true);
-    try {
-      localStorage.setItem(WELCOME_KEY, "1");
-    } catch {
-      // Non-fatal; the in-memory flag still drives this session's modal.
+    // Keep the cookie/localStorage owner id pinned to the user's id so future
+    // server reads see the same value.
+    setOwnerId(ownerId);
+
+    if (!isReturning) {
+      setShowWelcome(true);
+      try {
+        localStorage.setItem(WELCOME_KEY, "1");
+      } catch {
+        // Non-fatal; the in-memory flag still drives this session's modal.
+      }
+      if (key !== null) {
+        known.add(key);
+        writeKnownIdentities(known);
+      }
+    } else {
+      // Returning member — make sure no stale welcome flag fires.
+      setShowWelcome(false);
+      try {
+        localStorage.removeItem(WELCOME_KEY);
+      } catch {
+        // Non-fatal.
+      }
     }
   }, []);
 
   const signOut = useCallback(() => {
     setUser(null);
     setShowWelcome(false);
+    // Intentionally keep the owner id intact. A signed-out browser is back to
+    // being a "guest" — orders placed in this state should still attach to
+    // the same id, so when the same person signs in again (or registers)
+    // their full history follows them.
   }, []);
 
   const dismissWelcome = useCallback(() => {

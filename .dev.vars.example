@@ -1,0 +1,13 @@
+# Local Workers preview vars, read by `opennextjs-cloudflare preview`.
+# Copy to .dev.vars and fill in. .dev.vars is gitignored; this template is committed.
+
+NEXTJS_ENV=development
+
+# Public store URL for local preview
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# Telegram order notifications — server-only secrets.
+# TELEGRAM_BOT_TOKEN: from @BotFather (e.g. 123456789:ABCdef...).
+# TELEGRAM_CHAT_ID: target group chat id (negative for groups, e.g. -1001234567890).
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=

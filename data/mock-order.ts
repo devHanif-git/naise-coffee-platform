@@ -38,6 +38,7 @@ export function mockOrder(): Order {
   return {
     token: "test",
     orderNumber: "NAISE-000000",
+    ownerId: "mock-test",
     status: "pending",
     paymentMethod: "DuitNow QR",
     proofOfPaymentUrl: "/brand/coffee_with_logo.png",
