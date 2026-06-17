@@ -35,7 +35,7 @@
 
 - [/] **Step 1 [MANUAL]: Revoke the leaked GitHub token NOW**
 
-The token `ghp_…REDACTED…` is in `.mcp.json` in cleartext. Treat it as compromised.
+The hardcoded GitHub PAT in `.mcp.json` (`ghp_…REDACTED…`) is in cleartext. Treat it as compromised.
 Go to https://github.com/settings/tokens → find the token → **Delete / Revoke**. Then generate a fresh one if you still need GitHub MCP.
 
 - [ ] **Step 2 [CODE]: Confirm neither secret file is tracked**
