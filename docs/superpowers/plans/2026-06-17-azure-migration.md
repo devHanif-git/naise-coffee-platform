@@ -398,21 +398,21 @@ GitHub → Settings → Secrets and variables → Actions should list all **five
 - Consumes: Tasks 4–6.
 - Produces: a live app at `https://naise-coffee.azurewebsites.net`.
 
-- [ ] **Step 1: Merge the migration work to `master`**
+- [/] **Step 1: Merge the migration work to `master`**
 
 The deploy triggers on push to `master`. Merge `dev` → `master` (open a PR, or fast-forward if that's your flow). Confirm with the user before pushing to `master`.
 
-- [ ] **Step 2: Watch the Actions run**
+- [/] **Step 2: Watch the Actions run**
 
 GitHub → Actions tab → the `Deploy to Azure App Service` run.
 Expected: all steps green; the deploy step finishes with a success message.
 
-- [ ] **Step 3: Verify the app responds**
+- [/] **Step 3: Verify the app responds**
 
 Run: `curl -s -o /dev/null -w "%{http_code}" https://naise-coffee.azurewebsites.net/`
 Expected: `200`.
 
-- [ ] **Step 4: Browser smoke test**
+- [/] **Step 4: Browser smoke test**
 
 Open `https://naise-coffee.azurewebsites.net` — storefront renders with styling/images, menu loads (Supabase reachable), and you can sign in (OAuth callback works). If sign-in fails, check Supabase Auth → URL Configuration includes the azurewebsites.net URL and later the custom domain.
 
@@ -420,6 +420,21 @@ Open `https://naise-coffee.azurewebsites.net` — storefront renders with stylin
 
 Run: `az webapp log tail --name naise-coffee --resource-group naise-coffee-rg`
 Expected: request logs; no repeated startup crashes.
+
+>OUTPUT:
+>/home/LogFiles/StartupLogs/2026_06_17_lw1sdlwk0000R8_success.log  (https://naise-coffee.scm.azurewebsites.net/api/vfs/LogFiles/StartupLogs/2026_06_17_lw1sdlwk0000R8_success.log)
+>2026-06-17T14:34:23.4327965+00:00 ContainerStream: ??? Next.js 16.2.9
+>2026-06-17T14:34:23.4328506+00:00 ContainerStream: - Local:         http://511d81c88c3a:8080
+>2026-06-17T14:34:23.4328546+00:00 ContainerStream: - Network:       http://511d81c88c3a:8080
+>2026-06-17T14:34:23.5031344+00:00 ContainerStream: ??? Ready in 0ms
+>2026-06-17T14:34:30.4916830+00:00 ContainerStatus: Site startup probe succeeded after 52.3074446 seconds.
+>2026-06-17T14:34:30.6873085+00:00 ContainerStatus: State: Starting, Action: WarmUpProbeSucceeded, LastError: ContainerTimeout, LastErrorTimestamp: 06/17/2026 06:12:21, >LastErrorDetails: Container did not start within expected time limit of 230s. Please inspect your container logs for more details., Details: Site startup probe succeeded after 52.>3074446 seconds., DetailsLevel: INFO
+>2026-06-17T14:34:31.3153663+00:00 ContainerStatus: Site is running with deployment version: 8eb630f2-71ee-40f4-89e5-dae1e192e0a6
+>2026-06-17T14:34:31.3236262+00:00 ContainerStatus: Site started.
+>2026-06-17T14:34:31.3241217+00:00 ContainerStatus: State: Started, Action: None, LastError: ContainerTimeout, LastErrorTimestamp: 06/17/2026 06:12:21, LastErrorDetails: Container did >not start within expected time limit of 230s. Please inspect your container logs for m
+>ore details., Details: Site started at 06/17/2026 14:34:31 (UTC), DetailsLevel: INFO
+>2026-06-17T14:34:31.4104876+00:00 ContainerStatus: Site is running with patch version NODE-22.22.2
+>Ending Log Tail of existing logs ---
 
 ---
 
@@ -431,12 +446,12 @@ Expected: request logs; no repeated startup crashes.
 - Consumes: a verified-live app (Task 7).
 - Produces: `https://naisecoffee.utemride.my` served through Cloudflare (proxied, Full strict) → Azure, with an Azure-issued managed cert.
 
-- [ ] **Step 1: Add CNAME in Cloudflare — DNS-only (grey cloud)**
+- [/] **Step 1: Add CNAME in Cloudflare — DNS-only (grey cloud)**
 
 Cloudflare → DNS → Add record:
 - Type: `CNAME`, Name: `naisecoffee`, Target: `naise-coffee.azurewebsites.net`, Proxy status: **DNS only (grey cloud)**.
 
-- [ ] **Step 2: Add the Azure domain-verification TXT record**
+- [/] **Step 2: Add the Azure domain-verification TXT record**
 
 First get the verification id:
 ```bash
@@ -444,7 +459,7 @@ az webapp show --name naise-coffee --resource-group naise-coffee-rg --query cust
 ```
 In Cloudflare add: Type `TXT`, Name: `asuid.naisecoffee`, Content: the value from above. Proxy: N/A for TXT.
 
-- [ ] **Step 3: Bind the custom domain in Azure**
+- [/] **Step 3: Bind the custom domain in Azure**
 
 ```bash
 az webapp config hostname add \
@@ -454,7 +469,7 @@ az webapp config hostname add \
 ```
 Expected: success (Azure resolves the CNAME + TXT while grey-cloud/DNS-only). If it errors about verification, wait for DNS propagation (a few minutes) and retry.
 
-- [ ] **Step 4: Create & bind the free managed certificate**
+- [/] **Step 4: Create & bind the free managed certificate**
 
 ```bash
 az webapp config ssl create \
@@ -472,20 +487,20 @@ az webapp config ssl bind \
 ```
 Expected: cert issued and bound. Verify in Azure portal → Web App → Custom domains shows the domain **Secured**.
 
-- [ ] **Step 5: Flip the CNAME to proxied (orange cloud)**
+- [/] **Step 5: Flip the CNAME to proxied (orange cloud)**
 
 Cloudflare → DNS → edit the `naisecoffee` CNAME → Proxy status: **Proxied (orange cloud)**.
 
-- [ ] **Step 6: Set Cloudflare SSL/TLS mode to Full (strict)**
+- [/] **Step 6: Set Cloudflare SSL/TLS mode to Full (strict)**
 
 Cloudflare → SSL/TLS → Overview → encryption mode: **Full (strict)**. (Valid now because Azure has a real managed cert on the origin.)
 
-- [ ] **Step 7: Verify end-to-end HTTPS**
+- [/] **Step 7: Verify end-to-end HTTPS**
 
 Run: `curl -s -o /dev/null -w "%{http_code}" https://naisecoffee.utemride.my/`
 Expected: `200`. Browser: padlock valid, site loads through the custom domain. Check `curl -sI https://naisecoffee.utemride.my | grep -i server` shows `cloudflare` (proxy active).
 
-- [ ] **Step 8: Update Supabase Auth redirect URLs**
+- [/] **Step 8: Update Supabase Auth redirect URLs**
 
 Supabase dashboard → Authentication → URL Configuration → ensure Site URL and redirect allow-list include `https://naisecoffee.utemride.my` (and the OAuth callback path). Test Google sign-in on the live custom domain.
 
