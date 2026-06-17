@@ -4,13 +4,13 @@
 
 **Goal:** Migrate NAISE COFFEE from Cloudflare Workers (OpenNext adapter, hitting free-plan error 1102) to Azure App Service running a standard Next.js Node server, while keeping the domain on Cloudflare DNS proxied in front.
 
-**Architecture:** Drop the OpenNext Cloudflare adapter and build with standard Next.js `output: "standalone"` → `node server.js`. Host on Azure App Service (Linux B1, Node 20). Deploy via GitHub Actions on push to `master` using a publish profile. Cloudflare stays in front (proxied, Full strict TLS) with an Azure-issued free managed cert.
+**Architecture:** Drop the OpenNext Cloudflare adapter and build with standard Next.js `output: "standalone"` → `node server.js`. Host on Azure App Service (Linux B1, Node 22). Deploy via GitHub Actions on push to `master` using a publish profile. Cloudflare stays in front (proxied, Full strict TLS) with an Azure-issued free managed cert.
 
-**Tech Stack:** Next.js 16.2.9, React 19, Supabase SSR, Azure App Service (Linux, Node 20), GitHub Actions, Cloudflare DNS.
+**Tech Stack:** Next.js 16.2.9, React 19, Supabase SSR, Azure App Service (Linux, Node 22), GitHub Actions, Cloudflare DNS.
 
 ## Global Constraints
 
-- App Service tier: **Linux B1**, region **Southeast Asia** (Singapore) — closest to Malaysia.
+- App Service tier: **Linux B1**, region **East Asia** (Hong Kong) — nearest student-allowed region to Malaysia (Southeast Asia is blocked by the Azure for Students region policy).
 - Node version pinned to **20** in BOTH the CI build and the App Service runtime — they must match.
 - `NEXT_PUBLIC_*` env vars are **inlined at build time** → must be present in the GitHub Actions build step (GitHub repo secrets).
 - Server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are **read at runtime** → set on the Azure Web App, never in CI, never committed.
@@ -33,7 +33,7 @@
 - Consumes: nothing.
 - Produces: a clean `.gitignore` (ignores `.env*`, `.mcp.json`) and a `.mcp.json` that reads the GitHub token from `${GITHUB_PERSONAL_ACCESS_TOKEN}` instead of hardcoding it.
 
-- [ ] **Step 1 [MANUAL]: Revoke the leaked GitHub token NOW**
+- [/] **Step 1 [MANUAL]: Revoke the leaked GitHub token NOW**
 
 The token `ghp_…REDACTED…` is in `.mcp.json` in cleartext. Treat it as compromised.
 Go to https://github.com/settings/tokens → find the token → **Delete / Revoke**. Then generate a fresh one if you still need GitHub MCP.
@@ -213,10 +213,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node 20
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
       - name: Install dependencies
@@ -227,7 +227,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-          NEXT_PUBLIC_WHATSAPP_NUMBER: ${{ secrets.NEXT_PUBLIC_WHATSAPP_NUMBER }}
         run: npm run build
 
       - name: Assemble standalone bundle
@@ -263,9 +262,9 @@ git commit -m "ci: add Azure App Service deploy workflow"
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: resource group `naise-coffee-rg`, plan `naise-coffee-plan` (B1 Linux), Web App `naise-coffee` on Node 20 with startup command `node server.js`, and all runtime app settings.
+- Produces: resource group `naise-coffee-rg`, plan `naise-coffee-plan` (B1 Linux), Web App `naise-coffee` on Node 22 with startup command `node server.js`, and all runtime app settings.
 
-- [ ] **Step 1: Log in and select subscription**
+- [/] **Step 1: Log in and select subscription**
 
 ```bash
 az login
@@ -274,37 +273,39 @@ az account set --subscription "<your Azure for Students subscription>"
 ```
 Expected: `az account show` reflects the student subscription.
 
-- [ ] **Step 2: Create resource group**
+- [/] **Step 2: Create resource group**
 
 ```bash
-az group create --name naise-coffee-rg --location southeastasia
+az group create --name naise-coffee-rg --location eastasia
 ```
 Expected: JSON with `"provisioningState": "Succeeded"`.
 
-- [ ] **Step 3: Create the App Service plan (Linux B1)**
+- [/] **Step 3: Create the App Service plan (Linux B1)**
 
 ```bash
 az appservice plan create \
   --name naise-coffee-plan \
   --resource-group naise-coffee-rg \
-  --location southeastasia \
+  --location eastasia \
   --is-linux \
   --sku B1
 ```
 Expected: `"provisioningState": "Succeeded"`, `"reserved": true` (= Linux).
 
-- [ ] **Step 4: Create the Web App on Node 20**
+- [/] **Step 4: Create the Web App on Node 22**
 
 ```bash
 az webapp create \
   --name naise-coffee \
   --resource-group naise-coffee-rg \
   --plan naise-coffee-plan \
-  --runtime "NODE:20-lts"
+  --runtime "NODE:22-lts"
 ```
 Expected: JSON with the app's `defaultHostName` = `naise-coffee.azurewebsites.net`. (If the name is taken, pick another and update Task 4's `app-name` + all later references.)
 
-- [ ] **Step 5: Set the startup command**
+> Note: `NODE:20-lts` is NOT available on Azure for Students Linux — only `NODE:24-lts` and `NODE:22-lts` (`az webapp list-runtimes --os-type linux`). We use `22-lts` to match local Node v22.
+
+- [/] **Step 5: Set the startup command**
 
 ```bash
 az webapp config set \
@@ -314,7 +315,7 @@ az webapp config set \
 ```
 Expected: `"appCommandLine": "node server.js"` in the output.
 
-- [ ] **Step 6: Set runtime app settings (server secrets + build flag)**
+- [/] **Step 6: Set runtime app settings (server secrets + build flag)**
 
 Replace the `<...>` values with your real ones from `.env.local`:
 
@@ -325,19 +326,22 @@ az webapp config appsettings set \
   --settings \
     SCM_DO_BUILD_DURING_DEPLOYMENT=false \
     WEBSITES_PORT=3000 \
-    NEXT_PUBLIC_SITE_URL="https://naisecoffee.utemride.my" \
-    SUPABASE_SERVICE_ROLE_KEY="<service role key>" \
     TELEGRAM_BOT_TOKEN="<telegram bot token>" \
     TELEGRAM_CHAT_ID="<telegram chat id>"
 ```
 Expected: JSON array listing the settings. (`WEBSITES_PORT=3000` tells App Service which port `server.js` listens on; `SCM_DO_BUILD_DURING_DEPLOYMENT=false` because we build in CI.)
 
-> Note: `NEXT_PUBLIC_*` runtime values don't affect the already-inlined client bundle, but setting `NEXT_PUBLIC_SITE_URL` here is harmless and keeps server-side reads (`app/layout.tsx`, checkout action) correct.
+> Note: NO `NEXT_PUBLIC_*` vars go here. They are inlined into the bundle at
+> build time (in CI, from GitHub secrets), including `NEXT_PUBLIC_SITE_URL`
+> even though it's read in server code — `NEXT_PUBLIC_` values are baked in as
+> literals at build, so setting them at runtime is a no-op. `SUPABASE_SERVICE_ROLE_KEY`
+> is also omitted: the codebase never reads it (no admin/CMS work yet). Only
+> genuinely runtime-read secrets (`TELEGRAM_*`) plus the two App Service flags belong here.
 
-- [ ] **Step 7: Verify settings landed**
+- [/] **Step 7: Verify settings landed**
 
 Run: `az webapp config appsettings list --name naise-coffee --resource-group naise-coffee-rg --output table`
-Expected: all six settings present.
+Expected: the four settings present (`SCM_DO_BUILD_DURING_DEPLOYMENT`, `WEBSITES_PORT`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`).
 
 ---
 
@@ -349,7 +353,7 @@ Expected: all six settings present.
 - Consumes: Web App from Task 5.
 - Produces: five GitHub Actions secrets the workflow (Task 4) needs.
 
-- [ ] **Step 1: Download the publish profile**
+- [/] **Step 1: Download the publish profile**
 
 ```bash
 az webapp deployment list-publishing-profiles \
@@ -359,17 +363,17 @@ az webapp deployment list-publishing-profiles \
 ```
 Expected: an XML file with `<publishData>`. This file is a live credential and is NOT covered by `.gitignore` — you must delete it (Step 3) and never commit it.
 
-- [ ] **Step 2: Add `AZURE_WEBAPP_PUBLISH_PROFILE` secret**
+- [/] **Step 2: Add `AZURE_WEBAPP_PUBLISH_PROFILE` secret**
 
 GitHub repo → Settings → Secrets and variables → Actions → New repository secret.
 Name: `AZURE_WEBAPP_PUBLISH_PROFILE`. Value: paste the entire contents of `publish-profile.xml`.
 
-- [ ] **Step 3: Delete the local profile file**
+- [/] **Step 3: Delete the local profile file**
 
 Run: `rm publish-profile.xml`
 Expected: file gone (it's a live credential — don't leave it on disk or commit it).
 
-- [ ] **Step 4: Add the four `NEXT_PUBLIC_*` build secrets**
+- [/] **Step 4: Add the four `NEXT_PUBLIC_*` build secrets**
 
 Add each as a repository secret (same screen as Step 2), values from `.env.local`:
 
@@ -380,7 +384,7 @@ Add each as a repository secret (same screen as Step 2), values from `.env.local
 | `NEXT_PUBLIC_SITE_URL` | `https://naisecoffee.utemride.my` |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | your WhatsApp number (digits only) |
 
-- [ ] **Step 5: Verify**
+- [/] **Step 5: Verify**
 
 GitHub → Settings → Secrets and variables → Actions should list all **five** secrets.
 

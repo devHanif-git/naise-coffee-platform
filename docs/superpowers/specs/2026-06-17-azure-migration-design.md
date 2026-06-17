@@ -33,12 +33,12 @@ Cloudflare DNS.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Compute service | **App Service (Linux, B1, Node 20)** | Runs standard Next.js Node server directly; no containers; B1 (~$13/mo) fits the credit. |
+| Compute service | **App Service (Linux, B1, Node 22)** | Runs standard Next.js Node server directly; no containers; B1 (~$13/mo) fits the credit. |
 | Build model | **Standard `next build` standalone** (drop OpenNext) | Removes Cloudflare adapter quirks; smaller artifact; faster cold start. |
 | Deploy method | **GitHub Actions CI/CD** on push to `master` | Matches existing git workflow; no manual steps after setup. |
 | GitHub→Azure auth | **Publish profile** | Fewest moving parts for a solo project; can harden to OIDC later. |
 | DNS/TLS | **Cloudflare proxied + Full (strict)**, ordered cert cutover | Keeps CF CDN/DDoS/caching; Azure free managed cert. |
-| Region | **Southeast Asia** | Closest to Malaysia. |
+| Region | **East Asia** (Hong Kong) | Nearest student-allowed region to Malaysia (Southeast Asia is blocked by the Azure for Students region policy). |
 
 ## Architecture
 
@@ -49,7 +49,7 @@ Visitor
 Cloudflare (proxied, Full strict)  ── DNS: naisecoffee.utemride.my
   │  HTTPS
   ▼
-Azure App Service (Linux B1, Node 20)
+Azure App Service (Linux B1, Node 22)
   └─ node server.js  (Next.js standalone)
         │
         ▼
@@ -88,27 +88,28 @@ Azure App Service (Linux B1, Node 20)
 
 ## Azure Resources
 
-- **Resource group:** `naise-coffee-rg` (Southeast Asia)
+- **Resource group:** `naise-coffee-rg` (East Asia)
 - **App Service Plan:** Linux, B1
-- **Web App:** Node 20 LTS, startup command `node server.js`
+- **Web App:** Node 22 LTS, startup command `node server.js`
 
 ### App settings (runtime, on the Web App)
-- `SUPABASE_SERVICE_ROLE_KEY` (secret)
-- `TELEGRAM_BOT_TOKEN` (secret)
-- `TELEGRAM_CHAT_ID` (secret)
-- `NEXT_PUBLIC_SITE_URL` = `https://naisecoffee.utemride.my`
+- `TELEGRAM_BOT_TOKEN` (secret — used in `lib/telegram.ts`)
+- `TELEGRAM_CHAT_ID` (secret — used in `lib/telegram.ts`)
+- `WEBSITES_PORT` = `3000`
 - `SCM_DO_BUILD_DURING_DEPLOYMENT` = `false`
 
-> Note: `NEXT_PUBLIC_SITE_URL` is also needed at build time (inlined). It is set
-> in both places — GitHub secret for the build, Web App setting for runtime
-> parity.
+> All `NEXT_PUBLIC_*` vars (including `NEXT_PUBLIC_SITE_URL`) are inlined into the
+> bundle at build time and are NOT read from `process.env` at runtime — they live
+> only as GitHub Actions build secrets, never as Web App settings.
+> `SUPABASE_SERVICE_ROLE_KEY` is omitted: the codebase never reads it (no admin/CMS
+> work yet). Add it only when server-side admin code that bypasses RLS is introduced.
 
 ## CI/CD Workflow
 
 `.github/workflows/azure-deploy.yml`:
 
 1. **Trigger:** push to `master`.
-2. **Build:** checkout → Node 20 → `npm ci` → `npm run build` with the four
+2. **Build:** checkout → Node 22 → `npm ci` → `npm run build` with the four
    `NEXT_PUBLIC_*` values injected from GitHub repo secrets.
 3. **Package:** zip `.next/standalone` + `.next/static` + `public/` (standalone
    does not copy `static`/`public` automatically — workflow must add them).
