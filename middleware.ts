@@ -1,20 +1,21 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
-// NOTE: Next 16 renamed `middleware` → `proxy`, but the new `proxy.ts` convention
-// runs on the Node.js runtime, which the OpenNext Cloudflare adapter does NOT yet
-// support (build fails: "Node.js middleware is not currently supported").
-// Tracking: https://github.com/opennextjs/opennextjs-cloudflare/issues/617
-// Until that lands, we stay on the deprecated-but-working Edge `middleware.ts`.
-// The function MUST be named `middleware`. updateSession only uses @supabase/ssr,
-// which is Edge-compatible, so nothing breaks.
+// NOTE: Next 16 renamed `middleware` → `proxy` (Node runtime). We stay on the
+// Edge `middleware.ts` convention for now; migrating to `proxy.ts` is deferred.
+// The function MUST be named `middleware`.
 export async function middleware(request: NextRequest) {
   return await updateSession(request);
 }
 
 export const config = {
   matcher: [
-    // Run on everything except static assets and image files.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Run on everything EXCEPT:
+    //  - Next static/image assets and the favicon
+    //  - image files (extensions below)
+    //  - PWA/SEO static files (manifest, robots, sitemap, sw)
+    //  - the OAuth callback, which exchanges the code + writes cookies itself,
+    //    so it doesn't need the proxy session refresh on top (saves CPU there).
+    "/((?!_next/static|_next/image|favicon.ico|auth/callback|manifest.webmanifest|robots.txt|sitemap.xml|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
