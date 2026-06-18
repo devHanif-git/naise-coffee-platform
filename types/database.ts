@@ -14,15 +14,58 @@ export type Database = {
   }
   public: {
     Tables: {
+      bean_transactions: {
+        Row: {
+          amount: number
+          category: Database["public"]["Enums"]["bean_txn_category"]
+          created_at: string
+          id: string
+          is_reversal: boolean
+          label: string
+          order_id: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category: Database["public"]["Enums"]["bean_txn_category"]
+          created_at?: string
+          id?: string
+          is_reversal?: boolean
+          label: string
+          order_id?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: Database["public"]["Enums"]["bean_txn_category"]
+          created_at?: string
+          id?: string
+          is_reversal?: boolean
+          label?: string
+          order_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bean_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           addon_names: string[]
           id: string
+          is_reward: boolean
           line_total: number
           name: string
           order_id: string
           position: number
           quantity: number
+          reward_cost: number
           size_name: string | null
           status: Database["public"]["Enums"]["item_status"]
           unit_price: number
@@ -30,11 +73,13 @@ export type Database = {
         Insert: {
           addon_names?: string[]
           id?: string
+          is_reward?: boolean
           line_total: number
           name: string
           order_id: string
           position: number
           quantity: number
+          reward_cost?: number
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           unit_price: number
@@ -42,11 +87,13 @@ export type Database = {
         Update: {
           addon_names?: string[]
           id?: string
+          is_reward?: boolean
           line_total?: number
           name?: string
           order_id?: string
           position?: number
           quantity?: number
+          reward_cost?: number
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           unit_price?: number
@@ -148,6 +195,60 @@ export type Database = {
         }
         Relationships: []
       }
+      reward_accounts: {
+        Row: {
+          balance: number
+          created_at: string
+          current_streak: number
+          last_check_in: string | null
+          lifetime_earned: number
+          longest_streak: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          current_streak?: number
+          last_check_in?: string | null
+          lifetime_earned?: number
+          longest_streak?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          current_streak?: number
+          last_check_in?: string | null
+          lifetime_earned?: number
+          longest_streak?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      streak_checkins: {
+        Row: {
+          check_in_date: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          check_in_date: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          check_in_date?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -159,6 +260,12 @@ export type Database = {
       }
     }
     Enums: {
+      bean_txn_category:
+        | "earn"
+        | "redeem"
+        | "streak_bonus"
+        | "referral"
+        | "adjustment"
       item_status: "pending" | "preparing" | "done"
       order_status:
         | "pending"
@@ -294,6 +401,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bean_txn_category: [
+        "earn",
+        "redeem",
+        "streak_bonus",
+        "referral",
+        "adjustment",
+      ],
       item_status: ["pending", "preparing", "done"],
       order_status: ["pending", "preparing", "ready", "completed", "cancelled"],
       user_role: ["admin", "manager", "staff", "customer"],
