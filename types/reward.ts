@@ -61,3 +61,18 @@ export type RewardsSummary = {
   rewards: Reward[];
   activity: BeanActivity[];
 };
+
+// The rewards outcome of placing an order, returned by apply_order_rewards and
+// surfaced on the checkout confirmation. `bonuses` are streak-milestone awards
+// granted by this order.
+export type OrderRewardsResult = {
+  earned: number;
+  redeemedCost: number;
+  streakDays: number;
+  bonuses: { label: string; beans: number }[];
+};
+
+// A Bean bonus granted for hitting a streak checkpoint (e.g. a 3-day bonus).
+// Matches the shape of OrderRewardsResult.bonuses entries; shown on the checkout
+// confirmation.
+export type StreakAward = { label: string; beans: number };

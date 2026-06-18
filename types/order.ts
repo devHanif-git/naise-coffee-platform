@@ -23,6 +23,10 @@ export type OrderLine = {
   lineTotal: number;
   // Fulfilment progress for this drink. New lines start "pending".
   status: ItemStatus;
+  // Set when this line was added by redeeming a Beans reward. The base drink is
+  // free; `rewardCost` is the Bean price, settled server-side at placement.
+  isReward?: boolean;
+  rewardCost?: number;
 };
 
 export type Order = {
