@@ -21,7 +21,7 @@ export default async function ManageOrderPage({
   if (!(await canManageOrders())) redirect("/");
 
   const { token } = await params;
-  const order = getOrderByToken(token);
+  const order = await getOrderByToken(token);
 
   if (!order) {
     return (
