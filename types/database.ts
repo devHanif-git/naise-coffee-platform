@@ -254,10 +254,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_order_rewards: { Args: { p_token: string }; Returns: Json }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      reverse_order_rewards: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: {
       bean_txn_category:
