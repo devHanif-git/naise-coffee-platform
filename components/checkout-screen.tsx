@@ -162,9 +162,12 @@ export function CheckoutScreen() {
     setError(null);
     setSubmitting(true);
     try {
+      // Mint/read the owner id once so the receipt's path prefix matches the
+      // ownerId sent to the action (the server validates they agree).
+      const ownerId = getOrCreateOwnerId();
       let proofOfPaymentPath: string | undefined;
       if (selected === "duitnow-qr" && receiptFile) {
-        proofOfPaymentPath = await uploadReceipt(receiptFile, getOrCreateOwnerId());
+        proofOfPaymentPath = await uploadReceipt(receiptFile, ownerId);
       }
 
       const result = await placeOrderAction({
@@ -184,7 +187,7 @@ export function CheckoutScreen() {
         // Per-browser stable id; minted on first call and reused thereafter.
         // Same id is adopted by the auth store on sign-in, so guest orders
         // automatically belong to the registered account afterwards.
-        ownerId: getOrCreateOwnerId(),
+        ownerId,
         proofOfPaymentPath,
       });
 

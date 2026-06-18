@@ -207,10 +207,15 @@ export async function setItemStatus(
 
   const { data: orderRow } = await db
     .from("orders")
-    .select("id")
+    .select("id, status")
     .eq("token", token)
     .maybeSingle();
   if (!orderRow) return null;
+
+  // A cancelled order is a terminal manual override — never reopen it by
+  // advancing a drink. (Reopening a *completed* order is intentional below, so
+  // staff can correct a premature completion.)
+  if (orderRow.status === "cancelled") return getOrderByToken(token);
 
   const { data: itemRows } = await db
     .from("order_items")

@@ -126,6 +126,11 @@ export async function placeOrder(
   const canUseButton = /^https:\/\//i.test(manageUrl) && !isLocalUrl(manageUrl);
   const message = buildOrderMessage(order, manageUrl, !canUseButton);
 
+  // The order is already persisted (and rewards settled). The Telegram alert is
+  // a supplemental staff notice — the manage board shows the order live via
+  // Postgres Changes regardless — so a notify failure must NOT fail the order,
+  // or the customer sees an error and re-orders, creating a duplicate paid
+  // order. Best-effort: log and continue.
   try {
     await sendTelegramMessage(
       message,
@@ -135,7 +140,7 @@ export async function placeOrder(
     );
   } catch (err) {
     const reason = err instanceof Error ? err.message : "Unknown error";
-    return { ok: false, error: `Couldn't notify the store: ${reason}` };
+    console.error(`Order ${order.orderNumber} placed but Telegram notice failed: ${reason}`);
   }
 
   return { ok: true, orderNumber: order.orderNumber, rewards };
