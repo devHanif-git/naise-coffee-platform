@@ -58,11 +58,11 @@ const menuRows = [
 // owner id, which carries over to the account they later register.
 export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
   const { profile, hydrated: profileHydrated } = useProfile();
-  const { balance } = useBeans();
+  const { balance, lifetimeEarned } = useBeans();
   const { isAuthenticated, hydrated: authHydrated, signOut } = useAuth();
   const [signOutOpen, setSignOutOpen] = useState(false);
 
-  const tier = getTierProgress(balance);
+  const tier = getTierProgress(lifetimeEarned);
 
   // Identity shown in the hero comes straight from the profile store, which is
   // now backed by the `profiles` row (display_name / avatar_url / created_at)

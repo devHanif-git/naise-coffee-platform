@@ -13,8 +13,15 @@ import {
   Plus,
   Minus,
 } from "lucide-react";
-import type { RewardsSummary } from "@/types/reward";
-import { rewardTiers, getTierProgress, RECENT_ACTIVITY_LIMIT } from "@/data/rewards";
+import {
+  rewardTiers,
+  getTierProgress,
+  RECENT_ACTIVITY_LIMIT,
+  rewardsCatalog,
+  streakMilestones,
+  referralReward,
+  FREE_DRINK_FALLBACK,
+} from "@/data/rewards";
 import { RewardsInfoModal } from "@/components/rewards-info-modal";
 import { RewardsTiersModal } from "@/components/rewards-tiers-modal";
 import { RewardsReferralModal } from "@/components/rewards-referral-modal";
@@ -23,15 +30,11 @@ import { useBeans } from "@/store/beans";
 import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 
-// Dev-only streak controls (advance day / reset) are gated to non-production so
-// they never ship to customers.
-const SHOW_STREAK_DEV_CONTROLS = process.env.NODE_ENV !== "production";
-
 // The full Rewards screen. Client component because it owns the info-modal
 // state and the "?" trigger. Data is passed in (mocked today, server-fetched
 // once the Supabase rewards tables land). Mobile-first: the layout targets the
 // app's max-w-md shell, scaling type/spacing up at sm.
-export function RewardsScreen({ data }: { data: RewardsSummary }) {
+export function RewardsScreen() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
   const [referralOpen, setReferralOpen] = useState(false);
@@ -39,32 +42,35 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
   const streak = useStreak();
   const beansStore = useBeans();
 
-  // Until the persisted stores load from localStorage, render the server-
-  // provided mock values so the first client render matches the server HTML (no
-  // hydration mismatch). Once hydrated, the live, persisted values take over.
-  const streakDays = streak.hydrated ? streak.streakDays : data.streakDays;
-  const week = streak.hydrated ? streak.week : data.week;
-  const beans = beansStore.hydrated ? beansStore.balance : data.beans;
-  const activity = beansStore.hydrated ? beansStore.activity : data.activity;
+  // Per-user rewards come from the Supabase-backed stores. Before they hydrate
+  // we render the zero state (matching the server HTML), then the live values
+  // take over once loaded. `beans` is the spendable balance (hero + redeem
+  // affordability); `lifetimeEarned` drives the loyalty tier (earn-only, so
+  // redeeming never demotes).
+  const streakDays = streak.streakDays;
+  const week = streak.week;
+  const beans = beansStore.balance;
+  const lifetimeEarned = beansStore.lifetimeEarned;
+  const activity = beansStore.activity;
 
   // "Free drink" is a recurring goal, not a one-time target: a free drink costs
   // the cheapest reward's Beans, so the goal cycles every `drinkCost` Beans.
   // This keeps the hero meaningful past the first drink — progress shows where
   // you are within the current lap, and the target rolls forward each time you
-  // cross it. Falls back to the mock nextDrinkAt if there are no rewards.
+  // cross it. Falls back to FREE_DRINK_FALLBACK if there are no rewards.
   const drinkCost =
-    data.rewards.length > 0
-      ? Math.min(...data.rewards.map((r) => r.cost))
-      : data.nextDrinkAt;
+    rewardsCatalog.length > 0
+      ? Math.min(...rewardsCatalog.map((r) => r.cost))
+      : FREE_DRINK_FALLBACK;
   const earnedDrinks = drinkCost > 0 ? Math.floor(beans / drinkCost) : 0;
   const drinkTarget = (earnedDrinks + 1) * drinkCost;
   const toDrink = Math.max(0, drinkTarget - beans);
   const drinkPct =
     drinkCost > 0 ? Math.round(((beans % drinkCost) / drinkCost) * 100) : 0;
-  // Tier standing derived from the live balance against rewardTiers, so this
-  // screen and the tiers modal always show the same current tier (the static
-  // data.tier/nextTier/tierMax were drifting out of sync once beans changed).
-  const tier = getTierProgress(beans);
+  // Tier standing derived from lifetime-earned against rewardTiers, so this
+  // screen and the tiers modal always show the same current tier and redeeming
+  // (which lowers the spendable balance) never demotes the member.
+  const tier = getTierProgress(lifetimeEarned);
 
   return (
     <div className="flex flex-col">
@@ -194,8 +200,8 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
             </p>
             <p className="mt-1 text-xs text-muted-foreground tabular-nums">
               {tier.isMaxTier
-                ? `${beans.toLocaleString()} Beans · Top tier`
-                : `${beans.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
+                ? `${lifetimeEarned.toLocaleString()} Beans · Top tier`
+                : `${lifetimeEarned.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
             </p>
           </div>
         </section>
@@ -229,7 +235,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
           </ul>
 
           <div className="mt-4 flex items-stretch overflow-hidden rounded-2xl border border-border">
-            {data.milestones.map((m, i) => (
+            {streakMilestones.map((m, i) => (
               <div
                 key={m.days}
                 className={cn(
@@ -244,25 +250,6 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               </div>
             ))}
           </div>
-
-          {SHOW_STREAK_DEV_CONTROLS && (
-            <div className="mt-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={streak.devAdvanceDay}
-                className="flex-1 rounded-full border border-dashed border-neutral-300 py-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                Dev: Skip a day
-              </button>
-              <button
-                type="button"
-                onClick={streak.devReset}
-                className="flex-1 rounded-full border border-dashed border-neutral-300 py-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                Dev: Reset streak
-              </button>
-            </div>
-          )}
         </section>
 
         {/* Tier progress + tiers CTA. */}
@@ -323,7 +310,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
           </div>
 
           <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {data.rewards.map((reward) => {
+            {rewardsCatalog.map((reward) => {
               const affordable = beans >= reward.cost;
               return (
                 <li
@@ -387,10 +374,10 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               </p>
               <p className="mt-2 text-sm text-white/70">You get</p>
               <p className="font-heading text-3xl font-bold tracking-tight">
-                {data.referralBeans} Beans
+                {referralReward.beans} Beans
               </p>
               <p className="mt-1 text-sm text-white/70">
-                Friend gets <span className="font-semibold text-white">{data.referralVoucher}</span>
+                Friend gets <span className="font-semibold text-white">{referralReward.voucher}</span>
               </p>
               <button
                 type="button"
@@ -464,7 +451,7 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
       {tiersOpen && (
         <RewardsTiersModal
           tiers={rewardTiers}
-          beans={beans}
+          beans={lifetimeEarned}
           onClose={() => setTiersOpen(false)}
         />
       )}

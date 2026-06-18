@@ -23,6 +23,10 @@ export type OrderLine = {
   lineTotal: number;
   // Fulfilment progress for this drink. New lines start "pending".
   status: ItemStatus;
+  // Set when this line was added by redeeming a Beans reward. The base drink is
+  // free; `rewardCost` is the Bean price, settled server-side at placement.
+  isReward?: boolean;
+  rewardCost?: number;
 };
 
 export type Order = {
@@ -35,6 +39,9 @@ export type Order = {
   // become, so guest orders carry over to the new account on sign-up. Maps
   // onto `orders.user_id` (auth.uid()) in Supabase later.
   ownerId: string;
+  // The signed-in member who placed this order, if any (absent for guests).
+  // Maps to orders.user_id; used for server-side ownership checks.
+  userId?: string;
   status: OrderStatus;
   paymentMethod: string;
   items: OrderLine[];

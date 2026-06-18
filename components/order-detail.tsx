@@ -2,11 +2,16 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Ban, ChevronLeft, ChevronRight, Loader2, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
-import { markReadyAndNotify, updateDrinkStatus } from "@/app/(admin)/manage/actions";
+import {
+  cancelOrderAction,
+  markReadyAndNotify,
+  updateDrinkStatus,
+} from "@/app/(admin)/manage/actions";
 import { OrderCompleteModal } from "@/components/order-complete-modal";
 import type { Order } from "@/types/order";
 
@@ -45,7 +50,11 @@ export function OrderDetail({
   const [showComplete, setShowComplete] = useState(false);
   const [lastDoneIndex, setLastDoneIndex] = useState<number | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const router = useRouter();
 
   const doneCount = statuses.filter((s) => s === "done").length;
   const allDone = doneCount === order.items.length;
@@ -99,6 +108,29 @@ export function OrderDetail({
     if (lastDoneIndex !== null) applyStatus(lastDoneIndex, "preparing");
     setLastDoneIndex(null);
   }
+
+  // Cancel the whole order (staff override). This also reverses any Beans the
+  // order earned for a member (server-side, via cancelOrderAction). On success
+  // we return to the board, where the order moves to the Cancelled filter.
+  function confirmCancelOrder() {
+    setCancelError(null);
+    setCancelling(true);
+    startTransition(async () => {
+      const result = await cancelOrderAction(order.token);
+      setCancelling(false);
+      if (!result.ok) {
+        setCancelError(result.error);
+        return;
+      }
+      setShowCancel(false);
+      router.push(backHref);
+    });
+  }
+
+  // Whether the staff cancel control is offered: real orders that aren't already
+  // finished. The mock test page (persist=false) never shows it.
+  const canCancel =
+    persist && order.status !== "completed" && order.status !== "cancelled";
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8">
@@ -246,6 +278,84 @@ export function OrderDetail({
         <span>Total</span>
         <span className="tabular-nums">{formatPrice(order.total)}</span>
       </section>
+
+      {canCancel && (
+        <button
+          type="button"
+          onClick={() => setShowCancel(true)}
+          className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 text-xs font-semibold uppercase tracking-wider text-rose-600 transition-colors hover:bg-rose-50 outline-none focus-visible:ring-3 focus-visible:ring-rose-300"
+        >
+          <Ban className="size-4" strokeWidth={2} aria-hidden />
+          Cancel Order
+        </button>
+      )}
+
+      {showCancel && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-order-title"
+          onClick={() => !cancelling && setShowCancel(false)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 naise-fade"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full max-w-sm flex-col gap-4 rounded-3xl bg-white p-6 naise-pop"
+          >
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                <Ban className="size-6" strokeWidth={2} aria-hidden />
+              </span>
+              <h2
+                id="cancel-order-title"
+                className="font-heading text-xl font-bold tracking-tight"
+              >
+                Cancel {order.orderNumber}?
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                This marks the order cancelled and refunds any Beans it earned.
+                This can&apos;t be undone.
+              </p>
+            </div>
+
+            {cancelError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-2.5 text-xs text-rose-700"
+              >
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                <p className="min-w-0 flex-1">{cancelError}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={confirmCancelOrder}
+                disabled={cancelling}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+                    Cancelling
+                  </>
+                ) : (
+                  "Cancel Order"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCancel(false)}
+                disabled={cancelling}
+                className="flex h-12 w-full items-center justify-center rounded-full border border-border text-xs font-semibold uppercase tracking-[0.15em] text-foreground transition-colors hover:bg-neutral-50 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-70"
+              >
+                Keep Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showReceipt && order.proofOfPaymentUrl && (
         <ReceiptModal

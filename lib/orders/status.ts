@@ -1,16 +1,29 @@
 import type { OrderStatus } from "@/types/order";
 
 // The filter tabs on the manage screen. "In Progress" maps to the `preparing`
-// (and `ready`) statuses; "Completed" includes cancelled so finished orders
-// don't linger in the active tabs.
-export type OrderFilter = "all" | "pending" | "in_progress" | "completed";
+// (and `ready`) statuses; "Completed" and "Cancelled" are separate finished tabs.
+export type OrderFilter =
+  | "all"
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "cancelled";
 
 export const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All Orders" },
   { value: "pending", label: "Pending" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
 ];
+
+// Page size for the staff board's paginated order list. Kept here (not in the
+// server-only store) so client components can import it without pulling in
+// server-only deps.
+export const ORDERS_PAGE_SIZE = 20;
+
+// Per-tab order counts for the current date range.
+export type OrderGroupCounts = Record<OrderFilter, number>;
 
 export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
@@ -21,7 +34,36 @@ export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean
     case "in_progress":
       return status === "preparing" || status === "ready";
     case "completed":
-      return status === "completed" || status === "cancelled";
+      return status === "completed";
+    case "cancelled":
+      return status === "cancelled";
+  }
+}
+
+export function isOrderFilter(value: string): value is OrderFilter {
+  return (
+    value === "all" ||
+    value === "pending" ||
+    value === "in_progress" ||
+    value === "completed" ||
+    value === "cancelled"
+  );
+}
+
+// The DB-level status set a filter maps to. `all` returns null (no status
+// constraint) so the query can skip the `.in(...)` clause entirely.
+export function statusesForFilter(filter: OrderFilter): OrderStatus[] | null {
+  switch (filter) {
+    case "all":
+      return null;
+    case "pending":
+      return ["pending"];
+    case "in_progress":
+      return ["preparing", "ready"];
+    case "completed":
+      return ["completed"];
+    case "cancelled":
+      return ["cancelled"];
   }
 }
 

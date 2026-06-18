@@ -9,131 +9,128 @@ import {
   useState,
 } from "react";
 import type { BeanActivity } from "@/types/reward";
-import { beansPerRinggit, rewardsSummary } from "@/data/rewards";
+import { beansPerRinggit } from "@/data/rewards";
+import { createClient } from "@/lib/supabase/client";
 
-const BALANCE_KEY = "naise-beans-balance";
-const ACTIVITY_KEY = "naise-beans-activity";
-
-// One reward redeemed in an order, settled at checkout.
-type RedeemedReward = {
-  name: string;
-  cost: number;
-};
-
-// What an order contributes to the Beans ledger: beans earned on the paid total
-// and any rewards redeemed (whose costs are deducted). Computed by the caller
-// from the cart; the store applies it atomically.
-type OrderBeans = {
-  // Amount due in sen — beans are earned on this (paid) portion only.
-  paidTotal: number;
-  rewards: RedeemedReward[];
-};
+// How many recent ledger rows to load for the activity feed. The full feed lives
+// at /rewards/activity; this is plenty for the previews and that page.
+const ACTIVITY_LIMIT = 50;
 
 type BeansContextValue = {
-  // True once the persisted balance/activity have loaded from localStorage.
+  // True once the member's rewards have loaded (or we've confirmed a guest).
   hydrated: boolean;
   balance: number;
+  // Lifetime Beans earned (earn-only) — drives the loyalty tier.
+  lifetimeEarned: number;
   activity: BeanActivity[];
   // Beans earned per RM1 spent — exposed so callers can preview the earn.
   earnRate: number;
-  // Applies an order to the ledger: deducts redeemed reward costs, credits
-  // beans earned on the paid total, and prepends activity entries. Returns the
-  // resulting balance. Caller must check `canAfford` first — this assumes the
-  // redemption was already validated.
-  spendAndEarn: (order: OrderBeans) => number;
-  // Credits a flat amount of Beans with a labelled activity entry — for grants
-  // outside the order flow (streak milestones, referrals). No-op for amounts <= 0.
-  creditBeans: (amount: number, label: string) => void;
-  // Whether the current balance covers a Bean cost (e.g. a reward at checkout).
+  // Advisory: whether the current balance covers a Bean cost. The authoritative
+  // check is server-side in apply_order_rewards.
   canAfford: (cost: number) => boolean;
 };
 
 const BeansContext = createContext<BeansContextValue | null>(null);
 
-// Beans earned on a paid total (sen). 10 beans per whole RM by default.
-function beansEarned(paidTotalSen: number): number {
-  return Math.floor((paidTotalSen / 100) * beansPerRinggit);
+// Local-day label for a ledger row's created_at: "Today" / "Yesterday" / "12 Jun"
+// in Kuala Lumpur time. Runs only after hydration (client-side), so no SSR drift.
+function whenLabel(iso: string): string {
+  const tz = "Asia/Kuala_Lumpur";
+  const dayKey = (d: Date) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const key = dayKey(new Date(iso));
+  if (key === dayKey(now)) return "Today";
+  if (key === dayKey(yesterday)) return "Yesterday";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: tz,
+    day: "numeric",
+    month: "short",
+  }).format(new Date(iso));
 }
 
 export function BeansProvider({ children }: { children: React.ReactNode }) {
-  // Start from the mock snapshot so the first render matches the server-rendered
-  // rewards screens; real values load from storage in the effect below.
-  const [balance, setBalance] = useState(rewardsSummary.beans);
-  const [activity, setActivity] = useState<BeanActivity[]>(
-    rewardsSummary.activity,
-  );
+  const [balance, setBalance] = useState(0);
+  const [lifetimeEarned, setLifetimeEarned] = useState(0);
+  const [activity, setActivity] = useState<BeanActivity[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
-  // Load persisted ledger once on mount (effect, not lazy initializer) so the
-  // first client render matches the server's mock values and avoids a hydration
-  // mismatch — same approach as the cart/streak stores.
   useEffect(() => {
-    try {
-      const rawBalance = localStorage.getItem(BALANCE_KEY);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
-      if (rawBalance !== null) setBalance(Number(rawBalance) || 0);
-      const rawActivity = localStorage.getItem(ACTIVITY_KEY);
-      if (rawActivity) setActivity(JSON.parse(rawActivity) as BeanActivity[]);
-    } catch {
-      // Ignore malformed/unavailable storage; keep the mock starting values.
-    }
-    setHydrated(true);
-  }, []);
+    let active = true;
+    let cleanupChannel: (() => void) | null = null;
+    const supabase = createClient();
 
-  // Persist after the initial load so we never clobber stored values with the
-  // mock starting state.
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(BALANCE_KEY, String(balance));
-      localStorage.setItem(ACTIVITY_KEY, JSON.stringify(activity));
-    } catch {
-      // Storage may be full/unavailable; ledger still works in-memory.
-    }
-  }, [balance, activity, hydrated]);
-
-  const spendAndEarn = useCallback((order: OrderBeans) => {
-    const earned = beansEarned(order.paidTotal);
-    const spent = order.rewards.reduce((sum, r) => sum + r.cost, 0);
-
-    // Newest first, matching the activity feed. Redemptions are negative.
-    const entries: BeanActivity[] = [];
-    for (const reward of order.rewards) {
-      entries.push({
-        id: crypto.randomUUID(),
-        amount: -reward.cost,
-        label: `Redeemed ${reward.name}`,
-        when: "Today",
-      });
-    }
-    if (earned > 0) {
-      entries.push({
-        id: crypto.randomUUID(),
-        amount: earned,
-        label: "Order earnings",
-        when: "Today",
-      });
+    async function load(userId: string) {
+      const [{ data: account }, { data: txns }] = await Promise.all([
+        supabase
+          .from("reward_accounts")
+          .select("balance, lifetime_earned")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("bean_transactions")
+          .select("id, amount, label, created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(ACTIVITY_LIMIT),
+      ]);
+      if (!active) return;
+      setBalance(account?.balance ?? 0);
+      setLifetimeEarned(account?.lifetime_earned ?? 0);
+      setActivity(
+        (txns ?? []).map((t) => ({
+          id: t.id,
+          amount: t.amount,
+          label: t.label,
+          when: whenLabel(t.created_at),
+        })),
+      );
     }
 
-    // Functional updates so this composes with other ledger writes in the same
-    // tick (e.g. a streak milestone credited right after checkout) instead of
-    // one clobbering the other.
-    setBalance((prev) => prev - spent + earned);
-    setActivity((prev) => [...entries, ...prev]);
-    return balance - spent + earned;
-  }, [balance]);
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        if (active) setHydrated(true);
+        return;
+      }
+      await load(user.id);
+      if (active) setHydrated(true);
 
-  // Credits a flat amount of Beans with a labelled activity entry. Used for
-  // grants outside the order flow — streak milestones, referrals, etc. No-op for
-  // non-positive amounts. Functional updates so it stacks with a concurrent
-  // spendAndEarn in the same tick.
-  const creditBeans = useCallback((amount: number, label: string) => {
-    if (amount <= 0) return;
-    setBalance((prev) => prev + amount);
-    setActivity((prev) => [
-      { id: crypto.randomUUID(), amount, label, when: "Today" },
-      ...prev,
-    ]);
+      // Live updates: the member's own reward_accounts row changes whenever the
+      // ledger is written (the txn trigger updates it). Refetch on any change.
+      const channel = supabase
+        .channel(`rewards:${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "reward_accounts",
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            void load(user.id);
+          },
+        );
+      void supabase.realtime.setAuth().then(() => channel.subscribe());
+      cleanupChannel = () => {
+        void supabase.removeChannel(channel);
+      };
+    })();
+
+    return () => {
+      active = false;
+      cleanupChannel?.();
+    };
   }, []);
 
   const canAfford = useCallback((cost: number) => balance >= cost, [balance]);
@@ -142,13 +139,12 @@ export function BeansProvider({ children }: { children: React.ReactNode }) {
     () => ({
       hydrated,
       balance,
+      lifetimeEarned,
       activity,
       earnRate: beansPerRinggit,
-      spendAndEarn,
-      creditBeans,
       canAfford,
     }),
-    [hydrated, balance, activity, spendAndEarn, creditBeans, canAfford],
+    [hydrated, balance, lifetimeEarned, activity, canAfford],
   );
 
   return <BeansContext.Provider value={value}>{children}</BeansContext.Provider>;

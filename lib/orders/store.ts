@@ -1,6 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rowToOrder, type OrderItemRow } from "@/lib/orders/mappers";
+import {
+  statusesForFilter,
+  ORDERS_PAGE_SIZE,
+  type OrderFilter,
+  type OrderGroupCounts,
+} from "@/lib/orders/status";
+import { rangeBounds, type DateRangeKey } from "@/lib/orders/range";
 import type { ItemStatus, Order, OrderDraft, OrderStatus } from "@/types/order";
 
 // Supabase-backed order store. Members read/write under RLS via the cookie
@@ -55,6 +62,8 @@ export async function createOrder(
     unit_price: item.unitPrice,
     line_total: item.lineTotal,
     status: item.status,
+    is_reward: item.isReward ?? false,
+    reward_cost: item.rewardCost ?? 0,
   }));
 
   const { data: itemRows, error: itemsErr } = await db
@@ -86,18 +95,75 @@ export async function getOrderByToken(token: string): Promise<Order | null> {
   return rowToOrder(orderRow, (itemRows as OrderItemRow[]) ?? []);
 }
 
-// All orders, newest first. Staff board only — callers gate with
-// canManageOrders() first. Reads under the caller's RLS (staff role).
-export async function listOrders(): Promise<Order[]> {
+export type OrdersPage = { orders: Order[]; hasMore: boolean };
+
+// One page of orders for the staff board, newest first, filtered by status tab
+// and date range. Fetches limit+1 rows to tell whether more remain. Staff only —
+// callers gate with canManageOrders() first; reads under the caller's RLS.
+export async function listOrdersPage(opts: {
+  filter: OrderFilter;
+  range: DateRangeKey;
+  offset: number;
+  limit?: number;
+}): Promise<OrdersPage> {
+  const limit = Math.min(opts.limit ?? ORDERS_PAGE_SIZE, ORDERS_PAGE_SIZE);
+  const offset = Math.max(opts.offset, 0);
   const db = await createClient();
-  const { data: orderRows, error } = await db
+  let query = db
     .from("orders")
     .select("*, order_items(*)")
-    .order("created_at", { ascending: false });
-  if (error || !orderRows) return [];
-  return orderRows.map((row) =>
-    rowToOrder(row, (row.order_items as OrderItemRow[]) ?? []),
-  );
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit);
+
+  const statuses = statusesForFilter(opts.filter);
+  if (statuses) query = query.in("status", statuses);
+  const { fromIso, toIso } = rangeBounds(opts.range);
+  if (fromIso) query = query.gte("created_at", fromIso);
+  if (toIso) query = query.lt("created_at", toIso);
+
+  const { data: orderRows, error } = await query;
+  if (error || !orderRows) return { orders: [], hasMore: false };
+
+  const hasMore = orderRows.length > limit;
+  const page = hasMore ? orderRows.slice(0, limit) : orderRows;
+  return {
+    orders: page.map((row) =>
+      rowToOrder(row, (row.order_items as OrderItemRow[]) ?? []),
+    ),
+    hasMore,
+  };
+}
+
+// Count of orders matching one filter group within a date range. Head-only
+// count query — no rows fetched.
+async function countOrders(
+  filter: OrderFilter,
+  range: DateRangeKey,
+): Promise<number> {
+  const db = await createClient();
+  let query = db.from("orders").select("id", { count: "exact", head: true });
+  const statuses = statusesForFilter(filter);
+  if (statuses) query = query.in("status", statuses);
+  const { fromIso, toIso } = rangeBounds(range);
+  if (fromIso) query = query.gte("created_at", fromIso);
+  if (toIso) query = query.lt("created_at", toIso);
+  const { count } = await query;
+  return count ?? 0;
+}
+
+// Per-tab order counts for the current date range. Drives the numbers on the
+// filter tabs. Staff only.
+export async function countOrdersByGroup(
+  range: DateRangeKey,
+): Promise<OrderGroupCounts> {
+  const [all, pending, in_progress, completed, cancelled] = await Promise.all([
+    countOrders("all", range),
+    countOrders("pending", range),
+    countOrders("in_progress", range),
+    countOrders("completed", range),
+    countOrders("cancelled", range),
+  ]);
+  return { all, pending, in_progress, completed, cancelled };
 }
 
 // One customer's orders, newest first. Members match on user_id (RLS-scoped via
@@ -142,10 +208,15 @@ export async function setItemStatus(
 
   const { data: orderRow } = await db
     .from("orders")
-    .select("id")
+    .select("id, status")
     .eq("token", token)
     .maybeSingle();
   if (!orderRow) return null;
+
+  // A cancelled order is a terminal manual override — never reopen it by
+  // advancing a drink. (Reopening a *completed* order is intentional below, so
+  // staff can correct a premature completion.)
+  if (orderRow.status === "cancelled") return getOrderByToken(token);
 
   const { data: itemRows } = await db
     .from("order_items")
@@ -199,4 +270,18 @@ export async function cancelOrder(token: string): Promise<Order | null> {
     .eq("token", token);
   if (error) return null;
   return getOrderByToken(token);
+}
+
+// Cancel an order via the service-role client, for server-side rollback paths
+// where the caller is a member (who cannot UPDATE orders under RLS — that policy
+// is staff-only). Used by placeOrder when reward settlement fails: the order was
+// just created but must not linger as `pending`. Throws on failure so the caller
+// never silently leaves an orphaned order.
+export async function cancelOrderAsSystem(token: string): Promise<void> {
+  const db = createAdminClient();
+  const { error } = await db
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("token", token);
+  if (error) throw new Error(error.message);
 }

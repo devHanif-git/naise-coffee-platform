@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, PackageX } from "lucide-react";
 import { getOrderByToken } from "@/lib/orders/store";
+import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
+import { createClient } from "@/lib/supabase/server";
 import { CustomerOrderLive } from "@/components/customer-order-live";
 
 export const metadata: Metadata = {
@@ -23,7 +25,24 @@ export default async function ProfileOrderDetailPage({
   // otherwise back to the full orders list.
   const backHref = from === "profile" ? "/profile#recent-orders" : "/profile/orders";
 
-  if (!order) {
+  // Ownership gate (defense-in-depth on top of the unguessable token): only the
+  // member who placed it (user_id) or the browser that owns it (owner_id cookie)
+  // may view a customer order. getOrderByToken reads via the service role, so
+  // this is the only ownership check on this page. A mismatch renders the same
+  // not-found state rather than leaking another customer's order details.
+  let owned = false;
+  if (order) {
+    const ownerId = await getOwnerIdFromCookie();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    owned =
+      (user?.id != null && order.userId === user.id) ||
+      (ownerId != null && order.ownerId === ownerId);
+  }
+
+  if (!order || !owned) {
     return (
       <div className="flex flex-col">
         <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
