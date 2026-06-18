@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { rewardsSummary } from "@/data/rewards";
+import { rewardsCatalog } from "@/data/rewards";
 import { useBeans } from "@/store/beans";
 
 // Client view of the rewards catalogue. Reads the live Beans balance so the
@@ -11,9 +11,9 @@ import { useBeans } from "@/store/beans";
 // server-rendered HTML to avoid a mismatch). The reward list itself is static
 // mock content for now.
 export function RewardsCatalog() {
-  const { balance, hydrated } = useBeans();
-  const beans = hydrated ? balance : rewardsSummary.beans;
-  const { rewards } = rewardsSummary;
+  const { balance } = useBeans();
+  const beans = balance;
+  const rewards = rewardsCatalog;
 
   return (
     <main className="px-5 pb-8 pt-2">

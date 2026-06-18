@@ -8,7 +8,7 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useBeans } from "@/store/beans";
-import { rewardsSummary } from "@/data/rewards";
+import { rewardsCatalog } from "@/data/rewards";
 import { applyDiscount, getProductDiscount } from "@/data/discounts";
 
 export function ProductCustomizer({ product }: { product: Product }) {
@@ -27,7 +27,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
   // re-validating affordability — the cost was already committed at redemption.
   const rewardId = searchParams.get("reward") ?? undefined;
   const reward = rewardId
-    ? rewardsSummary.rewards.find((r) => r.id === rewardId)
+    ? rewardsCatalog.find((r) => r.id === rewardId)
     : undefined;
   const newReward =
     Boolean(reward) &&

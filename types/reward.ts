@@ -45,23 +45,6 @@ export type BeanActivity = {
   when: string;
 };
 
-// The full rewards snapshot for the signed-in customer. Server-fetched in the
-// real app; mocked in data/rewards.ts for now.
-export type RewardsSummary = {
-  beans: number;
-  nextDrinkAt: number;
-  streakDays: number;
-  week: StreakDay[];
-  milestones: StreakMilestone[];
-  tier: string;
-  tierMax: number;
-  nextTier: string;
-  referralBeans: number;
-  referralVoucher: string;
-  rewards: Reward[];
-  activity: BeanActivity[];
-};
-
 // The rewards outcome of placing an order, returned by apply_order_rewards and
 // surfaced on the checkout confirmation. `bonuses` are streak-milestone awards
 // granted by this order.
