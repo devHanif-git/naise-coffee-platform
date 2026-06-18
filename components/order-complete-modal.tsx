@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { BellRing } from "lucide-react";
 
 // Auto-opens when the last drink is marked done. Confirm sends the buyer the
 // "ready" notice and completes the order; Cancel reverts the just-completed
@@ -35,42 +36,45 @@ export function OrderCompleteModal({
       aria-modal="true"
       aria-label={`Complete order ${orderNumber}`}
       onClick={() => !busy && onCancel()}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6 naise-fade"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 naise-fade"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-sm flex-col gap-4 rounded-3xl bg-white p-6 naise-pop"
+        className="relative flex w-full max-w-sm flex-col items-center overflow-hidden rounded-3xl bg-white px-6 pb-6 pt-8 text-center naise-pop"
       >
-        <div className="flex flex-col gap-1">
-          <span className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
-            All drinks ready
-          </span>
-          <h2 className="font-heading text-xl font-bold tracking-tight tabular-nums">
-            Complete {orderNumber}?
-          </h2>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            This marks the order complete and notifies the buyer that their
-            order is ready for pickup.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="flex-1 rounded-full bg-neutral-100 px-4 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-neutral-200 disabled:opacity-50 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={busy}
-            className="flex-1 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {busy ? "Notifying…" : "Complete & notify"}
-          </button>
-        </div>
+        <span className="flex size-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <BellRing className="size-6" strokeWidth={2} aria-hidden />
+        </span>
+
+        <span className="mt-4 text-[0.6875rem] font-bold uppercase tracking-[0.15em] text-emerald-700">
+          All drinks ready
+        </span>
+        <h2 className="mt-1 font-heading text-xl font-bold tracking-tight tabular-nums">
+          Complete {orderNumber}?
+        </h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          This marks the order complete and notifies the buyer that their order
+          is ready for pickup.
+        </p>
+
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={busy}
+          className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <BellRing className="size-4" strokeWidth={2} aria-hidden />
+          {busy ? "Notifying…" : "Complete & Notify"}
+        </button>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="mt-2 h-12 w-full rounded-2xl border border-border text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground outline-none transition-colors hover:bg-neutral-100 hover:text-foreground disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
