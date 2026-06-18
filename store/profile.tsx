@@ -45,8 +45,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
     // Guests have no profile row; reset to the fallback and mark hydrated.
     if (!user) {
+      /* eslint-disable react-hooks/set-state-in-effect -- synchronous reset on sign-out; no cascade risk */
       setProfile(EMPTY_PROFILE);
       setHydrated(true);
+      /* eslint-enable react-hooks/set-state-in-effect */
       return;
     }
 

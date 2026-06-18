@@ -15,7 +15,7 @@ export function ProductCustomizer({ product }: { product: Product }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editKey = searchParams.get("edit") ?? undefined;
-  const { items, hydrated, addItem, updateItem } = useCart();
+  const { items, addItem, updateItem } = useCart();
   const { canAfford } = useBeans();
   const editLine = editKey ? items.find((i) => i.key === editKey) : undefined;
   const isEditing = Boolean(editKey && editLine);
