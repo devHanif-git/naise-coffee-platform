@@ -43,3 +43,29 @@ export function buildOrderMessage(
 
   return parts.join("\n");
 }
+
+// Buyer-facing pickup notice, sent when staff confirm the order is complete.
+// Distinct from the staff "NEW ORDER!" format — this reads like a message to
+// the customer. Sent to the same Telegram group for now.
+export function buildOrderReadyMessage(order: Order): string {
+  const itemLines = order.items.map((item) => {
+    const options = [item.sizeName, ...item.addonNames]
+      .filter(Boolean)
+      .join(", ");
+    const label = options ? `${item.name} (${options})` : item.name;
+    return `• ${item.quantity}x ${label}`;
+  });
+
+  const parts = [
+    "☕ Your drink is ready!",
+    "",
+    `Order ${order.orderNumber} is ready for pickup.`,
+    "",
+    "Items:",
+    ...itemLines,
+    "",
+    "Thank you for ordering with NAISE Coffee — see you at the counter!",
+  ];
+
+  return parts.join("\n");
+}
