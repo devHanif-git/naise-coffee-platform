@@ -5,7 +5,8 @@ import { ChevronRight, Receipt } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
-import { updateDrinkStatus } from "@/app/(admin)/manage/actions";
+import { markReadyAndNotify, updateDrinkStatus } from "@/app/(admin)/manage/actions";
+import { OrderCompleteModal } from "@/components/order-complete-modal";
 import type { Order } from "@/types/order";
 
 // Interactive single-order management view, shared by the real manage page
@@ -37,6 +38,9 @@ export function OrderDetail({
     order.completedAt,
   );
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
+  const [lastDoneIndex, setLastDoneIndex] = useState<number | null>(null);
+  const [completing, setCompleting] = useState(false);
   const [, startTransition] = useTransition();
 
   const doneCount = statuses.filter((s) => s === "done").length;
@@ -48,12 +52,16 @@ export function OrderDetail({
     next[index] = status;
     setStatuses(next);
 
-    // Stamp the completion time the moment the last drink is done; clear it if
-    // a drink is re-opened so it isn't shown for an order that's no longer done.
     const nowAllDone = next.length > 0 && next.every((s) => s === "done");
     setCompletedAt((prev) =>
       nowAllDone ? (prev ?? new Date().toISOString()) : undefined,
     );
+    // Auto-open the completion modal the moment the last drink turns done, but
+    // only for real (persisted) orders that aren't already completed.
+    if (nowAllDone && status === "done") {
+      setLastDoneIndex(index);
+      setShowComplete(true);
+    }
 
     if (persist) {
       startTransition(async () => {
@@ -70,10 +78,23 @@ export function OrderDetail({
 
   // True once every drink is done.
   const justCompleted = allDone;
-  // When this flips true for a real order, the store derives the order status as
-  // "completed". TODO(backend): that's the hook to notify the buyer over the
-  // WhatsApp API that the order is ready for pickup and mark the unique manage
-  // link as complete. Wire up once Supabase + WhatsApp land.
+
+  function confirmComplete() {
+    setCompleting(true);
+    startTransition(async () => {
+      if (persist) await markReadyAndNotify(order.token);
+      setCompleting(false);
+      setShowComplete(false);
+    });
+  }
+
+  // Cancel reverts the drink that just completed back to "preparing", so the
+  // order leaves "ready" and no notice is sent.
+  function cancelComplete() {
+    setShowComplete(false);
+    if (lastDoneIndex !== null) applyStatus(lastDoneIndex, "preparing");
+    setLastDoneIndex(null);
+  }
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
@@ -163,7 +184,6 @@ export function OrderDetail({
               item={item}
               status={statuses[i]}
               onAdvance={() => advanceDrink(i)}
-              onReset={() => applyStatus(i, "pending")}
             />
           ))}
         </ul>
@@ -216,6 +236,14 @@ export function OrderDetail({
           src={order.proofOfPaymentUrl}
           orderNumber={order.orderNumber}
           onClose={() => setShowReceipt(false)}
+        />
+      )}
+      {showComplete && (
+        <OrderCompleteModal
+          orderNumber={order.orderNumber}
+          busy={completing}
+          onConfirm={confirmComplete}
+          onCancel={cancelComplete}
         />
       )}
     </main>
