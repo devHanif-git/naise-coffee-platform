@@ -81,15 +81,20 @@ export async function markReadyAndNotify(
   const order = await getOrderByToken(token);
   if (!order) return { ok: false, error: "Order not found." };
 
-  try {
-    await sendTelegramMessage(buildOrderReadyMessage(order));
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : "Unknown error";
-    return { ok: false, error: `Couldn't notify the buyer: ${reason}` };
-  }
-
+  // Persist completion FIRST — the DB is the source of truth, and the customer's
+  // live tracking flips to completed via the broadcast trigger regardless of
+  // Telegram. Then send the pickup notice best-effort; a Telegram failure must
+  // not leave the order half-done or tell the buyer to collect an order the DB
+  // still shows as preparing.
   const completed = await completeOrder(token);
   if (!completed) return { ok: false, error: "Could not complete the order." };
+
+  try {
+    await sendTelegramMessage(buildOrderReadyMessage(completed));
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Unknown error";
+    console.error(`Order ${completed.orderNumber} completed but ready-notice failed: ${reason}`);
+  }
 
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
