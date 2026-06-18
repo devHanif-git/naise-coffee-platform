@@ -39,6 +39,9 @@ export type Order = {
   // become, so guest orders carry over to the new account on sign-up. Maps
   // onto `orders.user_id` (auth.uid()) in Supabase later.
   ownerId: string;
+  // The signed-in member who placed this order, if any (absent for guests).
+  // Maps to orders.user_id; used for server-side ownership checks.
+  userId?: string;
   status: OrderStatus;
   paymentMethod: string;
   items: OrderLine[];

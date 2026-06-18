@@ -28,6 +28,7 @@ export function rowToOrder(order: OrderRow, items: OrderItemRow[]): Order {
     token: order.token,
     orderNumber: order.order_number!,
     ownerId: order.owner_id,
+    userId: order.user_id ?? undefined,
     status: order.status,
     paymentMethod: order.payment_method,
     items: lines,
