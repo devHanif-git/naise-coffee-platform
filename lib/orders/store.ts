@@ -156,13 +156,14 @@ async function countOrders(
 export async function countOrdersByGroup(
   range: DateRangeKey,
 ): Promise<OrderGroupCounts> {
-  const [all, pending, in_progress, completed] = await Promise.all([
+  const [all, pending, in_progress, completed, cancelled] = await Promise.all([
     countOrders("all", range),
     countOrders("pending", range),
     countOrders("in_progress", range),
     countOrders("completed", range),
+    countOrders("cancelled", range),
   ]);
-  return { all, pending, in_progress, completed };
+  return { all, pending, in_progress, completed, cancelled };
 }
 
 // One customer's orders, newest first. Members match on user_id (RLS-scoped via
