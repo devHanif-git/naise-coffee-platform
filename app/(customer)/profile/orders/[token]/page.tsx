@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft, PackageX } from "lucide-react";
 import { getOrderByToken } from "@/lib/orders/store";
-import { CustomerOrderDetail } from "@/components/customer-order-detail";
+import { CustomerOrderLive } from "@/components/customer-order-live";
 
 export const metadata: Metadata = {
   title: "Order Detail",
@@ -17,7 +17,7 @@ export default async function ProfileOrderDetailPage({
 }) {
   const { token } = await params;
   const { from } = await searchParams;
-  const order = getOrderByToken(token);
+  const order = await getOrderByToken(token);
 
   // Opened from the profile's recent-orders preview → back to that section;
   // otherwise back to the full orders list.
@@ -54,5 +54,5 @@ export default async function ProfileOrderDetailPage({
     );
   }
 
-  return <CustomerOrderDetail order={order} backHref={backHref} />;
+  return <CustomerOrderLive order={order} backHref={backHref} />;
 }

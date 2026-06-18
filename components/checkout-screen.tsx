@@ -35,6 +35,7 @@ import type { PaymentMethodId } from "@/types/payment";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
+import { uploadReceipt } from "@/lib/orders/receipt";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
 // wallets use a representative lucide glyph (no official logos shipped yet);
@@ -61,6 +62,8 @@ export function CheckoutScreen() {
     useState<PaymentMethodId>(defaultPaymentMethodId);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // DuitNow QR receipt: the picked file (held until place) and any upload error.
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   // Set once the order is placed; switches the screen to the confirmation view.
   const [placedNumber, setPlacedNumber] = useState<string | null>(null);
   // Streak bonuses earned by placing this order, shown on the confirmation.
@@ -152,9 +155,19 @@ export function CheckoutScreen() {
       return;
     }
 
+    if (selected === "duitnow-qr" && !receiptFile) {
+      setError("Please attach your DuitNow QR payment receipt.");
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
     try {
+      let proofOfPaymentUrl: string | undefined;
+      if (selected === "duitnow-qr" && receiptFile) {
+        proofOfPaymentUrl = await uploadReceipt(receiptFile, getOrCreateOwnerId());
+      }
+
       const result = await placeOrderAction({
         items: items.map((item) => ({
           name: item.name,
@@ -171,6 +184,7 @@ export function CheckoutScreen() {
         // Same id is adopted by the auth store on sign-in, so guest orders
         // automatically belong to the registered account afterwards.
         ownerId: getOrCreateOwnerId(),
+        proofOfPaymentUrl,
       });
 
       if (!result.ok) {
@@ -383,6 +397,29 @@ export function CheckoutScreen() {
             );
           })}
         </ul>
+
+        {selected === "duitnow-qr" && (
+          <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
+            <label
+              htmlFor="receipt"
+              className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              Payment Receipt
+            </label>
+            <input
+              id="receipt"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
+              className="text-sm file:mr-3 file:rounded-full file:border-0 file:bg-black file:px-4 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+            />
+            {receiptFile && (
+              <span className="truncate text-xs text-muted-foreground">
+                {receiptFile.name}
+              </span>
+            )}
+          </div>
+        )}
       </section>
 
       <section

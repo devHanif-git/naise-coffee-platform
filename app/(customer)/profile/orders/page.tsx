@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { listOrdersFor } from "@/lib/orders/store";
 import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
+import { createClient } from "@/lib/supabase/server";
 import { CustomerOrderCard } from "@/components/customer-order-card";
 
 export const metadata: Metadata = {
@@ -11,11 +12,12 @@ export const metadata: Metadata = {
 };
 
 export default async function ProfileOrdersPage() {
-  // Scope to this browser's owner id so guests only see their own orders and
-  // members don't see another customer's history. Maps onto an RLS-scoped
-  // `select * from orders where user_id = auth.uid()` once Supabase lands.
   const ownerId = await getOwnerIdFromCookie();
-  const orders = listOrdersFor(ownerId);
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const orders = await listOrdersFor(ownerId, user?.id ?? null);
 
   return (
     <div className="flex flex-col">

@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      order_items: {
+        Row: {
+          addon_names: string[]
+          id: string
+          line_total: number
+          name: string
+          order_id: string
+          position: number
+          quantity: number
+          size_name: string | null
+          status: Database["public"]["Enums"]["item_status"]
+          unit_price: number
+        }
+        Insert: {
+          addon_names?: string[]
+          id?: string
+          line_total: number
+          name: string
+          order_id: string
+          position: number
+          quantity: number
+          size_name?: string | null
+          status?: Database["public"]["Enums"]["item_status"]
+          unit_price: number
+        }
+        Update: {
+          addon_names?: string[]
+          id?: string
+          line_total?: number
+          name?: string
+          order_id?: string
+          position?: number
+          quantity?: number
+          size_name?: string | null
+          status?: Database["public"]["Enums"]["item_status"]
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          order_number: string | null
+          order_seq: number
+          owner_id: string
+          payment_method: string
+          proof_of_payment_url: string | null
+          status: Database["public"]["Enums"]["order_status"]
+          subtotal: number
+          token: string
+          total: number
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_number?: string | null
+          order_seq?: number
+          owner_id: string
+          payment_method: string
+          proof_of_payment_url?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          subtotal: number
+          token?: string
+          total: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          order_number?: string | null
+          order_seq?: number
+          owner_id?: string
+          payment_method?: string
+          proof_of_payment_url?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          subtotal?: number
+          token?: string
+          total?: number
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -58,6 +159,13 @@ export type Database = {
       }
     }
     Enums: {
+      item_status: "pending" | "preparing" | "done"
+      order_status:
+        | "pending"
+        | "preparing"
+        | "ready"
+        | "completed"
+        | "cancelled"
       user_role: "admin" | "manager" | "staff" | "customer"
     }
     CompositeTypes: {
@@ -186,6 +294,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      item_status: ["pending", "preparing", "done"],
+      order_status: ["pending", "preparing", "ready", "completed", "cancelled"],
       user_role: ["admin", "manager", "staff", "customer"],
     },
   },

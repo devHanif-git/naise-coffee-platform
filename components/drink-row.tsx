@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrderLine } from "@/types/order";
 
@@ -23,18 +23,15 @@ const statusStyle: Record<
 };
 
 // A single drink line that the barista swipes to update. Slide left to advance
-// (pending -> making -> ready); slide right to undo a step. Buttons mirror the
-// gestures for keyboard/desktop. The card dims and shows a strike once ready.
+// (pending -> making -> ready). The card dims and shows a strike once ready.
 export function DrinkRow({
   item,
   status,
   onAdvance,
-  onReset,
 }: {
   item: OrderLine;
   status: DrinkStatus;
   onAdvance: () => void;
-  onReset: () => void;
 }) {
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -43,7 +40,6 @@ export function DrinkRow({
   const subtitle = [item.sizeName, ...item.addonNames].filter(Boolean).join(", ");
   const s = statusStyle[status];
   const canAdvance = status !== "done";
-  const canReset = status !== "pending";
 
   // What slides into view as the drink is dragged.
   const advanceLabel = status === "pending" ? "Start making" : "Mark ready";
@@ -58,9 +54,8 @@ export function DrinkRow({
     if (startX.current === null) return;
     const delta = e.clientX - startX.current;
     const clamped = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, delta));
-    // Left needs a next step; right needs something to undo.
+    if (clamped > 0) return;
     if (clamped < 0 && !canAdvance) return;
-    if (clamped > 0 && !canReset) return;
     setDragX(clamped);
   }
 
@@ -71,8 +66,6 @@ export function DrinkRow({
 
     if (dragX <= -SWIPE_THRESHOLD && canAdvance) {
       onAdvance();
-    } else if (dragX >= SWIPE_THRESHOLD && canReset) {
-      onReset();
     }
     setDragX(0);
   }
@@ -87,15 +80,6 @@ export function DrinkRow({
           dragX === 0 && "opacity-0",
         )}
       >
-        <span
-          className={cn(
-            "flex items-center gap-1.5 text-muted-foreground",
-            dragX <= 0 && "opacity-0",
-          )}
-        >
-          <RotateCcw className="size-4" strokeWidth={2.5} />
-          Undo
-        </span>
         <span
           className={cn(
             "flex items-center gap-1.5 text-emerald-600",
@@ -150,16 +134,6 @@ export function DrinkRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {canReset && (
-            <button
-              type="button"
-              onClick={onReset}
-              aria-label={`Undo step for ${item.name}`}
-              className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <RotateCcw className="size-3.5" strokeWidth={2.5} aria-hidden />
-            </button>
-          )}
           {canAdvance ? (
             <button
               type="button"

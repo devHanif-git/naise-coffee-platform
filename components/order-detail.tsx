@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronRight, Receipt } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Receipt } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
-import { updateDrinkStatus } from "@/app/(admin)/manage/actions";
+import { markReadyAndNotify, updateDrinkStatus } from "@/app/(admin)/manage/actions";
+import { OrderCompleteModal } from "@/components/order-complete-modal";
 import type { Order } from "@/types/order";
 
 // Interactive single-order management view, shared by the real manage page
@@ -20,9 +22,12 @@ import type { Order } from "@/types/order";
 export function OrderDetail({
   order,
   persist = true,
+  backHref = "/manage",
 }: {
   order: Order;
   persist?: boolean;
+  // Where the back control returns to — the staff board by default.
+  backHref?: string;
 }) {
   // Per-drink status, keyed by line index, seeded from the order's own lines.
   // Held locally for optimistic updates; the server action persists in parallel.
@@ -37,6 +42,9 @@ export function OrderDetail({
     order.completedAt,
   );
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
+  const [lastDoneIndex, setLastDoneIndex] = useState<number | null>(null);
+  const [completing, setCompleting] = useState(false);
   const [, startTransition] = useTransition();
 
   const doneCount = statuses.filter((s) => s === "done").length;
@@ -48,12 +56,16 @@ export function OrderDetail({
     next[index] = status;
     setStatuses(next);
 
-    // Stamp the completion time the moment the last drink is done; clear it if
-    // a drink is re-opened so it isn't shown for an order that's no longer done.
     const nowAllDone = next.length > 0 && next.every((s) => s === "done");
     setCompletedAt((prev) =>
       nowAllDone ? (prev ?? new Date().toISOString()) : undefined,
     );
+    // Auto-open the completion modal the moment the last drink turns done, but
+    // only for real (persisted) orders that aren't already completed.
+    if (nowAllDone && status === "done") {
+      setLastDoneIndex(index);
+      setShowComplete(true);
+    }
 
     if (persist) {
       startTransition(async () => {
@@ -70,27 +82,52 @@ export function OrderDetail({
 
   // True once every drink is done.
   const justCompleted = allDone;
-  // When this flips true for a real order, the store derives the order status as
-  // "completed". TODO(backend): that's the hook to notify the buyer over the
-  // WhatsApp API that the order is ready for pickup and mark the unique manage
-  // link as complete. Wire up once Supabase + WhatsApp land.
+
+  function confirmComplete() {
+    setCompleting(true);
+    startTransition(async () => {
+      if (persist) await markReadyAndNotify(order.token);
+      setCompleting(false);
+      setShowComplete(false);
+    });
+  }
+
+  // Cancel reverts the drink that just completed back to "preparing", so the
+  // order leaves "ready" and no notice is sent.
+  function cancelComplete() {
+    setShowComplete(false);
+    if (lastDoneIndex !== null) applyStatus(lastDoneIndex, "preparing");
+    setLastDoneIndex(null);
+  }
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
-      <header className="flex flex-col gap-1">
-        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Manage Order
-        </span>
-        <h1 className="font-heading text-2xl font-bold tracking-tight tabular-nums">
-          {order.orderNumber}
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8">
+      {/* Sticky back bar — same control as the customer order view. */}
+      <header className="sticky top-0 z-20 -mx-5 flex items-center justify-between bg-background px-5 pb-3 pt-4">
+        <Link
+          href={backHref}
+          aria-label="Back"
+          className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <ChevronLeft className="size-6" aria-hidden />
+        </Link>
+        <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
+          Manage
         </h1>
+        <div className="size-9" aria-hidden />
+      </header>
+
+      <div className="flex flex-col gap-1">
+        <h2 className="font-heading text-2xl font-bold tracking-tight tabular-nums">
+          {order.orderNumber}
+        </h2>
         <time
           dateTime={order.createdAt}
           className="text-xs text-muted-foreground tabular-nums"
         >
           {formatOrderTime(order.createdAt)}
         </time>
-      </header>
+      </div>
 
       {/* Order-level progress: how many drinks are done. */}
       <section className="mt-6 flex flex-col gap-2 rounded-2xl bg-neutral-100/70 px-4 py-3.5">
@@ -163,7 +200,6 @@ export function OrderDetail({
               item={item}
               status={statuses[i]}
               onAdvance={() => advanceDrink(i)}
-              onReset={() => applyStatus(i, "pending")}
             />
           ))}
         </ul>
@@ -216,6 +252,14 @@ export function OrderDetail({
           src={order.proofOfPaymentUrl}
           orderNumber={order.orderNumber}
           onClose={() => setShowReceipt(false)}
+        />
+      )}
+      {showComplete && (
+        <OrderCompleteModal
+          orderNumber={order.orderNumber}
+          busy={completing}
+          onConfirm={confirmComplete}
+          onCancel={cancelComplete}
         />
       )}
     </main>
