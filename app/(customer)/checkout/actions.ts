@@ -1,12 +1,11 @@
 "use server";
 
 import { createOrder } from "@/lib/orders/store";
+import { createClient } from "@/lib/supabase/server";
 import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 
-// Minimal shape the client sends per line — derived from the cart. We keep the
-// server independent of the cart's internal CartItem type.
 type PlaceOrderItem = {
   name: string;
   quantity: number;
@@ -19,21 +18,17 @@ export type PlaceOrderInput = {
   items: PlaceOrderItem[];
   paymentMethod: string;
   notes?: string;
-  // Pre-discount and amount-due totals, in sen.
   subtotal: number;
   total: number;
-  // Stable per-browser id (`naise_owner_id`). Used so a guest's orders carry
-  // over to the account they later register — the new account adopts this
-  // same id. Validated to a non-empty string before persisting.
   ownerId: string;
+  // Public URL of the uploaded DuitNow QR receipt, if any.
+  proofOfPaymentUrl?: string;
 };
 
 export type PlaceOrderResult =
   | { ok: true; orderNumber: string }
   | { ok: false; error: string };
 
-// Creates the order, then posts the team a management link over Telegram. The
-// link is unguessable (uuid) and gated to staff roles by the manage page.
 export async function placeOrder(
   input: PlaceOrderInput,
 ): Promise<PlaceOrderResult> {
@@ -41,10 +36,15 @@ export async function placeOrder(
     return { ok: false, error: "Your cart is empty." };
   }
   if (!input.ownerId) {
-    // The owner id should always be supplied by the client — guard so we
-    // never persist an order with no attribution (RLS will require it later).
     return { ok: false, error: "Missing session id. Refresh and try again." };
   }
+
+  // Derive identity server-side — never trust a user id from the client.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const userId = user?.id ?? null;
 
   const lines: OrderLine[] = input.items.map((item) => ({
     name: item.name,
@@ -56,21 +56,28 @@ export async function placeOrder(
     status: "pending",
   }));
 
-  const order = createOrder({
-    ownerId: input.ownerId,
-    paymentMethod: input.paymentMethod,
-    items: lines,
-    subtotal: input.subtotal,
-    total: input.total,
-    notes: input.notes?.trim() || undefined,
-  });
+  let order;
+  try {
+    order = await createOrder(
+      {
+        ownerId: input.ownerId,
+        paymentMethod: input.paymentMethod,
+        items: lines,
+        subtotal: input.subtotal,
+        total: input.total,
+        notes: input.notes?.trim() || undefined,
+        proofOfPaymentUrl: input.proofOfPaymentUrl,
+      },
+      { userId },
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Unknown error";
+    return { ok: false, error: `Couldn't save your order: ${reason}` };
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const manageUrl = `${baseUrl}/manage/${order.token}`;
 
-  // Telegram inline buttons require a publicly reachable https URL — it rejects
-  // localhost/private hosts. Use a tappable button when we can, and fall back
-  // to a raw-text link in the body (e.g. local dev) otherwise.
   const canUseButton = /^https:\/\//i.test(manageUrl) && !isLocalUrl(manageUrl);
   const message = buildOrderMessage(order, manageUrl, !canUseButton);
 
@@ -82,8 +89,6 @@ export async function placeOrder(
         : {},
     );
   } catch (err) {
-    // The order is created either way; surface a clear failure so the customer
-    // can retry or fall back to WhatsApp rather than silently dropping it.
     const reason = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, error: `Couldn't notify the store: ${reason}` };
   }
@@ -91,8 +96,6 @@ export async function placeOrder(
   return { ok: true, orderNumber: order.orderNumber };
 }
 
-// True for hosts Telegram won't accept in an inline button URL (localhost and
-// private/loopback addresses). Keeps local dev working via the text fallback.
 function isLocalUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname;
