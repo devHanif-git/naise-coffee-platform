@@ -27,9 +27,8 @@ import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
-import { useStreak } from "@/hooks/use-streak";
 import { useBeans } from "@/store/beans";
-import { getStreakAwards, type StreakAward } from "@/data/rewards";
+import type { StreakAward } from "@/types/reward";
 import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
 import type { PaymentMethodId } from "@/types/payment";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
@@ -57,8 +56,7 @@ export function CheckoutScreen() {
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
   const { isAuthenticated, hydrated: authHydrated } = useAuth();
-  const { checkIn } = useStreak();
-  const { canAfford, spendAndEarn, creditBeans, earnRate } = useBeans();
+  const { canAfford, earnRate } = useBeans();
   const [selected, setSelected] =
     useState<PaymentMethodId>(defaultPaymentMethodId);
   const [submitting, setSubmitting] = useState(false);
@@ -128,12 +126,12 @@ export function CheckoutScreen() {
     void placeOrder();
   }
 
-  // Rewards being redeemed in this order, with their Bean costs. Reward lines
-  // are always quantity 1; the cost is settled against the balance at checkout.
-  const redeemedRewards = items
+  // Total Bean cost of rewards in the cart — drives the advisory affordability
+  // check before placing. The authoritative check is server-side in
+  // apply_order_rewards.
+  const totalRewardCost = items
     .filter((item) => item.isReward)
-    .map((item) => ({ name: item.name, cost: item.rewardCost ?? 0 }));
-  const totalRewardCost = redeemedRewards.reduce((sum, r) => sum + r.cost, 0);
+    .reduce((sum, item) => sum + (item.rewardCost ?? 0), 0);
 
   async function placeOrder() {
     if (submitting) return;
@@ -176,6 +174,8 @@ export function CheckoutScreen() {
           sizeName: item.sizeName,
           addonNames: item.addonNames,
           unitPrice: item.unitPrice,
+          isReward: item.isReward,
+          rewardCost: item.rewardCost,
         })),
         paymentMethod: method.name,
         notes,
@@ -193,22 +193,10 @@ export function CheckoutScreen() {
         return;
       }
 
-      // Order is in and the store has been notified. The Beans ledger and
-      // streak only apply to members — a guest who chose to continue earns
-      // nothing (that's exactly what the sign-in nudge was holding back).
-      if (isAuthenticated) {
-        // Settle the Beans ledger (deduct redeemed reward costs, earn Beans on
-        // the paid total) and mark today's streak — placing an order is the
-        // real-world trigger for both. If today's check-in landed on a streak
-        // checkpoint (3rd day of the week, a completed week, or a 30-day mark),
-        // credit those bonuses too and note them on the confirmation screen.
-        spendAndEarn({ paidTotal: totalPrice, rewards: redeemedRewards });
-        const checkInResult = checkIn();
-        if (checkInResult.isNewCheckIn) {
-          const awards = getStreakAwards(checkInResult.streakDays);
-          for (const award of awards) creditBeans(award.beans, award.label);
-          if (awards.length > 0) setStreakAwards(awards);
-        }
+      // Beans + streak are settled server-side at placement (members only).
+      // Surface any streak-milestone bonuses the server granted.
+      if (result.rewards && result.rewards.bonuses.length > 0) {
+        setStreakAwards(result.rewards.bonuses);
       }
       setPlacedNumber(result.orderNumber);
       clear();
