@@ -265,3 +265,17 @@ export async function cancelOrder(token: string): Promise<Order | null> {
   if (error) return null;
   return getOrderByToken(token);
 }
+
+// Cancel an order via the service-role client, for server-side rollback paths
+// where the caller is a member (who cannot UPDATE orders under RLS — that policy
+// is staff-only). Used by placeOrder when reward settlement fails: the order was
+// just created but must not linger as `pending`. Throws on failure so the caller
+// never silently leaves an orphaned order.
+export async function cancelOrderAsSystem(token: string): Promise<void> {
+  const db = createAdminClient();
+  const { error } = await db
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("token", token);
+  if (error) throw new Error(error.message);
+}

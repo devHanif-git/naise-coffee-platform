@@ -51,5 +51,10 @@ export async function applyOrderRewards(
 // double-cancels. Called by the staff cancel action.
 export async function reverseOrderRewards(token: string): Promise<void> {
   const db = await createClient();
-  await db.rpc("reverse_order_rewards", { p_token: token });
+  const { error } = await db.rpc("reverse_order_rewards", { p_token: token });
+  // The cancel itself already succeeded; a failed claw-back shouldn't fail the
+  // staff action, but log it so a silently-unreversed order is observable.
+  if (error) {
+    console.error(`reverse_order_rewards failed for ${token}: ${error.message}`);
+  }
 }

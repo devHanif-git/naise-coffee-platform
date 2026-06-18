@@ -1,6 +1,6 @@
 "use server";
 
-import { cancelOrder, createOrder } from "@/lib/orders/store";
+import { cancelOrderAsSystem, createOrder } from "@/lib/orders/store";
 import { applyOrderRewards } from "@/lib/rewards/store";
 import type { OrderRewardsResult } from "@/types/reward";
 import { createClient } from "@/lib/supabase/server";
@@ -89,7 +89,11 @@ export async function placeOrder(
   if (userId) {
     const applied = await applyOrderRewards(order.token);
     if (!applied.ok) {
-      await cancelOrder(order.token);
+      // The reward RPC raises before inserting any ledger rows, so nothing to
+      // reverse — just cancel the just-created order so it never lingers as
+      // `pending`. Members can't UPDATE orders under RLS (staff-only), so this
+      // rollback must run via the service-role client.
+      await cancelOrderAsSystem(order.token);
       return {
         ok: false,
         error: applied.insufficient
