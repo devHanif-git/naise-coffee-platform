@@ -1,40 +1,18 @@
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { rowToOrder, type OrderItemRow } from "@/lib/orders/mappers";
 import type { ItemStatus, Order, OrderDraft, OrderStatus } from "@/types/order";
 
-// MOCK order store. State is kept on globalThis so it survives Next.js dev hot
-// reloads and is shared across the (separately bundled) server action and
-// manage page — a plain module-level Map gets duplicated/reset between them in
-// dev, which makes freshly-created orders look "not found". This is still
-// per-server-process and resets on a full restart, which is fine before
-// Supabase. Swap createOrder/getOrderByToken/listOrders/setItemStatus for
-// Supabase queries later; the signatures are designed to stay the same (lookup
-// by token, NAISE-XXXXXX).
+// Supabase-backed order store. Members read/write under RLS via the cookie
+// client; guests (no auth identity) go through the service-role admin client in
+// these server-only functions. Money is in sen.
 
-type OrderStore = {
-  orders: Map<string, Order>;
-  lastSequence: number;
-};
-
-const globalForOrders = globalThis as unknown as {
-  __naiseOrderStore?: OrderStore;
-};
-
-// Seeds carry a fixed `SEED_OWNER_ID` so they only show up on the staff
-// `/manage` board (which uses the unfiltered `listOrders`), not in any real
-// customer's profile history (`listOrdersFor` matches on the visitor's owner
-// id, which will never equal this constant). Declared above the store
-// initializer because `seedStore()` runs at module evaluation time and
-// references this constant — a `const` declared later would TDZ.
-const SEED_OWNER_ID = "seed-store";
-
-const store: OrderStore = (globalForOrders.__naiseOrderStore ??= seedStore());
-
-// The order's overall status is derived from its drinks: every drink done means
-// the order is complete; any drink in progress (or some done, some not) means
-// preparing; otherwise it's still pending. Cancelled is set explicitly and
-// isn't derived here.
+// Overall status derived from the drinks. All done -> "ready" (awaiting the
+// staff completion confirm); "completed" and "cancelled" are set explicitly by
+// their own actions, never derived here.
 export function deriveOrderStatus(items: { status: ItemStatus }[]): OrderStatus {
   if (items.length > 0 && items.every((i) => i.status === "done")) {
-    return "completed";
+    return "ready";
   }
   if (items.some((i) => i.status !== "pending")) {
     return "preparing";
@@ -42,209 +20,183 @@ export function deriveOrderStatus(items: { status: ItemStatus }[]): OrderStatus 
   return "pending";
 }
 
-// NAISE-000001, NAISE-000002, ... Increasing, zero-padded to six digits.
-function nextOrderNumber(): string {
-  store.lastSequence += 1;
-  return `NAISE-${String(store.lastSequence).padStart(6, "0")}`;
+// Create an order + its lines. Members: userId is set, insert under RLS via the
+// cookie client. Guests: userId is null, insert via the admin client.
+export async function createOrder(
+  draft: OrderDraft,
+  opts: { userId: string | null },
+): Promise<Order> {
+  const db = opts.userId ? await createClient() : createAdminClient();
+
+  const { data: orderRow, error: orderErr } = await db
+    .from("orders")
+    .insert({
+      user_id: opts.userId,
+      owner_id: draft.ownerId,
+      payment_method: draft.paymentMethod,
+      subtotal: draft.subtotal,
+      total: draft.total,
+      notes: draft.notes ?? null,
+      proof_of_payment_url: draft.proofOfPaymentUrl ?? null,
+    })
+    .select()
+    .single();
+  if (orderErr || !orderRow) {
+    throw new Error(orderErr?.message ?? "Failed to create order.");
+  }
+
+  const itemsPayload = draft.items.map((item, position) => ({
+    order_id: orderRow.id,
+    position,
+    name: item.name,
+    quantity: item.quantity,
+    size_name: item.sizeName ?? null,
+    addon_names: item.addonNames,
+    unit_price: item.unitPrice,
+    line_total: item.lineTotal,
+    status: item.status,
+  }));
+
+  const { data: itemRows, error: itemsErr } = await db
+    .from("order_items")
+    .insert(itemsPayload)
+    .select();
+  if (itemsErr || !itemRows) {
+    throw new Error(itemsErr?.message ?? "Failed to create order items.");
+  }
+
+  return rowToOrder(orderRow, itemRows);
 }
 
-export function createOrder(draft: OrderDraft): Order {
-  const order: Order = {
-    token: crypto.randomUUID(),
-    orderNumber: nextOrderNumber(),
-    status: "pending",
-    createdAt: new Date().toISOString(),
-    ...draft,
-  };
-  store.orders.set(order.token, order);
-  return order;
+// Single order by token. Uses the admin client so it works for staff (manage
+// link) and guests (their own order detail) alike; the token is the secret.
+export async function getOrderByToken(token: string): Promise<Order | null> {
+  const db = createAdminClient();
+  const { data: orderRow } = await db
+    .from("orders")
+    .select()
+    .eq("token", token)
+    .maybeSingle();
+  if (!orderRow) return null;
+
+  const { data: itemRows } = await db
+    .from("order_items")
+    .select()
+    .eq("order_id", orderRow.id);
+  return rowToOrder(orderRow, (itemRows as OrderItemRow[]) ?? []);
 }
 
-export function getOrderByToken(token: string): Order | null {
-  return store.orders.get(token) ?? null;
-}
-
-// All orders, newest first. Replace with a Supabase select ordered by
-// created_at desc (scoped by RLS to staff roles) when the DB lands.
-export function listOrders(): Order[] {
-  return [...store.orders.values()].sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
+// All orders, newest first. Staff board only — callers gate with
+// canManageOrders() first. Reads under the caller's RLS (staff role).
+export async function listOrders(): Promise<Order[]> {
+  const db = await createClient();
+  const { data: orderRows, error } = await db
+    .from("orders")
+    .select("*, order_items(*)")
+    .order("created_at", { ascending: false });
+  if (error || !orderRows) return [];
+  return orderRows.map((row) =>
+    rowToOrder(row, (row.order_items as OrderItemRow[]) ?? []),
   );
 }
 
-// Orders belonging to one customer (guest or member), newest first. Used by
-// the customer profile/orders surfaces to scope the history to "this browser".
-// Maps onto `select * from orders where user_id = auth.uid() order by
-// created_at desc` under RLS once Supabase lands. A null/empty owner id
-// matches no orders — the page should render the empty state.
-export function listOrdersFor(ownerId: string | null | undefined): Order[] {
-  if (!ownerId) return [];
-  return [...store.orders.values()]
-    .filter((o) => o.ownerId === ownerId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+// One customer's orders, newest first. Members match on user_id (RLS-scoped via
+// the cookie client); guests match on owner_id via the admin client. A member is
+// also shown any guest orders that share this browser's owner_id (carry-over).
+export async function listOrdersFor(
+  ownerId: string | null | undefined,
+  userId: string | null,
+): Promise<Order[]> {
+  if (!userId && !ownerId) return [];
+
+  const db = createAdminClient();
+  let query = db
+    .from("orders")
+    .select("*, order_items(*)")
+    .order("created_at", { ascending: false });
+
+  if (userId && ownerId) {
+    query = query.or(`user_id.eq.${userId},owner_id.eq.${ownerId}`);
+  } else if (userId) {
+    query = query.eq("user_id", userId);
+  } else {
+    query = query.eq("owner_id", ownerId!);
+  }
+
+  const { data: orderRows, error } = await query;
+  if (error || !orderRows) return [];
+  return orderRows.map((row) =>
+    rowToOrder(row, (row.order_items as OrderItemRow[]) ?? []),
+  );
 }
 
-// Set one drink's fulfilment status, then re-derive the order's overall status
-// from all its drinks. Returns the updated order (or null if unknown). Replace
-// with a Supabase update + realtime broadcast later; the signature stays the
-// same. When the derived status flips to "completed", that's where the backend
-// will notify the buyer over WhatsApp and mark the manage link complete.
-export function setItemStatus(
+// Set one drink's status, re-derive the order status, and (when it flips to
+// "ready") leave completion to the explicit confirm action. Staff-only; callers
+// gate first. Uses the cookie client so the staff RLS update policy applies.
+export async function setItemStatus(
   token: string,
   itemIndex: number,
   status: ItemStatus,
-): Order | null {
-  const order = store.orders.get(token);
-  if (!order || itemIndex < 0 || itemIndex >= order.items.length) return null;
+): Promise<Order | null> {
+  const db = await createClient();
 
-  const items = order.items.map((item, i) =>
-    i === itemIndex ? { ...item, status } : item,
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id")
+    .eq("token", token)
+    .maybeSingle();
+  if (!orderRow) return null;
+
+  const { data: itemRows } = await db
+    .from("order_items")
+    .select()
+    .eq("order_id", orderRow.id)
+    .order("position", { ascending: true });
+  if (!itemRows || itemIndex < 0 || itemIndex >= itemRows.length) return null;
+
+  const target = itemRows[itemIndex];
+  const { error: updErr } = await db
+    .from("order_items")
+    .update({ status })
+    .eq("id", target.id);
+  if (updErr) return null;
+
+  const nextItems = itemRows.map((it, i) =>
+    i === itemIndex ? { ...it, status } : it,
   );
-  const derived = deriveOrderStatus(items);
-  const updated: Order = {
-    ...order,
-    items,
-    status: derived,
-    // Stamp the completion time when the order first flips to completed; clear
-    // it if a drink is re-opened and the order is no longer done.
-    completedAt:
-      derived === "completed"
-        ? (order.completedAt ?? new Date().toISOString())
-        : undefined,
-  };
-  store.orders.set(token, updated);
-  return updated;
+  const derived = deriveOrderStatus(nextItems);
+
+  // Re-deriving never sets completed/cancelled. If the order was completed and a
+  // drink is reopened, fall back to the derived in-progress status and clear the
+  // completion stamp.
+  const { error: ordErr } = await db
+    .from("orders")
+    .update({ status: derived, completed_at: null })
+    .eq("id", orderRow.id);
+  if (ordErr) return null;
+
+  return getOrderByToken(token);
 }
 
-// Cancel an order outright (a manual override, not derived from drinks).
-export function cancelOrder(token: string): Order | null {
-  const order = store.orders.get(token);
-  if (!order) return null;
-  const updated: Order = { ...order, status: "cancelled" };
-  store.orders.set(token, updated);
-  return updated;
+// Explicitly complete an order: set status=completed, stamp completed_at.
+// Returns the updated order (or null if unknown). Staff-only.
+export async function completeOrder(token: string): Promise<Order | null> {
+  const db = await createClient();
+  const { error } = await db
+    .from("orders")
+    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .eq("token", token);
+  if (error) return null;
+  return getOrderByToken(token);
 }
 
-// Seed a handful of mock orders so the manage screen has content before
-// Supabase. Timestamps are relative to process start. Remove once real orders
-// flow through createOrder against the database.
-//
-// Seeds use the module-level `SEED_OWNER_ID` (declared near the top so it's
-// available when the global store is first initialized).
-function seedStore(): OrderStore {
-  const orders = new Map<string, Order>();
-  const now = Date.now();
-  const minutesAgo = (m: number) => new Date(now - m * 60_000).toISOString();
-
-  const seeds: Order[] = [
-    {
-      token: "seed-1023",
-      orderNumber: "NAISE-001023",
-      ownerId: SEED_OWNER_ID,
-      status: "pending",
-      paymentMethod: "DuitNow QR",
-      proofOfPaymentUrl: "/brand/coffee_with_logo.png",
-      createdAt: minutesAgo(2),
-      items: [
-        {
-          name: "Naise Signature Latte",
-          quantity: 1,
-          sizeName: "Regular",
-          addonNames: ["Extra Shot"],
-          unitPrice: 1290,
-          lineTotal: 1290,
-          status: "pending",
-        },
-        {
-          name: "Mocha",
-          quantity: 1,
-          sizeName: "Regular",
-          addonNames: [],
-          unitPrice: 1390,
-          lineTotal: 1390,
-          status: "pending",
-        },
-      ],
-      subtotal: 2680,
-      total: 2680,
-    },
-    {
-      token: "seed-1022",
-      orderNumber: "NAISE-001022",
-      ownerId: SEED_OWNER_ID,
-      status: "preparing",
-      paymentMethod: "Cash",
-      createdAt: minutesAgo(5),
-      items: [
-        {
-          name: "Spanish Latte",
-          quantity: 1,
-          sizeName: "Regular",
-          addonNames: [],
-          unitPrice: 1390,
-          lineTotal: 1390,
-          status: "preparing",
-        },
-      ],
-      subtotal: 1390,
-      total: 1390,
-    },
-    {
-      token: "seed-1021",
-      orderNumber: "NAISE-001021",
-      ownerId: SEED_OWNER_ID,
-      status: "pending",
-      paymentMethod: "DuitNow QR",
-      proofOfPaymentUrl: "/brand/coffee_with_logo.png",
-      createdAt: minutesAgo(8),
-      items: [
-        {
-          name: "Americano",
-          quantity: 1,
-          sizeName: "Regular",
-          addonNames: [],
-          unitPrice: 990,
-          lineTotal: 990,
-          status: "pending",
-        },
-        {
-          name: "Caramel Macchiato",
-          quantity: 1,
-          sizeName: "Regular",
-          addonNames: [],
-          unitPrice: 1390,
-          lineTotal: 1390,
-          status: "pending",
-        },
-      ],
-      subtotal: 2380,
-      total: 2380,
-    },
-    {
-      token: "seed-1020",
-      orderNumber: "NAISE-001020",
-      ownerId: SEED_OWNER_ID,
-      status: "completed",
-      paymentMethod: "Cash",
-      createdAt: minutesAgo(24),
-      completedAt: minutesAgo(18),
-      items: [
-        {
-          name: "Matcha Latte",
-          quantity: 2,
-          sizeName: "Large",
-          addonNames: ["Oat Milk"],
-          unitPrice: 1690,
-          lineTotal: 3380,
-          status: "done",
-        },
-      ],
-      subtotal: 3380,
-      total: 3380,
-    },
-  ];
-
-  for (const order of seeds) orders.set(order.token, order);
-
-  return { orders, lastSequence: 1023 };
+// Cancel an order outright (manual staff override).
+export async function cancelOrder(token: string): Promise<Order | null> {
+  const db = await createClient();
+  const { error } = await db
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("token", token);
+  if (error) return null;
+  return getOrderByToken(token);
 }
