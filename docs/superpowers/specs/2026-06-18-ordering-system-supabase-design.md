@@ -204,6 +204,20 @@ action after writing the drink's status.
 maps into the "In Progress" filter and progress index, which is acceptable —
 `ready` is a short-lived staff-only intermediate state.
 
+**Completion trigger (no separate button):** there is no "Mark order ready"
+button to press. Staff just advance each drink. The moment the **last drink is
+swiped (or tapped) to `done`** — i.e. all drinks are now `done` and the order
+enters `ready` — the completion confirmation modal **auto-opens**. The modal is
+the only confirmation step:
+
+- **Confirm** → order `completed`, stamp `completed_at`, send the buyer the
+  "your drink is ready" Telegram message.
+- **Cancel** → revert that last drink from `done` back to `preparing`, so the
+  order leaves `ready`, no message is sent, and the modal closes.
+
+Example (2 drinks): drink 1 is `done`; drink 2 goes `pending → preparing →
+done`. The instant drink 2 is swiped to `done`, the modal pops up on its own.
+
 ---
 
 ## 7. RLS
@@ -257,25 +271,35 @@ rest of the order from its initial server render.
 - **Remove** the per-drink undo: the `RotateCcw` reset button and the
   swipe-right-to-undo gesture/hint in `drink-row.tsx`, and the `onReset` path.
   Drinks still swipe/tap forward `pending → preparing → done`.
-- When every drink is `done` (order `ready`), enable a **"Mark order ready &
-  notify"** button (styled consistently with the existing screen).
-- Tapping it opens a **confirmation modal**:
+- There is **no separate "Mark order ready" button.** The completion
+  confirmation modal **auto-opens** the moment the last drink is advanced to
+  `done` (all drinks done → order `ready`). See section 6.
+- The auto-opened **confirmation modal**:
   - **Confirm** → `markReadyAndNotify` server action: set `completed`, stamp
-    `completed_at`, send the Telegram "order ready" message; revalidate.
-  - **Cancel** → revert the **most-recently-completed drink** to `preparing`
+    `completed_at`, send the buyer the "your drink is ready" Telegram message;
+    revalidate.
+  - **Cancel** → revert the **just-completed (last) drink** back to `preparing`
     (via the existing per-drink status action), dropping the order out of
-    `ready` so the button disables and nothing is sent.
+    `ready`; no message is sent and the modal closes.
 
-No other visual changes to the manage surfaces. `/manage/test` stays a local mock
-harness (uses `mockOrder()`), with its undo removed to match.
+The "all drinks ready" note already in `order-detail.tsx` stays; only the
+trigger mechanism (auto-modal instead of a button) is added. No other visual
+changes to the manage surfaces. `/manage/test` stays a local mock harness (uses
+`mockOrder()`), with its undo removed to match; the auto-modal works locally
+there without sending a real Telegram message (persist=false path).
 
 ---
 
 ## 10. Telegram
 
-- New `buildOrderReadyMessage(order)` in `lib/orders/message.ts`: a short
-  "order ready for pickup" message including `order_number` and items, sent via
-  the existing `sendTelegramMessage` to the same `TELEGRAM_CHAT_ID`.
+- New `buildOrderReadyMessage(order)` in `lib/orders/message.ts`. This is a
+  **buyer-facing pickup notice**, NOT the "NEW ORDER!" staff format. It reads
+  like a message to the customer — e.g. opens with "Your drink is ready! ☕"
+  (or similar), then the order detail: `order_number`, the item lines, and a
+  short pickup prompt. Tone is friendly/customer-directed, not an internal
+  staff alert.
+- Sent via the existing `sendTelegramMessage` to the same `TELEGRAM_CHAT_ID`
+  (same group as the new-order notice, for now).
 - Fires only from `markReadyAndNotify` (modal confirm). The existing checkout
   "NEW ORDER!" message is unchanged.
 
