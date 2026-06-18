@@ -12,6 +12,14 @@ export const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "completed", label: "Completed" },
 ];
 
+// Page size for the staff board's paginated order list. Kept here (not in the
+// server-only store) so client components can import it without pulling in
+// server-only deps.
+export const ORDERS_PAGE_SIZE = 20;
+
+// Per-tab order counts for the current date range.
+export type OrderGroupCounts = Record<OrderFilter, number>;
+
 export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
     case "all":
@@ -22,6 +30,30 @@ export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean
       return status === "preparing" || status === "ready";
     case "completed":
       return status === "completed" || status === "cancelled";
+  }
+}
+
+export function isOrderFilter(value: string): value is OrderFilter {
+  return (
+    value === "all" ||
+    value === "pending" ||
+    value === "in_progress" ||
+    value === "completed"
+  );
+}
+
+// The DB-level status set a filter maps to. `all` returns null (no status
+// constraint) so the query can skip the `.in(...)` clause entirely.
+export function statusesForFilter(filter: OrderFilter): OrderStatus[] | null {
+  switch (filter) {
+    case "all":
+      return null;
+    case "pending":
+      return ["pending"];
+    case "in_progress":
+      return ["preparing", "ready"];
+    case "completed":
+      return ["completed", "cancelled"];
   }
 }
 

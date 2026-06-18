@@ -33,6 +33,7 @@ import { getStreakAwards, type StreakAward } from "@/data/rewards";
 import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
 import type { PaymentMethodId } from "@/types/payment";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
+import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
 import { uploadReceipt } from "@/lib/orders/receipt";
@@ -399,7 +400,13 @@ export function CheckoutScreen() {
         </ul>
 
         {selected === "duitnow-qr" && (
-          <div className="mt-4 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
+          <div className="mt-4">
+            <DuitnowQrCard />
+          </div>
+        )}
+
+        {selected === "duitnow-qr" && (
+          <div className="mt-2.5 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
             <label
               htmlFor="receipt"
               className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
