@@ -162,9 +162,9 @@ export function CheckoutScreen() {
     setError(null);
     setSubmitting(true);
     try {
-      let proofOfPaymentUrl: string | undefined;
+      let proofOfPaymentPath: string | undefined;
       if (selected === "duitnow-qr" && receiptFile) {
-        proofOfPaymentUrl = await uploadReceipt(receiptFile, getOrCreateOwnerId());
+        proofOfPaymentPath = await uploadReceipt(receiptFile, getOrCreateOwnerId());
       }
 
       const result = await placeOrderAction({
@@ -185,7 +185,7 @@ export function CheckoutScreen() {
         // Same id is adopted by the auth store on sign-in, so guest orders
         // automatically belong to the registered account afterwards.
         ownerId: getOrCreateOwnerId(),
-        proofOfPaymentUrl,
+        proofOfPaymentPath,
       });
 
       if (!result.ok) {

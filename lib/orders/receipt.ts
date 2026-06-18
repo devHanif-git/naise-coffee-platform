@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
 
 // Uploads a DuitNow QR payment receipt to the private `receipts` bucket and
-// returns a signed URL (valid 7 days) for display in the manage/customer views.
-// Path is `<ownerId>/<random>.<ext>` — unguessable and grouped per browser.
+// returns its storage PATH (`<ownerId>/<random>.<ext>`). The bucket's only read
+// policy is staff-only, so the SIGNED URL is generated server-side (in the
+// placeOrder action via the service-role client) — a customer/guest can insert
+// here but not sign. The INSERT policy allows anon + authenticated, so the
+// upload itself works for guests.
 export async function uploadReceipt(
   file: File,
   ownerId: string,
@@ -16,13 +19,7 @@ export async function uploadReceipt(
     .upload(path, file, { upsert: false, contentType: file.type });
   if (uploadError) throw uploadError;
 
-  const { data, error: signError } = await supabase.storage
-    .from("receipts")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-  if (signError || !data) {
-    throw signError ?? new Error("Could not sign receipt URL.");
-  }
-  return data.signedUrl;
+  return path;
 }
 
 function extensionFor(mime: string): string {

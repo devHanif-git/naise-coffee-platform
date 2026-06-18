@@ -1,6 +1,7 @@
 "use server";
 
 import { cancelOrderAsSystem, createOrder } from "@/lib/orders/store";
+import { signReceiptPath } from "@/lib/orders/receipt-server";
 import { applyOrderRewards } from "@/lib/rewards/store";
 import type { OrderRewardsResult } from "@/types/reward";
 import { createClient } from "@/lib/supabase/server";
@@ -25,8 +26,9 @@ export type PlaceOrderInput = {
   subtotal: number;
   total: number;
   ownerId: string;
-  // Public URL of the uploaded DuitNow QR receipt, if any.
-  proofOfPaymentUrl?: string;
+  // Storage path of the uploaded DuitNow QR receipt, if any (`<ownerId>/<uuid>`).
+  // Signed into a URL server-side here — the bucket's read policy is staff-only.
+  proofOfPaymentPath?: string;
 };
 
 export type PlaceOrderResult =
@@ -50,6 +52,20 @@ export async function placeOrder(
   } = await supabase.auth.getUser();
   const userId = user?.id ?? null;
 
+  // Sign the receipt server-side (staff-only read policy). Constrain to the
+  // caller's own folder so a client can't sign someone else's receipt path.
+  let proofOfPaymentUrl: string | undefined;
+  if (input.proofOfPaymentPath) {
+    if (!input.proofOfPaymentPath.startsWith(`${input.ownerId}/`)) {
+      return { ok: false, error: "Invalid receipt reference." };
+    }
+    try {
+      proofOfPaymentUrl = await signReceiptPath(input.proofOfPaymentPath);
+    } catch {
+      return { ok: false, error: "Couldn't attach your payment receipt. Please try again." };
+    }
+  }
+
   const lines: OrderLine[] = input.items.map((item) => ({
     name: item.name,
     quantity: item.quantity,
@@ -72,7 +88,7 @@ export async function placeOrder(
         subtotal: input.subtotal,
         total: input.total,
         notes: input.notes?.trim() || undefined,
-        proofOfPaymentUrl: input.proofOfPaymentUrl,
+        proofOfPaymentUrl,
       },
       { userId },
     );
