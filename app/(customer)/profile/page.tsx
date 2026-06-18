@@ -3,6 +3,7 @@ import { listOrdersFor } from "@/lib/orders/store";
 import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
 import { createClient } from "@/lib/supabase/server";
 import { ProfileScreen } from "@/components/profile-screen";
+import { ProfileOrdersLive } from "@/components/profile-orders-live";
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -21,5 +22,10 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser();
   const recentOrders = (await listOrdersFor(ownerId, user?.id ?? null)).slice(0, RECENT_ORDERS_LIMIT);
 
-  return <ProfileScreen recentOrders={recentOrders} />;
+  return (
+    <>
+      <ProfileScreen recentOrders={recentOrders} />
+      <ProfileOrdersLive tokens={recentOrders.map((order) => order.token)} />
+    </>
+  );
 }
