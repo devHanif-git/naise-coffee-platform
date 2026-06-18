@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { listOrdersFor } from "@/lib/orders/store";
 import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
+import { createClient } from "@/lib/supabase/server";
 import { ProfileScreen } from "@/components/profile-screen";
 
 export const metadata: Metadata = {
@@ -16,7 +17,9 @@ const RECENT_ORDERS_LIMIT = 3;
 
 export default async function ProfilePage() {
   const ownerId = await getOwnerIdFromCookie();
-  const recentOrders = listOrdersFor(ownerId).slice(0, RECENT_ORDERS_LIMIT);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const recentOrders = (await listOrdersFor(ownerId, user?.id ?? null)).slice(0, RECENT_ORDERS_LIMIT);
 
   return <ProfileScreen recentOrders={recentOrders} />;
 }
