@@ -23,10 +23,6 @@ import { useBeans } from "@/store/beans";
 import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 
-// Dev-only streak controls (advance day / reset) are gated to non-production so
-// they never ship to customers.
-const SHOW_STREAK_DEV_CONTROLS = process.env.NODE_ENV !== "production";
-
 // The full Rewards screen. Client component because it owns the info-modal
 // state and the "?" trigger. Data is passed in (mocked today, server-fetched
 // once the Supabase rewards tables land). Mobile-first: the layout targets the
@@ -244,25 +240,6 @@ export function RewardsScreen({ data }: { data: RewardsSummary }) {
               </div>
             ))}
           </div>
-
-          {SHOW_STREAK_DEV_CONTROLS && (
-            <div className="mt-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={streak.devAdvanceDay}
-                className="flex-1 rounded-full border border-dashed border-neutral-300 py-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                Dev: Skip a day
-              </button>
-              <button
-                type="button"
-                onClick={streak.devReset}
-                className="flex-1 rounded-full border border-dashed border-neutral-300 py-2 text-[0.625rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                Dev: Reset streak
-              </button>
-            </div>
-          )}
         </section>
 
         {/* Tier progress + tiers CTA. */}
