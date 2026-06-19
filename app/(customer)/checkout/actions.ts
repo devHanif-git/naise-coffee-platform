@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
+import { getStoreSettings } from "@/lib/settings/store";
 
 type PlaceOrderItem = {
   productId: string;
@@ -44,6 +45,12 @@ export async function placeOrder(
   }
   if (!input.ownerId) {
     return { ok: false, error: "Missing session id. Refresh and try again." };
+  }
+
+  // Hard block: an admin can close the store from the CMS.
+  const settings = await getStoreSettings();
+  if (!settings.isOpen) {
+    return { ok: false, error: settings.closedMessage };
   }
 
   // Derive identity server-side — never trust a user id from the client.
