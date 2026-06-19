@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Image, { type ImageProps } from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,15 @@ export function SmartImage({ className, alt, ...props }: SmartImageProps) {
     "loading",
   );
 
+  // next/image forwards `ref` to the underlying <img>. A cached image can be
+  // `complete` before React attaches `onLoad`, so that event never fires and
+  // the skeleton would stick forever. Catch that on mount via a ref callback.
+  const captureRef = useCallback((node: HTMLImageElement | null) => {
+    if (node?.complete && node.naturalWidth > 0) {
+      setStatus("loaded");
+    }
+  }, []);
+
   return (
     <>
       {status !== "loaded" && (
@@ -34,6 +43,7 @@ export function SmartImage({ className, alt, ...props }: SmartImageProps) {
       {status !== "error" && (
         <Image
           {...props}
+          ref={captureRef}
           alt={alt}
           onLoad={() => setStatus("loaded")}
           onError={() => setStatus("error")}
