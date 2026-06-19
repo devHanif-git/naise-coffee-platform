@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { listOrdersFor } from "@/lib/orders/store";
 import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
 import { createClient } from "@/lib/supabase/server";
+import { listTiers } from "@/lib/rewards/config-store";
 import { ProfileScreen } from "@/components/profile-screen";
 import { ProfileOrdersLive } from "@/components/profile-orders-live";
 
@@ -20,11 +21,14 @@ export default async function ProfilePage() {
   const ownerId = await getOwnerIdFromCookie();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const recentOrders = (await listOrdersFor(ownerId, user?.id ?? null)).slice(0, RECENT_ORDERS_LIMIT);
+  const [recentOrders, tiers] = await Promise.all([
+    listOrdersFor(ownerId, user?.id ?? null).then((o) => o.slice(0, RECENT_ORDERS_LIMIT)),
+    listTiers(),
+  ]);
 
   return (
     <>
-      <ProfileScreen recentOrders={recentOrders} />
+      <ProfileScreen recentOrders={recentOrders} tiers={tiers} />
       <ProfileOrdersLive tokens={recentOrders.map((order) => order.token)} />
     </>
   );

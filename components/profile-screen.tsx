@@ -13,7 +13,8 @@ import {
   User,
 } from "lucide-react";
 import type { Order } from "@/types/order";
-import { getTierProgress } from "@/data/rewards";
+import type { RewardTier } from "@/types/reward";
+import { getTierProgress } from "@/lib/rewards/tiers";
 import { useAuth } from "@/store/auth";
 import { useBeans } from "@/store/beans";
 import { useProfile } from "@/store/profile";
@@ -56,13 +57,19 @@ const menuRows = [
 // avatar, "Guest" label, no Beans/tier card, no Edit Profile / Settings rows.
 // Their recent orders are still shown — scoped server-side to the per-browser
 // owner id, which carries over to the account they later register.
-export function ProfileScreen({ recentOrders }: { recentOrders: Order[] }) {
+export function ProfileScreen({
+  recentOrders,
+  tiers,
+}: {
+  recentOrders: Order[];
+  tiers: RewardTier[];
+}) {
   const { profile, hydrated: profileHydrated } = useProfile();
   const { balance, lifetimeEarned } = useBeans();
   const { isAuthenticated, hydrated: authHydrated, signOut } = useAuth();
   const [signOutOpen, setSignOutOpen] = useState(false);
 
-  const tier = getTierProgress(lifetimeEarned);
+  const tier = getTierProgress(lifetimeEarned, tiers);
 
   // Identity shown in the hero comes straight from the profile store, which is
   // now backed by the `profiles` row (display_name / avatar_url / created_at)

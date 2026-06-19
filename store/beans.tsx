@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { BeanActivity } from "@/types/reward";
-import { beansPerRinggit } from "@/data/rewards";
 import { createClient } from "@/lib/supabase/client";
 
 // How many recent ledger rows to load for the activity feed. The full feed lives
@@ -57,7 +56,13 @@ function whenLabel(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function BeansProvider({ children }: { children: React.ReactNode }) {
+export function BeansProvider({
+  children,
+  earnRate,
+}: {
+  children: React.ReactNode;
+  earnRate: number;
+}) {
   const [balance, setBalance] = useState(0);
   const [lifetimeEarned, setLifetimeEarned] = useState(0);
   const [activity, setActivity] = useState<BeanActivity[]>([]);
@@ -160,10 +165,10 @@ export function BeansProvider({ children }: { children: React.ReactNode }) {
       balance,
       lifetimeEarned,
       activity,
-      earnRate: beansPerRinggit,
+      earnRate,
       canAfford,
     }),
-    [hydrated, balance, lifetimeEarned, activity, canAfford],
+    [hydrated, balance, lifetimeEarned, activity, earnRate, canAfford],
   );
 
   return <BeansContext.Provider value={value}>{children}</BeansContext.Provider>;
