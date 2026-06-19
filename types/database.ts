@@ -672,6 +672,39 @@ export type Database = {
         }
         Relationships: []
       }
+      store_settings: {
+        Row: {
+          closed_message: string
+          created_at: string
+          id: boolean
+          is_open: boolean
+          referral_enabled: boolean
+          rewards_enabled: boolean
+          streak_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          closed_message?: string
+          created_at?: string
+          id?: boolean
+          is_open?: boolean
+          referral_enabled?: boolean
+          rewards_enabled?: boolean
+          streak_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          closed_message?: string
+          created_at?: string
+          id?: boolean
+          is_open?: boolean
+          referral_enabled?: boolean
+          rewards_enabled?: boolean
+          streak_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       streak_checkins: {
         Row: {
           check_in_date: string
