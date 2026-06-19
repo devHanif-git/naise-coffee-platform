@@ -770,6 +770,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_adjust_beans: {
+        Args: { p_amount: number; p_reason: string; p_user: string }
+        Returns: number
+      }
+      admin_set_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["user_role"]
+          p_user: string
+        }
+        Returns: undefined
+      }
       apply_order_rewards: { Args: { p_token: string }; Returns: Json }
       current_user_role: {
         Args: never
