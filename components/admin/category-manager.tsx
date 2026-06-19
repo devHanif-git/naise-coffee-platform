@@ -5,6 +5,7 @@ import { ChevronUp, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import type { AdminAddon, AdminCategory } from "@/lib/menu/types";
 import {
   saveCategory,
@@ -53,6 +54,7 @@ export function CategoryManager({
 
   return (
     <div className="flex flex-col gap-4 px-5 py-4">
+      <AdminBackLink href="/admin/menu" label="Back to Menu" />
       <h1 className="font-heading text-lg font-bold tracking-tight">Categories</h1>
 
       <div className="flex items-end gap-2">

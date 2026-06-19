@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ImageUpload } from "@/components/admin/image-upload";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { saveProduct } from "@/app/(admin)/admin/menu/actions";
 import type {
   AdminAddon,
@@ -119,6 +120,7 @@ export function ProductForm({
 
   return (
     <div className="flex flex-col gap-5 px-5 py-4">
+      <AdminBackLink href="/admin/menu" label="Back to Menu" />
       <h1 className="font-heading text-lg font-bold tracking-tight">
         {product ? "Edit item" : "New item"}
       </h1>

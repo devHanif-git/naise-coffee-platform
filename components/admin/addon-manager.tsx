@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { AdminBackLink } from "@/components/admin/admin-back-link";
 import type { AdminAddon } from "@/lib/menu/types";
 import { saveAddon, setAddonArchived } from "@/app/(admin)/admin/addons/actions";
 
@@ -34,6 +35,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
 
   return (
     <div className="flex flex-col gap-4 px-5 py-4">
+      <AdminBackLink href="/admin/menu" label="Back to Menu" />
       <h1 className="font-heading text-lg font-bold tracking-tight">Add-ons</h1>
 
       <div className="flex items-end gap-2">
