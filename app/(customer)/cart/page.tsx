@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import { CartScreen } from "@/components/cart-screen";
 import { getAvailableProductIds } from "@/lib/menu/store";
 import { getStoreSettings } from "@/lib/settings/store";
-import { StoreClosedBanner } from "@/components/store-closed-banner";
 
 export const metadata: Metadata = {
   title: "Cart",
@@ -18,8 +17,10 @@ export default async function CartPage() {
   ]);
   return (
     <Suspense fallback={null}>
-      {!settings.isOpen && <StoreClosedBanner message={settings.closedMessage} />}
-      <CartScreen availableProductIds={availableProductIds} />
+      <CartScreen
+        availableProductIds={availableProductIds}
+        closedMessage={settings.isOpen ? null : settings.closedMessage}
+      />
     </Suspense>
   );
 }

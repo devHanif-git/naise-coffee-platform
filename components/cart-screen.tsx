@@ -9,11 +9,14 @@ import { formatPrice } from "@/lib/format";
 import { images } from "@/constants/images";
 import { useCart } from "@/store/cart";
 import { CartItemCard } from "@/components/cart-item-card";
+import { StoreClosedBanner } from "@/components/store-closed-banner";
 
 export function CartScreen({
   availableProductIds,
+  closedMessage,
 }: {
   availableProductIds: string[];
+  closedMessage?: string | null;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -106,6 +109,10 @@ export function CartScreen({
           <span aria-hidden />
         )}
       </header>
+
+      {closedMessage && (
+        <StoreClosedBanner message={closedMessage} className="mt-4" />
+      )}
 
       {!hasItems ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-5 pb-16 text-center naise-rise">
