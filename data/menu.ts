@@ -162,11 +162,4 @@ export function getBestSellers(): Product[] {
   return products.filter((p) => p.isBestSeller);
 }
 
-// Lowest price to show as the product's "from" price. Falls back to the flat
-// `price` when a product has no sizes; 0 if neither is set.
-export function getBasePrice(product: Product): number {
-  if (product.sizes && product.sizes.length > 0) {
-    return Math.min(...product.sizes.map((s) => s.price));
-  }
-  return product.price ?? 0;
-}
+export { getBasePrice } from "@/lib/menu/pricing";

@@ -1,5 +1,5 @@
 import type { Discount, Product, ProductPricing } from "@/types/menu";
-import { getBasePrice } from "@/data/menu";
+import { getBasePrice } from "@/lib/menu/pricing";
 
 // CMS-driven discounts ("discount day"). A discount targets specific drinks
 // (`productIds`), whole sections (`categories`), or both. Mocked here until the
