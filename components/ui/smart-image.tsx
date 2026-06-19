@@ -45,7 +45,10 @@ export function SmartImage({ className, alt, ...props }: SmartImageProps) {
         <span
           aria-hidden
           className={cn(
-            "absolute inset-0 animate-pulse rounded-[inherit] bg-muted",
+            // A clearly visible grey — `bg-muted` is near-white and vanishes on
+            // the white/cream product stages. neutral-200 reads as a loader on
+            // both the light stages and the black image containers.
+            "absolute inset-0 animate-pulse rounded-[inherit] bg-neutral-200",
             status === "error" && "animate-none",
           )}
         />
