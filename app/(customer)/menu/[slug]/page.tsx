@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
 import { getProductBySlug } from "@/lib/menu/store";
 import { listRewardCatalog } from "@/lib/rewards/config-store";
-import { getProductPricing } from "@/data/discounts";
+import { getProductPricing } from "@/lib/promotions/pricing";
 import { ProductCustomizer } from "@/components/product-customizer";
 import { ProductBackButton } from "@/components/product-back-button";
 import { PriceTag } from "@/components/price-tag";

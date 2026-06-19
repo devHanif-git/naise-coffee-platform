@@ -2,7 +2,7 @@ import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { Product } from "@/types/menu";
-import { getProductPricing } from "@/data/discounts";
+import { getProductPricing } from "@/lib/promotions/pricing";
 import { PriceTag } from "@/components/price-tag";
 
 export function MenuCard({ product }: { product: Product }) {

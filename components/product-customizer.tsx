@@ -9,7 +9,7 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useBeans } from "@/store/beans";
-import { applyDiscount, getProductDiscount } from "@/data/discounts";
+import { applyDiscount, getProductDiscount } from "@/lib/promotions/pricing";
 
 export function ProductCustomizer({
   product,

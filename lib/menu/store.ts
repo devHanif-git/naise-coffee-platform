@@ -1,6 +1,8 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { mapCategory, buildProducts } from "@/lib/menu/mappers";
+import { listActivePromotions } from "@/lib/promotions/store";
+import { resolveActiveDiscount } from "@/lib/promotions/pricing";
 import type { Category, Product } from "@/types/menu";
 
 // Public catalog reads. RLS returns only non-archived rows to non-admins, so the
@@ -30,13 +32,22 @@ const fetchCatalog = cache(async (): Promise<Product[]> => {
     categoryAddons.error ??
     productAddons.error;
   if (firstError) throw new Error(`fetchCatalog failed: ${firstError.message}`);
-  return buildProducts({
+  const built = buildProducts({
     productRows: products.data ?? [],
     variantRows: variants.data ?? [],
     addonRows: addons.data ?? [],
     categoryRows: categories.data ?? [],
     categoryAddonRows: categoryAddons.data ?? [],
     productAddonRows: productAddons.data ?? [],
+  });
+
+  // Attach the active promotion (best percent) to each product so the pure
+  // pricing helpers can stay synchronous in client components.
+  const promotions = await listActivePromotions();
+  if (promotions.length === 0) return built;
+  return built.map((p) => {
+    const discount = resolveActiveDiscount(p, promotions);
+    return discount ? { ...p, discount } : p;
   });
 });
 
