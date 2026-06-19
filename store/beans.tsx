@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { BeanActivity } from "@/types/reward";
 import { beansPerRinggit } from "@/data/rewards";
 import { createClient } from "@/lib/supabase/client";
@@ -64,7 +65,7 @@ export function BeansProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    let cleanupChannel: (() => void) | null = null;
+    let channel: RealtimeChannel | null = null;
     const supabase = createClient();
 
     async function load(userId: string) {
@@ -98,16 +99,25 @@ export function BeansProvider({ children }: { children: React.ReactNode }) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      if (!active) return;
       if (!user) {
-        if (active) setHydrated(true);
+        setHydrated(true);
         return;
       }
       await load(user.id);
-      if (active) setHydrated(true);
+      if (!active) return;
+      setHydrated(true);
 
       // Live updates: the member's own reward_accounts row changes whenever the
       // ledger is written (the txn trigger updates it). Refetch on any change.
-      const channel = supabase
+      //
+      // The `active` guards after each await matter: React strict-mode mounts the
+      // provider twice, and without them a torn-down mount would still run past
+      // its awaits and build a SECOND channel on the same `rewards:<uid>` topic.
+      // Supabase then throws "cannot add postgres_changes callbacks after
+      // subscribe()" — the error that was crashing every customer page. Now only
+      // the live mount ever creates/subscribes a channel, and cleanup removes it.
+      const rewardsChannel = supabase
         .channel(`rewards:${user.id}`)
         .on(
           "postgres_changes",
@@ -121,15 +131,24 @@ export function BeansProvider({ children }: { children: React.ReactNode }) {
             void load(user.id);
           },
         );
-      void supabase.realtime.setAuth().then(() => channel.subscribe());
-      cleanupChannel = () => {
-        void supabase.removeChannel(channel);
-      };
+      channel = rewardsChannel;
+
+      await supabase.realtime.setAuth();
+      if (!active) {
+        // Cleaned up while refreshing realtime auth — drop the channel unsubscribed.
+        void supabase.removeChannel(rewardsChannel);
+        channel = null;
+        return;
+      }
+      rewardsChannel.subscribe();
     })();
 
     return () => {
       active = false;
-      cleanupChannel?.();
+      if (channel) {
+        void supabase.removeChannel(channel);
+        channel = null;
+      }
     };
   }, []);
 
