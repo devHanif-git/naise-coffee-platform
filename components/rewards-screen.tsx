@@ -185,9 +185,17 @@ export function RewardsScreen({
           </div>
         </section>
 
-        {/* Streak + Tier summary row. */}
-        {streakEnabled && (
-          <section className="grid grid-cols-2 naise-rise [animation-delay:80ms]">
+        {/* Streak + Tier summary row. The Tier box always renders; the Streak
+            box renders only when streakEnabled is true. When streak is off the
+            Tier box fills the full width; when on, both share a two-column
+            grid. */}
+        <section
+          className={cn(
+            "naise-rise [animation-delay:80ms]",
+            streakEnabled ? "grid grid-cols-2" : "",
+          )}
+        >
+          {streakEnabled && (
             <div className="min-w-0 pr-5">
               <p className="flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
                 <Flame className="size-4 text-foreground" strokeWidth={2.5} aria-hidden />
@@ -202,22 +210,22 @@ export function RewardsScreen({
                   : "Buy coffee today to keep your streak alive."}
               </p>
             </div>
+          )}
 
-            <div className="min-w-0 border-l border-border pl-5">
-              <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
-                Your Tier
-              </p>
-              <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
-                {tier.current.name}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                {tier.isMaxTier
-                  ? `${lifetimeEarned.toLocaleString()} Beans · Top tier`
-                  : `${lifetimeEarned.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
-              </p>
-            </div>
-          </section>
-        )}
+          <div className={cn("min-w-0", streakEnabled && "border-l border-border pl-5")}>
+            <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+              Your Tier
+            </p>
+            <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
+              {tier.current.name}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+              {tier.isMaxTier
+                ? `${lifetimeEarned.toLocaleString()} Beans · Top tier`
+                : `${lifetimeEarned.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
+            </p>
+          </div>
+        </section>
 
         {/* Weekly stamp card — earned days are filled checks, upcoming are
             dashed outlines. */}
