@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { getBestSellers } from "@/data/menu";
+import { getBestSellers } from "@/lib/menu/store";
 import { images } from "@/constants/images";
 import { Button } from "@/components/ui/button";
 import { BestSellerCarousel } from "@/components/best-seller-carousel";
@@ -20,8 +20,10 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
-  const bestSellers = getBestSellers();
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const bestSellers = await getBestSellers();
 
   return (
     <main className="flex flex-1 flex-col">

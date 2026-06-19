@@ -25,3 +25,9 @@ export async function canManageOrders(): Promise<boolean> {
   const role = await getSessionRole();
   return role !== null && MANAGE_ROLES.includes(role);
 }
+
+// Whether the current session is an admin (full CMS access). Staff/manager are
+// NOT admin — they keep the order board only.
+export async function isAdmin(): Promise<boolean> {
+  return (await getSessionRole()) === "admin";
+}

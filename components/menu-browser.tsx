@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { MenuCard } from "@/components/menu-card";
 import { Reveal } from "@/components/reveal";
 import { CategoryTabs, type Filter } from "@/components/category-tabs";
-import { getBasePrice } from "@/data/menu";
+import { getBasePrice } from "@/lib/menu/pricing";
 
 type SortKey = "popular" | "price-asc" | "price-desc";
 

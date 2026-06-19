@@ -1,4 +1,6 @@
-export type CategoryType = "coffee" | "non_coffee" | "matcha";
+// A category is identified by its slug (e.g. "coffee"). Once categories became
+// editable rows in the CMS, this is a plain string, not a fixed union.
+export type CategoryType = string;
 
 export type Category = {
   type: CategoryType;
