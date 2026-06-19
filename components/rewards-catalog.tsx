@@ -2,18 +2,17 @@
 
 import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
-import { rewardsCatalog } from "@/data/rewards";
+import type { Reward } from "@/types/reward";
 import { useBeans } from "@/store/beans";
 
 // Client view of the rewards catalogue. Reads the live Beans balance so the
 // "to spend" figure and each reward's affordability match the persisted ledger;
 // falls back to the mock balance until the store hydrates (matching the
-// server-rendered HTML to avoid a mismatch). The reward list itself is static
-// mock content for now.
-export function RewardsCatalog() {
+// server-rendered HTML to avoid a mismatch). The reward list comes from the DB
+// (fetched server-side and passed in).
+export function RewardsCatalog({ rewards }: { rewards: Reward[] }) {
   const { balance } = useBeans();
   const beans = balance;
-  const rewards = rewardsCatalog;
 
   return (
     <main className="px-5 pb-8 pt-2">

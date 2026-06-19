@@ -57,4 +57,7 @@ export type Product = {
   isBestSeller?: boolean;
   isNew?: boolean;
   isFeatured?: boolean;
+  // The active promotion resolved onto this product server-side (highest percent),
+  // if any. Populated by the menu store; the pure pricing helpers read it.
+  discount?: Discount;
 };

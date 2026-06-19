@@ -14,15 +14,9 @@ import {
   Plus,
   Minus,
 } from "lucide-react";
-import {
-  rewardTiers,
-  getTierProgress,
-  RECENT_ACTIVITY_LIMIT,
-  rewardsCatalog,
-  streakMilestones,
-  referralReward,
-  FREE_DRINK_FALLBACK,
-} from "@/data/rewards";
+import { getTierProgress } from "@/lib/rewards/tiers";
+import { RECENT_ACTIVITY_LIMIT, FREE_DRINK_FALLBACK } from "@/lib/rewards/constants";
+import type { Reward, RewardTier, StreakMilestone } from "@/types/reward";
 import { RewardsInfoModal } from "@/components/rewards-info-modal";
 import { RewardsTiersModal } from "@/components/rewards-tiers-modal";
 import { RewardsReferralModal } from "@/components/rewards-referral-modal";
@@ -35,7 +29,19 @@ import { cn } from "@/lib/utils";
 // state and the "?" trigger. Data is passed in (mocked today, server-fetched
 // once the Supabase rewards tables land). Mobile-first: the layout targets the
 // app's max-w-md shell, scaling type/spacing up at sm.
-export function RewardsScreen() {
+export function RewardsScreen({
+  tiers,
+  catalog,
+  milestones,
+  beansPerRinggit,
+  referral,
+}: {
+  tiers: RewardTier[];
+  catalog: Reward[];
+  milestones: StreakMilestone[];
+  beansPerRinggit: number;
+  referral: { beans: number; voucher: string };
+}) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
   const [referralOpen, setReferralOpen] = useState(false);
@@ -60,8 +66,8 @@ export function RewardsScreen() {
   // you are within the current lap, and the target rolls forward each time you
   // cross it. Falls back to FREE_DRINK_FALLBACK if there are no rewards.
   const drinkCost =
-    rewardsCatalog.length > 0
-      ? Math.min(...rewardsCatalog.map((r) => r.cost))
+    catalog.length > 0
+      ? Math.min(...catalog.map((r) => r.cost))
       : FREE_DRINK_FALLBACK;
   const earnedDrinks = drinkCost > 0 ? Math.floor(beans / drinkCost) : 0;
   const drinkTarget = (earnedDrinks + 1) * drinkCost;
@@ -71,7 +77,7 @@ export function RewardsScreen() {
   // Tier standing derived from lifetime-earned against rewardTiers, so this
   // screen and the tiers modal always show the same current tier and redeeming
   // (which lowers the spendable balance) never demotes the member.
-  const tier = getTierProgress(lifetimeEarned);
+  const tier = getTierProgress(lifetimeEarned, tiers);
 
   return (
     <div className="flex flex-col">
@@ -236,7 +242,7 @@ export function RewardsScreen() {
           </ul>
 
           <div className="mt-4 flex items-stretch overflow-hidden rounded-2xl border border-border">
-            {streakMilestones.map((m, i) => (
+            {milestones.map((m, i) => (
               <div
                 key={m.days}
                 className={cn(
@@ -311,7 +317,7 @@ export function RewardsScreen() {
           </div>
 
           <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {rewardsCatalog.map((reward) => {
+            {catalog.map((reward) => {
               const affordable = beans >= reward.cost;
               return (
                 <li
@@ -375,10 +381,10 @@ export function RewardsScreen() {
               </p>
               <p className="mt-2 text-sm text-white/70">You get</p>
               <p className="font-heading text-3xl font-bold tracking-tight">
-                {referralReward.beans} Beans
+                {referral.beans} Beans
               </p>
               <p className="mt-1 text-sm text-white/70">
-                Friend gets <span className="font-semibold text-white">{referralReward.voucher}</span>
+                Friend gets <span className="font-semibold text-white">{referral.voucher}</span>
               </p>
               <button
                 type="button"
@@ -448,10 +454,15 @@ export function RewardsScreen() {
         </section>
       </main>
 
-      {infoOpen && <RewardsInfoModal onClose={() => setInfoOpen(false)} />}
+      {infoOpen && (
+        <RewardsInfoModal
+          beansPerRinggit={beansPerRinggit}
+          onClose={() => setInfoOpen(false)}
+        />
+      )}
       {tiersOpen && (
         <RewardsTiersModal
-          tiers={rewardTiers}
+          tiers={tiers}
           beans={lifetimeEarned}
           onClose={() => setTiersOpen(false)}
         />

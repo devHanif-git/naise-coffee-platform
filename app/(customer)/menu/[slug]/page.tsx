@@ -4,7 +4,8 @@ import { SmartImage } from "@/components/ui/smart-image";
 import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
 import { getProductBySlug } from "@/lib/menu/store";
-import { getProductPricing } from "@/data/discounts";
+import { listRewardCatalog } from "@/lib/rewards/config-store";
+import { getProductPricing } from "@/lib/promotions/pricing";
 import { ProductCustomizer } from "@/components/product-customizer";
 import { ProductBackButton } from "@/components/product-back-button";
 import { PriceTag } from "@/components/price-tag";
@@ -35,7 +36,12 @@ export async function generateMetadata(
 
 export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
   const { slug } = await props.params;
-  const product = await getProductBySlug(slug);
+  const [product, catalog] = await Promise.all([
+    getProductBySlug(slug),
+    // A rewards-read hiccup must not take down the product page; degrade to an
+    // empty catalog (no reward redemption offered) instead of throwing.
+    listRewardCatalog().catch(() => []),
+  ]);
 
   if (!product) {
     notFound();
@@ -100,7 +106,7 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
         <hr className="border-border naise-rise [animation-delay:180ms]" />
 
         <Suspense fallback={null}>
-          <ProductCustomizer product={product} />
+          <ProductCustomizer product={product} catalog={catalog} />
         </Suspense>
       </div>
     </article>

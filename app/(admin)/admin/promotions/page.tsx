@@ -1,5 +1,12 @@
-import { ComingSoon } from "@/app/(admin)/admin/_stub/coming-soon";
+import { listAdminPromotions } from "@/lib/promotions/admin";
+import { listAdminProducts, listAdminCategories } from "@/lib/menu/admin";
+import { PromotionsManager } from "@/components/admin/promotions-manager";
 
-export default function PromotionsPage() {
-  return <ComingSoon title="Promotions" />;
+export const dynamic = "force-dynamic";
+
+export default async function PromotionsAdminPage() {
+  const [promotions, products, categories] = await Promise.all([
+    listAdminPromotions(), listAdminProducts(), listAdminCategories(),
+  ]);
+  return <PromotionsManager initial={promotions} products={products} categories={categories} />;
 }

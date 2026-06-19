@@ -2,30 +2,34 @@
 
 import { useEffect } from "react";
 import { X, Coffee, Gift, Sparkles } from "lucide-react";
-import { beansPerRinggit } from "@/data/rewards";
 
 // Explains the Naise Rewards program. Opened from the "?" in the Rewards
 // header. Hand-rolled like ReceiptModal — closes on backdrop click or Esc and
 // locks body scroll while open.
-const steps = [
-  {
-    icon: Coffee,
-    title: "Earn Beans",
-    body: `Earn ${beansPerRinggit} Beans for every RM1 you spend on Naise drinks.`,
-  },
-  {
-    icon: Gift,
-    title: "Redeem Rewards",
-    body: "Spend your Beans on free drinks and other rewards.",
-  },
-  {
-    icon: Sparkles,
-    title: "Climb the Tiers",
-    body: "Keep a daily streak and level up your tier for bonus Beans.",
-  },
-];
-
-export function RewardsInfoModal({ onClose }: { onClose: () => void }) {
+export function RewardsInfoModal({
+  beansPerRinggit,
+  onClose,
+}: {
+  beansPerRinggit: number;
+  onClose: () => void;
+}) {
+  const steps = [
+    {
+      icon: Coffee,
+      title: "Earn Beans",
+      body: `Earn ${beansPerRinggit} Beans for every RM1 you spend on Naise drinks.`,
+    },
+    {
+      icon: Gift,
+      title: "Redeem Rewards",
+      body: "Spend your Beans on free drinks and other rewards.",
+    },
+    {
+      icon: Sparkles,
+      title: "Climb the Tiers",
+      body: "Keep a daily streak and level up your tier for bonus Beans.",
+    },
+  ];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
