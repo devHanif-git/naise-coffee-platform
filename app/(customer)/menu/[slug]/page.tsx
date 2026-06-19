@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import Image from "next/image";
+import { SmartImage } from "@/components/ui/smart-image";
 import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
 import { getProduct, products } from "@/data/menu";
@@ -78,7 +78,7 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
           </div>
         )}
 
-        <Image
+        <SmartImage
           src={product.image}
           alt={product.name}
           fill

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { Product } from "@/types/menu";
@@ -16,7 +16,7 @@ export function MenuCard({ product }: { product: Product }) {
       >
         <div className="flex shrink-0 flex-col items-center">
           <div className="relative h-24 w-20 overflow-hidden rounded-2xl bg-black p-2">
-            <Image
+            <SmartImage
               src={product.image}
               alt={product.name}
               fill

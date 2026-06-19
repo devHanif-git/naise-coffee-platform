@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import type { Product } from "@/types/menu";
@@ -141,7 +142,7 @@ export function BestSellerCarousel({ products }: { products: Product[] }) {
                     aria-label={`View ${product.name}`}
                     className="relative block size-full rounded-2xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    <Image
+                    <SmartImage
                       src={product.image}
                       alt={product.name}
                       fill

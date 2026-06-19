@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
 import {
   ChevronLeft,
@@ -318,7 +319,7 @@ export function RewardsScreen() {
                   className="w-36 shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
                 >
                   <div className="relative flex aspect-square items-center justify-center bg-[radial-gradient(circle_at_50%_36%,_#f4ede4,_#ffffff_72%)]">
-                    <Image
+                    <SmartImage
                       src={reward.image}
                       alt={reward.name}
                       fill
