@@ -20,6 +20,16 @@ export function SmartImage({ className, alt, ...props }: SmartImageProps) {
     "loading",
   );
 
+  // Reset to the loading state when the src changes on a reused instance
+  // (e.g. a stable component fed changing CMS URLs). This is React's
+  // "adjust state during render" pattern — cheaper and more correct than a
+  // useEffect, which would briefly paint the previous image's state.
+  const [prevSrc, setPrevSrc] = useState(props.src);
+  if (props.src !== prevSrc) {
+    setPrevSrc(props.src);
+    setStatus("loading");
+  }
+
   // next/image forwards `ref` to the underlying <img>. A cached image can be
   // `complete` before React attaches `onLoad`, so that event never fires and
   // the skeleton would stick forever. Catch that on mount via a ref callback.
