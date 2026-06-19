@@ -42,13 +42,24 @@ export function CategoryManager({
   }
 
   function move(i: number, dir: -1 | 1) {
+    const prev = cats;
     const next = [...cats];
     const j = i + dir;
     if (j < 0 || j >= next.length) return;
     [next[i], next[j]] = [next[j], next[i]];
     setCats(next);
+    setError(null);
     startTransition(async () => {
-      await reorderCategories(next.map((c) => c.id));
+      try {
+        const res = await reorderCategories(next.map((c) => c.id));
+        if (!res.ok) {
+          setCats(prev);
+          setError(res.error);
+        }
+      } catch {
+        setCats(prev);
+        setError("Couldn't reorder. Please try again.");
+      }
     });
   }
 
@@ -108,13 +119,25 @@ function CategoryRow({
   const [name, setName] = useState(category.name);
   const [maxAddons, setMaxAddons] = useState(String(category.maxAddons));
   const [picked, setPicked] = useState<Set<string>>(new Set(category.addonIds));
+  const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   function save() {
+    setError(null);
     startTransition(async () => {
-      await saveCategory({ id: category.id, name, maxAddons: Number(maxAddons) });
-      await setCategoryAddons(category.id, [...picked]);
-      onChanged();
+      try {
+        const saveRes = await saveCategory({
+          id: category.id,
+          name,
+          maxAddons: Number(maxAddons),
+        });
+        if (!saveRes.ok) return setError(saveRes.error);
+        const addonsRes = await setCategoryAddons(category.id, [...picked]);
+        if (!addonsRes.ok) return setError(addonsRes.error);
+        onChanged();
+      } catch {
+        setError("Couldn't save. Please try again.");
+      }
     });
   }
 
@@ -181,14 +204,24 @@ function CategoryRow({
                 </label>
               ))}
           </div>
+          {error && <p className="text-sm text-rose-600">{error}</p>}
           <div className="flex gap-2">
             <button
-              onClick={() =>
+              onClick={() => {
+                setError(null);
                 startTransition(async () => {
-                  await setCategoryArchived(category.id, !category.isArchived);
-                  onChanged();
-                })
-              }
+                  try {
+                    const res = await setCategoryArchived(
+                      category.id,
+                      !category.isArchived,
+                    );
+                    if (!res.ok) return setError(res.error);
+                    onChanged();
+                  } catch {
+                    setError("Couldn't update. Please try again.");
+                  }
+                });
+              }}
               className="rounded-2xl border border-border px-4 py-2 text-sm font-semibold"
             >
               {category.isArchived ? "Restore" : "Archive"}

@@ -41,8 +41,12 @@ export function MenuListLive({
   function onAvailability(p: AdminProduct, value: boolean) {
     patch(p.id, { isAvailable: value });
     startTransition(async () => {
-      const res = await setAvailability(p.id, value);
-      if (!res.ok) patch(p.id, { isAvailable: !value });
+      try {
+        const res = await setAvailability(p.id, value);
+        if (!res.ok) patch(p.id, { isAvailable: !value });
+      } catch {
+        patch(p.id, { isAvailable: !value });
+      }
     });
   }
 
@@ -59,8 +63,12 @@ export function MenuListLive({
           : "isFeatured";
     patch(p.id, { [key]: value } as Partial<AdminProduct>);
     startTransition(async () => {
-      const res = await setFlag(p.id, flag, value);
-      if (!res.ok) patch(p.id, { [key]: !value } as Partial<AdminProduct>);
+      try {
+        const res = await setFlag(p.id, flag, value);
+        if (!res.ok) patch(p.id, { [key]: !value } as Partial<AdminProduct>);
+      } catch {
+        patch(p.id, { [key]: !value } as Partial<AdminProduct>);
+      }
     });
   }
 
@@ -68,8 +76,12 @@ export function MenuListLive({
     const value = !p.isArchived;
     patch(p.id, { isArchived: value });
     startTransition(async () => {
-      const res = await setArchived(p.id, value);
-      if (!res.ok) patch(p.id, { isArchived: !value });
+      try {
+        const res = await setArchived(p.id, value);
+        if (!res.ok) patch(p.id, { isArchived: !value });
+      } catch {
+        patch(p.id, { isArchived: !value });
+      }
     });
   }
 

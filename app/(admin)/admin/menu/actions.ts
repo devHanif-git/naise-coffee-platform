@@ -81,18 +81,26 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   if (!data.categoryId) return { ok: false, error: "Pick a category." };
 
   if (data.pricingMode === "flat") {
-    if (data.basePrice == null || data.basePrice < 0)
+    if (data.basePrice == null || !Number.isInteger(data.basePrice) || data.basePrice < 0)
       return { ok: false, error: "Enter a valid price." };
   } else {
     if (data.variants.length === 0)
       return { ok: false, error: "Add at least one size." };
-    if (data.variants.some((v) => !v.name.trim() || v.price < 0)) {
+    if (
+      data.variants.some(
+        (v) => !v.name.trim() || !Number.isInteger(v.price) || v.price < 0,
+      )
+    ) {
       return { ok: false, error: "Every size needs a name and a valid price." };
     }
   }
+  if (data.maxAddons != null && (!Number.isInteger(data.maxAddons) || data.maxAddons < 0))
+    return { ok: false, error: "Max add-ons must be a non-negative whole number." };
 
   const db = await createClient();
   const slug = data.slug.trim() ? slugify(data.slug) : slugify(name);
+  if (!slug)
+    return { ok: false, error: "Enter a slug or name with letters or numbers." };
 
   const payload = {
     category_id: data.categoryId,
@@ -133,8 +141,13 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
     productId = row.id;
   }
 
-  // Replace variants.
-  await db.from("product_variants").delete().eq("product_id", productId);
+  // Replace variants. (Not wrapped in a DB transaction — see note above.)
+  const variantsDelete = await db
+    .from("product_variants")
+    .delete()
+    .eq("product_id", productId);
+  if (variantsDelete.error)
+    return { ok: false, error: variantsDelete.error.message };
   if (data.pricingMode === "variants") {
     const rows = data.variants.map((v, i) => ({
       product_id: productId!,
@@ -147,7 +160,12 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   }
 
   // Replace add-on overrides.
-  await db.from("product_addons").delete().eq("product_id", productId);
+  const addonsDelete = await db
+    .from("product_addons")
+    .delete()
+    .eq("product_id", productId);
+  if (addonsDelete.error)
+    return { ok: false, error: addonsDelete.error.message };
   if (data.addonOverrides.length > 0) {
     const rows = data.addonOverrides.map((o, i) => ({
       product_id: productId!,
@@ -174,6 +192,9 @@ export async function uploadProductImage(
   if (!(file instanceof File) || file.size === 0)
     return { ok: false, error: "No file." };
   if (file.size > 5_242_880) return { ok: false, error: "Image must be under 5 MB." };
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!allowed.has(file.type))
+    return { ok: false, error: "Only JPEG, PNG, and WebP images are allowed." };
 
   const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
   const path = `${crypto.randomUUID()}.${ext}`;

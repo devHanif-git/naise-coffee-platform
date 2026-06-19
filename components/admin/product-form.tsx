@@ -112,9 +112,13 @@ export function ProductForm({
       })),
     };
     startTransition(async () => {
-      const res = await saveProduct(data);
-      if (res.ok) router.push("/admin/menu");
-      else setError(res.error);
+      try {
+        const res = await saveProduct(data);
+        if (res.ok) router.push("/admin/menu");
+        else setError(res.error);
+      } catch {
+        setError("Save failed. Please try again.");
+      }
     });
   }
 

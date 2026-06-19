@@ -38,7 +38,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
       <AdminBackLink href="/admin/menu" label="Back to Menu" />
       <h1 className="font-heading text-lg font-bold tracking-tight">Add-ons</h1>
 
-      <div className="flex items-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex flex-1 flex-col gap-1.5">
           <Label>Name</Label>
           <Input
@@ -47,7 +47,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
             placeholder="e.g. Oat Milk"
           />
         </div>
-        <div className="flex w-24 flex-col gap-1.5">
+        <div className="flex w-full flex-col gap-1.5 sm:w-24">
           <Label>Price</Label>
           <Input
             inputMode="decimal"
@@ -58,7 +58,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
         </div>
         <button
           onClick={add}
-          className="rounded-2xl bg-black px-4 py-2.5 text-sm font-semibold text-white"
+          className="w-full rounded-2xl bg-black px-4 py-2.5 text-sm font-semibold text-white sm:w-auto"
         >
           Add
         </button>
@@ -83,44 +83,64 @@ function AddonRow({
 }) {
   const [name, setName] = useState(addon.name);
   const [price, setPrice] = useState(toRm(addon.price));
+  const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-2xl border border-border p-3",
+        "flex flex-col gap-2 rounded-2xl border border-border p-3 sm:flex-row sm:items-center",
         addon.isArchived && "opacity-50",
       )}
     >
-      <Input value={name} onChange={(e) => setName(e.target.value)} className="flex-1" />
+      <Input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full sm:flex-1"
+      />
       <Input
         inputMode="decimal"
         value={price}
         onChange={(e) => setPrice(e.target.value)}
-        className="w-20"
+        className="w-full sm:w-20"
       />
-      <button
-        onClick={() =>
-          startTransition(async () => {
-            await saveAddon({ id: addon.id, name, price: toSen(price) });
-            onChanged();
-          })
-        }
-        className="rounded-xl bg-black px-3 py-2 text-xs font-semibold text-white"
-      >
-        Save
-      </button>
-      <button
-        onClick={() =>
-          startTransition(async () => {
-            await setAddonArchived(addon.id, !addon.isArchived);
-            onChanged();
-          })
-        }
-        className="text-[0.625rem] font-semibold text-muted-foreground underline"
-      >
-        {addon.isArchived ? "Restore" : "Archive"}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              try {
+                const res = await saveAddon({ id: addon.id, name, price: toSen(price) });
+                if (!res.ok) return setError(res.error);
+                onChanged();
+              } catch {
+                setError("Couldn't save. Please try again.");
+              }
+            });
+          }}
+          className="rounded-xl bg-black px-3 py-2 text-xs font-semibold text-white"
+        >
+          Save
+        </button>
+        <button
+          onClick={() => {
+            setError(null);
+            startTransition(async () => {
+              try {
+                const res = await setAddonArchived(addon.id, !addon.isArchived);
+                if (!res.ok) return setError(res.error);
+                onChanged();
+              } catch {
+                setError("Couldn't update. Please try again.");
+              }
+            });
+          }}
+          className="text-[0.625rem] font-semibold text-muted-foreground underline"
+        >
+          {addon.isArchived ? "Restore" : "Archive"}
+        </button>
+      </div>
+      {error && <p className="text-xs text-rose-600 sm:w-full">{error}</p>}
     </div>
   );
 }

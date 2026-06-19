@@ -20,7 +20,8 @@ export async function saveAddon(input: {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Name is required." };
-  if (input.price < 0) return { ok: false, error: "Price must be 0 or more." };
+  if (!Number.isInteger(input.price) || input.price < 0)
+    return { ok: false, error: "Price must be a whole number of sen (0 or more)." };
   const db = await createClient();
   if (input.id) {
     const { error } = await db

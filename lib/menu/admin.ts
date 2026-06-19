@@ -12,7 +12,8 @@ import type {
 
 export async function listAdminAddons(): Promise<AdminAddon[]> {
   const db = await createClient();
-  const { data } = await db.from("addons").select("*").order("name");
+  const { data, error } = await db.from("addons").select("*").order("name");
+  if (error) throw new Error(`listAdminAddons failed: ${error.message}`);
   return (data ?? []).map((a) => ({
     id: a.id,
     name: a.name,
@@ -27,6 +28,8 @@ export async function listAdminCategories(): Promise<AdminCategory[]> {
     db.from("categories").select("*").order("sort_order").order("name"),
     db.from("category_addons").select("*").order("sort_order"),
   ]);
+  if (cats.error) throw new Error(`listAdminCategories failed: ${cats.error.message}`);
+  if (links.error) throw new Error(`listAdminCategories failed: ${links.error.message}`);
   return (cats.data ?? []).map((c) => ({
     id: c.id,
     slug: c.slug,
@@ -47,6 +50,9 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
     db.from("product_variants").select("*"),
     db.from("categories").select("id,name"),
   ]);
+  if (products.error) throw new Error(`listAdminProducts failed: ${products.error.message}`);
+  if (variants.error) throw new Error(`listAdminProducts failed: ${variants.error.message}`);
+  if (cats.error) throw new Error(`listAdminProducts failed: ${cats.error.message}`);
   const catName = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
   return (products.data ?? []).map((p) => {
     const vs = (variants.data ?? []).filter((v) => v.product_id === p.id);
@@ -74,17 +80,21 @@ export async function getAdminProduct(
   id: string,
 ): Promise<AdminProductDetail | null> {
   const db = await createClient();
-  const { data: p } = await db
+  const { data: p, error } = await db
     .from("products")
     .select("*")
     .eq("id", id)
     .maybeSingle();
+  if (error) throw new Error(`getAdminProduct failed: ${error.message}`);
   if (!p) return null;
   const [variants, overrides, cats] = await Promise.all([
     db.from("product_variants").select("*").eq("product_id", id).order("sort_order"),
     db.from("product_addons").select("*").eq("product_id", id),
     db.from("categories").select("id,name"),
   ]);
+  if (variants.error) throw new Error(`getAdminProduct failed: ${variants.error.message}`);
+  if (overrides.error) throw new Error(`getAdminProduct failed: ${overrides.error.message}`);
+  if (cats.error) throw new Error(`getAdminProduct failed: ${cats.error.message}`);
   const catName = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
   const vs = variants.data ?? [];
   return {

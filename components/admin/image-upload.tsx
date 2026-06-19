@@ -22,9 +22,13 @@ export function ImageUpload({
     const fd = new FormData();
     fd.set("file", file);
     startTransition(async () => {
-      const res = await uploadProductImage(fd);
-      if (res.ok) onChange(res.url);
-      else setError(res.error);
+      try {
+        const res = await uploadProductImage(fd);
+        if (res.ok) onChange(res.url);
+        else setError(res.error);
+      } catch {
+        setError("Upload failed. Please try again.");
+      }
     });
   }
 
