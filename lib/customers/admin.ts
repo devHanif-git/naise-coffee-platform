@@ -7,9 +7,9 @@ import type {
   CustomerSummary,
 } from "@/lib/customers/types";
 
-// All reads run under the caller's RLS; the admin SELECT policies on profiles /
-// reward_accounts / orders / bean_transactions return every row. Callers gate
-// with isAdmin (the admin layout) before rendering.
+// All reads run under the caller's RLS; the SELECT policies on profiles /
+// reward_accounts / orders / bean_transactions permit admin, manager, and staff
+// roles (not admin-only). The customer pages are gated to admin via the layout.
 
 export async function listCustomers(search?: string): Promise<CustomerSummary[]> {
   const db = await createClient();

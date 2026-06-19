@@ -100,13 +100,13 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
         <input
           inputMode="numeric"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => { setAmount(e.target.value); setBeansMsg(null); }}
           placeholder="Amount (e.g. 100 or -50)"
           className="rounded-2xl border border-border px-3 py-2 text-sm"
         />
         <input
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
+          onChange={(e) => { setReason(e.target.value); setBeansMsg(null); }}
           placeholder="Reason (required)"
           className="rounded-2xl border border-border px-3 py-2 text-sm"
         />
