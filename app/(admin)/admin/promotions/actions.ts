@@ -24,7 +24,7 @@ export async function savePromotion(input: PromotionFormData): Promise<ActionRes
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
   const label = input.label.trim();
   if (!label) return { ok: false, error: "Label is required." };
-  if (input.percentOff < 1 || input.percentOff > 100) {
+  if (!Number.isInteger(input.percentOff) || input.percentOff < 1 || input.percentOff > 100) {
     return { ok: false, error: "Percent off must be between 1 and 100." };
   }
   if (input.startsAt && input.endsAt && new Date(input.endsAt) <= new Date(input.startsAt)) {

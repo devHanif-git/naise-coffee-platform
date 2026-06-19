@@ -25,18 +25,24 @@ export async function updateLoyaltySettings(input: {
   referralVoucherLabel: string;
 }): Promise<ActionResult> {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  if (input.beansPerRinggit < 1) return { ok: false, error: "Beans per RM must be at least 1." };
-  if (input.referralBeans < 0) return { ok: false, error: "Referral beans must be 0 or more." };
+  if (!Number.isInteger(input.beansPerRinggit) || input.beansPerRinggit < 1) {
+    return { ok: false, error: "Beans per RM must be a whole number of at least 1." };
+  }
+  if (!Number.isInteger(input.referralBeans) || input.referralBeans < 0) {
+    return { ok: false, error: "Referral beans must be a whole number of 0 or more." };
+  }
   if (!input.referralVoucherLabel.trim()) return { ok: false, error: "Voucher label is required." };
   const db = await createClient();
+  // upsert (not update) so a missing settings row is created rather than the
+  // write silently no-op'ing on zero matched rows.
   const { error } = await db
     .from("loyalty_settings")
-    .update({
+    .upsert({
+      id: true,
       beans_per_ringgit: input.beansPerRinggit,
       referral_beans: input.referralBeans,
       referral_voucher_label: input.referralVoucherLabel.trim(),
-    })
-    .eq("id", true);
+    });
   if (error) return { ok: false, error: error.message };
   revalidateAll();
   return { ok: true };
@@ -51,7 +57,9 @@ export async function saveTier(input: {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Name is required." };
-  if (input.threshold < 0) return { ok: false, error: "Threshold must be 0 or more." };
+  if (!Number.isInteger(input.threshold) || input.threshold < 0) {
+    return { ok: false, error: "Threshold must be a whole number of 0 or more." };
+  }
   const db = await createClient();
   if (input.id) {
     const { error } = await db
@@ -90,10 +98,14 @@ export async function saveMilestone(input: {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
   if (!input.label.trim()) return { ok: false, error: "Ledger label is required." };
   if (!input.displayLabel.trim()) return { ok: false, error: "Card label is required." };
-  if (input.beans < 1) return { ok: false, error: "Beans must be at least 1." };
-  if (input.triggerDay < 1) return { ok: false, error: "Trigger day must be at least 1." };
-  if (input.repeatEveryDays !== null && input.repeatEveryDays < 1) {
-    return { ok: false, error: "Repeat must be empty or at least 1." };
+  if (!Number.isInteger(input.beans) || input.beans < 1) {
+    return { ok: false, error: "Beans must be a whole number of at least 1." };
+  }
+  if (!Number.isInteger(input.triggerDay) || input.triggerDay < 1) {
+    return { ok: false, error: "Trigger day must be a whole number of at least 1." };
+  }
+  if (input.repeatEveryDays !== null && (!Number.isInteger(input.repeatEveryDays) || input.repeatEveryDays < 1)) {
+    return { ok: false, error: "Repeat must be empty or a whole number of at least 1." };
   }
   const db = await createClient();
   const payload = {
@@ -144,7 +156,9 @@ export async function saveRewardItem(input: {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
   const name = input.name.trim();
   if (!name) return { ok: false, error: "Name is required." };
-  if (input.cost < 1) return { ok: false, error: "Cost must be at least 1 Bean." };
+  if (!Number.isInteger(input.cost) || input.cost < 1) {
+    return { ok: false, error: "Cost must be a whole number of at least 1 Bean." };
+  }
   if (!input.productId) return { ok: false, error: "Pick the free drink this reward grants." };
   const db = await createClient();
   const payload = {

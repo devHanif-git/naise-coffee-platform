@@ -38,7 +38,9 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
   const { slug } = await props.params;
   const [product, catalog] = await Promise.all([
     getProductBySlug(slug),
-    listRewardCatalog(),
+    // A rewards-read hiccup must not take down the product page; degrade to an
+    // empty catalog (no reward redemption offered) instead of throwing.
+    listRewardCatalog().catch(() => []),
   ]);
 
   if (!product) {

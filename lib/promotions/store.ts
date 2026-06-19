@@ -8,13 +8,19 @@ import type { Discount } from "@/types/menu";
 export async function listActivePromotions(): Promise<Discount[]> {
   const db = await createClient();
   const nowIso = new Date().toISOString();
-  const { data: promos } = await db
+  const { data: promos, error } = await db
     .from("promotions")
     .select("*")
     .eq("is_active", true)
     .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
     .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
     .order("sort_order");
+  // Fail open: a promotions-read hiccup leaves the storefront at full price
+  // rather than 500-ing. Log so the silent no-discount state is observable.
+  if (error) {
+    console.error(`listActivePromotions failed: ${error.message}`);
+    return [];
+  }
   const active = promos ?? [];
   if (active.length === 0) return [];
 

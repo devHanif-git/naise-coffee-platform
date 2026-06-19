@@ -11,6 +11,11 @@ export async function listAdminPromotions(): Promise<AdminPromotion[]> {
     db.from("promotion_products").select("*"),
     db.from("promotion_categories").select("*"),
   ]);
+  // Log read failures so an empty admin list isn't mistaken for "no promotions".
+  const readError = promos.error ?? prodLinks.error ?? catLinks.error;
+  if (readError) {
+    console.error(`listAdminPromotions failed: ${readError.message}`);
+  }
   return (promos.data ?? []).map((p) => ({
     id: p.id,
     slug: p.slug,
