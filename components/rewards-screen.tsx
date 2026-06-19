@@ -35,12 +35,16 @@ export function RewardsScreen({
   milestones,
   beansPerRinggit,
   referral,
+  streakEnabled,
+  referralEnabled,
 }: {
   tiers: RewardTier[];
   catalog: Reward[];
   milestones: StreakMilestone[];
   beansPerRinggit: number;
   referral: { beans: number; voucher: string };
+  streakEnabled: boolean;
+  referralEnabled: boolean;
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
@@ -182,82 +186,86 @@ export function RewardsScreen({
         </section>
 
         {/* Streak + Tier summary row. */}
-        <section className="grid grid-cols-2 naise-rise [animation-delay:80ms]">
-          <div className="min-w-0 pr-5">
-            <p className="flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
-              <Flame className="size-4 text-foreground" strokeWidth={2.5} aria-hidden />
-              Your Streak
-            </p>
-            <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
-              {streakDays} <span className="font-medium">Days</span>
-            </p>
-            <p className="mt-1 text-xs leading-snug text-muted-foreground">
-              {streak.checkedInToday
-                ? "Checked in today. Come back tomorrow to keep it alive."
-                : "Buy coffee today to keep your streak alive."}
-            </p>
-          </div>
+        {streakEnabled && (
+          <section className="grid grid-cols-2 naise-rise [animation-delay:80ms]">
+            <div className="min-w-0 pr-5">
+              <p className="flex items-center gap-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+                <Flame className="size-4 text-foreground" strokeWidth={2.5} aria-hidden />
+                Your Streak
+              </p>
+              <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
+                {streakDays} <span className="font-medium">Days</span>
+              </p>
+              <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                {streak.checkedInToday
+                  ? "Checked in today. Come back tomorrow to keep it alive."
+                  : "Buy coffee today to keep your streak alive."}
+              </p>
+            </div>
 
-          <div className="min-w-0 border-l border-border pl-5">
-            <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
-              Your Tier
-            </p>
-            <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
-              {tier.current.name}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-              {tier.isMaxTier
-                ? `${lifetimeEarned.toLocaleString()} Beans · Top tier`
-                : `${lifetimeEarned.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
-            </p>
-          </div>
-        </section>
+            <div className="min-w-0 border-l border-border pl-5">
+              <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-muted-foreground">
+                Your Tier
+              </p>
+              <p className="mt-1.5 font-heading text-2xl font-bold tracking-tight">
+                {tier.current.name}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                {tier.isMaxTier
+                  ? `${lifetimeEarned.toLocaleString()} Beans · Top tier`
+                  : `${lifetimeEarned.toLocaleString()} / ${tier.next!.threshold.toLocaleString()} Beans`}
+              </p>
+            </div>
+          </section>
+        )}
 
         {/* Weekly stamp card — earned days are filled checks, upcoming are
             dashed outlines. */}
-        <section aria-label="Weekly streak" className="-mt-3 naise-rise [animation-delay:140ms]">
-          <ul className="flex justify-between">
-            {week.map((day) => (
-              <li key={day.label} className="flex flex-col items-center gap-1.5">
-                <span
-                  className={cn(
-                    "flex size-9 items-center justify-center rounded-full",
-                    day.done
-                      ? "bg-black text-white"
-                      : "border-2 border-dashed border-neutral-300 text-transparent",
-                  )}
-                >
-                  <Check className="size-4" strokeWidth={3} aria-hidden />
-                </span>
-                <span
-                  className={cn(
-                    "text-[0.625rem] font-medium",
-                    day.done ? "text-foreground" : "text-muted-foreground",
-                  )}
-                >
-                  {day.label}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {streakEnabled && (
+          <section aria-label="Weekly streak" className="-mt-3 naise-rise [animation-delay:140ms]">
+            <ul className="flex justify-between">
+              {week.map((day) => (
+                <li key={day.label} className="flex flex-col items-center gap-1.5">
+                  <span
+                    className={cn(
+                      "flex size-9 items-center justify-center rounded-full",
+                      day.done
+                        ? "bg-black text-white"
+                        : "border-2 border-dashed border-neutral-300 text-transparent",
+                    )}
+                  >
+                    <Check className="size-4" strokeWidth={3} aria-hidden />
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[0.625rem] font-medium",
+                      day.done ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {day.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
 
-          <div className="mt-4 flex items-stretch overflow-hidden rounded-2xl border border-border">
-            {milestones.map((m, i) => (
-              <div
-                key={m.days}
-                className={cn(
-                  "flex-1 px-3 py-3 text-center",
-                  i > 0 && "border-l border-border",
-                )}
-              >
-                <p className="text-[0.625rem] font-bold uppercase tracking-wide text-muted-foreground">
-                  {m.days} Days
-                </p>
-                <p className="mt-1 text-sm font-semibold">{m.reward}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+            <div className="mt-4 flex items-stretch overflow-hidden rounded-2xl border border-border">
+              {milestones.map((m, i) => (
+                <div
+                  key={m.days}
+                  className={cn(
+                    "flex-1 px-3 py-3 text-center",
+                    i > 0 && "border-l border-border",
+                  )}
+                >
+                  <p className="text-[0.625rem] font-bold uppercase tracking-wide text-muted-foreground">
+                    {m.days} Days
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">{m.reward}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Tier progress + tiers CTA. */}
         <section aria-label="Tier progress" className="-mt-3 naise-rise [animation-delay:200ms]">
@@ -362,40 +370,42 @@ export function RewardsScreen({
         </section>
 
         {/* Invite friends. */}
-        <section aria-labelledby="invite-heading" className="naise-rise [animation-delay:320ms]">
-          <div className="relative overflow-hidden rounded-[1.5rem] bg-black px-5 py-6 text-white">
-            <Image
-              src={images.celebration}
-              alt=""
-              width={200}
-              height={200}
-              aria-hidden
-              className="pointer-events-none absolute -bottom-1 -right-2 z-0 h-auto w-36 object-contain sm:w-40"
-            />
-            <div className="relative z-10 max-w-[62%]">
-              <p
-                id="invite-heading"
-                className="text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-white/60"
-              >
-                Invite Friends
-              </p>
-              <p className="mt-2 text-sm text-white/70">You get</p>
-              <p className="font-heading text-3xl font-bold tracking-tight">
-                {referral.beans} Beans
-              </p>
-              <p className="mt-1 text-sm text-white/70">
-                Friend gets <span className="font-semibold text-white">{referral.voucher}</span>
-              </p>
-              <button
-                type="button"
-                onClick={() => setReferralOpen(true)}
-                className="mt-4 h-10 rounded-full bg-white px-5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-black outline-none transition-transform hover:scale-[1.02] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-white/40"
-              >
-                Share Referral
-              </button>
+        {referralEnabled && (
+          <section aria-labelledby="invite-heading" className="naise-rise [animation-delay:320ms]">
+            <div className="relative overflow-hidden rounded-[1.5rem] bg-black px-5 py-6 text-white">
+              <Image
+                src={images.celebration}
+                alt=""
+                width={200}
+                height={200}
+                aria-hidden
+                className="pointer-events-none absolute -bottom-1 -right-2 z-0 h-auto w-36 object-contain sm:w-40"
+              />
+              <div className="relative z-10 max-w-[62%]">
+                <p
+                  id="invite-heading"
+                  className="text-[0.625rem] font-semibold uppercase tracking-[0.2em] text-white/60"
+                >
+                  Invite Friends
+                </p>
+                <p className="mt-2 text-sm text-white/70">You get</p>
+                <p className="font-heading text-3xl font-bold tracking-tight">
+                  {referral.beans} Beans
+                </p>
+                <p className="mt-1 text-sm text-white/70">
+                  Friend gets <span className="font-semibold text-white">{referral.voucher}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setReferralOpen(true)}
+                  className="mt-4 h-10 rounded-full bg-white px-5 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-black outline-none transition-transform hover:scale-[1.02] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-white/40"
+                >
+                  Share Referral
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* Recent activity. */}
         <section
@@ -467,7 +477,7 @@ export function RewardsScreen({
           onClose={() => setTiersOpen(false)}
         />
       )}
-      {referralOpen && (
+      {referralEnabled && referralOpen && (
         <RewardsReferralModal onClose={() => setReferralOpen(false)} />
       )}
     </div>

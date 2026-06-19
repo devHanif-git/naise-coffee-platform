@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { RewardsActivity } from "@/components/rewards-activity";
+import { getStoreSettings } from "@/lib/settings/store";
 
 export const metadata: Metadata = {
   title: "Bean Activity",
   description: "Your full history of Beans earned and redeemed at Naise Coffee.",
 };
 
-export default function RewardsActivityPage() {
+export default async function RewardsActivityPage() {
+  const store = await getStoreSettings();
+  if (!store.rewardsEnabled) redirect("/home");
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">

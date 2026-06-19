@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { RewardsScreen } from "@/components/rewards-screen";
 import {
   getLoyaltySettings,
@@ -6,6 +7,7 @@ import {
   listStreakMilestones,
   listRewardCatalog,
 } from "@/lib/rewards/config-store";
+import { getStoreSettings } from "@/lib/settings/store";
 
 export const metadata: Metadata = {
   title: "Rewards",
@@ -16,6 +18,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RewardsPage() {
+  const store = await getStoreSettings();
+  if (!store.rewardsEnabled) redirect("/home");
   const [settings, tiers, milestones, catalog] = await Promise.all([
     getLoyaltySettings(),
     listTiers(),
@@ -29,6 +33,8 @@ export default async function RewardsPage() {
       milestones={milestones}
       beansPerRinggit={settings.beansPerRinggit}
       referral={{ beans: settings.referralBeans, voucher: settings.referralVoucherLabel }}
+      streakEnabled={store.streakEnabled}
+      referralEnabled={store.referralEnabled}
     />
   );
 }
