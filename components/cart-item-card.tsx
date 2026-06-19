@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import type { CartItem } from "@/types/cart";
 
@@ -14,9 +15,11 @@ import type { CartItem } from "@/types/cart";
 export function CartItemCard({
   item,
   delay = 0,
+  unavailable = false,
 }: {
   item: CartItem;
   delay?: number;
+  unavailable?: boolean;
 }) {
   const { incrementItem, decrementItem } = useCart();
 
@@ -44,7 +47,12 @@ export function CartItemCard({
         aria-label={`Edit ${item.name}`}
         className="flex min-w-0 flex-1 items-center gap-3 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <div className="relative h-24 w-20 shrink-0 overflow-hidden rounded-2xl bg-black p-2">
+        <div
+          className={cn(
+            "relative h-24 w-20 shrink-0 overflow-hidden rounded-2xl bg-black p-2",
+            unavailable && "opacity-50 grayscale",
+          )}
+        >
           <Image
             src={item.image}
             alt={item.name}
@@ -54,12 +62,18 @@ export function CartItemCard({
           />
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className={cn("flex min-w-0 flex-1 flex-col gap-1", unavailable && "opacity-60")}>
           <h3 className="line-clamp-2 font-heading text-sm font-bold leading-snug tracking-tight">
             {item.name}
           </h3>
           {subtitle && (
             <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          )}
+
+          {unavailable && (
+            <span className="mt-1 inline-flex w-fit rounded-full bg-rose-100 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-rose-600">
+              Sold Out
+            </span>
           )}
 
           {item.isReward ? (
