@@ -148,6 +148,33 @@ export type Database = {
           },
         ]
       }
+      loyalty_settings: {
+        Row: {
+          beans_per_ringgit: number
+          created_at: string
+          id: boolean
+          referral_beans: number
+          referral_voucher_label: string
+          updated_at: string
+        }
+        Insert: {
+          beans_per_ringgit?: number
+          created_at?: string
+          id?: boolean
+          referral_beans?: number
+          referral_voucher_label?: string
+          updated_at?: string
+        }
+        Update: {
+          beans_per_ringgit?: number
+          created_at?: string
+          id?: boolean
+          referral_beans?: number
+          referral_voucher_label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           addon_names: string[]
@@ -460,6 +487,92 @@ export type Database = {
         }
         Relationships: []
       }
+      reward_catalog: {
+        Row: {
+          cost: number
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          is_archived: boolean
+          name: string
+          product_id: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          cost: number
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          is_archived?: boolean
+          name: string
+          product_id: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          cost?: number
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          is_archived?: boolean
+          name?: string
+          product_id?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_catalog_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reward_tiers: {
+        Row: {
+          created_at: string
+          id: string
+          is_archived: boolean
+          name: string
+          perk: string
+          slug: string
+          sort_order: number
+          threshold: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          name: string
+          perk: string
+          slug: string
+          sort_order?: number
+          threshold: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_archived?: boolean
+          name?: string
+          perk?: string
+          slug?: string
+          sort_order?: number
+          threshold?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       streak_checkins: {
         Row: {
           check_in_date: string
@@ -478,6 +591,45 @@ export type Database = {
           created_at?: string
           id?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      streak_milestones: {
+        Row: {
+          beans: number
+          created_at: string
+          display_label: string
+          id: string
+          is_active: boolean
+          label: string
+          repeat_every_days: number | null
+          sort_order: number
+          trigger_day: number
+          updated_at: string
+        }
+        Insert: {
+          beans: number
+          created_at?: string
+          display_label: string
+          id?: string
+          is_active?: boolean
+          label: string
+          repeat_every_days?: number | null
+          sort_order?: number
+          trigger_day: number
+          updated_at?: string
+        }
+        Update: {
+          beans?: number
+          created_at?: string
+          display_label?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          repeat_every_days?: number | null
+          sort_order?: number
+          trigger_day?: number
+          updated_at?: string
         }
         Relationships: []
       }
