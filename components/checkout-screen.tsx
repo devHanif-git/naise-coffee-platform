@@ -172,6 +172,7 @@ export function CheckoutScreen() {
 
       const result = await placeOrderAction({
         items: items.map((item) => ({
+          productId: item.productId,
           name: item.name,
           quantity: item.quantity,
           sizeName: item.sizeName,
