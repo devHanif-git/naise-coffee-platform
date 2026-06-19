@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { SmartImage } from "@/components/ui/smart-image";
 import { Download, Loader2 } from "lucide-react";
 import { images } from "@/constants/images";
 
@@ -59,7 +59,7 @@ export function DuitnowQrCard() {
   return (
     <div className="flex flex-col gap-2.5">
       <div className="relative aspect-square w-full overflow-hidden rounded-2xl">
-        <Image
+        <SmartImage
           src={QR_SRC}
           alt="Naise Coffee DuitNow QR code"
           fill
