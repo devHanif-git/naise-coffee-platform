@@ -84,6 +84,7 @@ export function buildProducts(opts: {
       isBestSeller: p.is_best_seller || undefined,
       isNew: p.is_new || undefined,
       isFeatured: p.is_featured || undefined,
+      isAvailable: p.is_available,
     };
     if (sizes.length > 0) product.sizes = sizes;
     else product.price = p.base_price ?? 0;

@@ -57,6 +57,9 @@ export type Product = {
   isBestSeller?: boolean;
   isNew?: boolean;
   isFeatured?: boolean;
+  // Inventory toggle. false = temporarily sold out: still shown on the storefront,
+  // greyed and not orderable. (Archived items are hidden entirely, upstream.)
+  isAvailable: boolean;
   // The active promotion resolved onto this product server-side (highest percent),
   // if any. Populated by the menu store; the pure pricing helpers read it.
   discount?: Discount;

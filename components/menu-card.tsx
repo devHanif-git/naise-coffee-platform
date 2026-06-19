@@ -4,10 +4,12 @@ import { Plus } from "lucide-react";
 import type { Product } from "@/types/menu";
 import { getProductPricing } from "@/lib/promotions/pricing";
 import { PriceTag } from "@/components/price-tag";
+import { cn } from "@/lib/utils";
 
 export function MenuCard({ product }: { product: Product }) {
   const pricing = getProductPricing(product);
-  const onSale = pricing.percentOff > 0;
+  const soldOut = !product.isAvailable;
+  const onSale = !soldOut && pricing.percentOff > 0;
   return (
     <div className="flex items-center gap-3 py-4">
       <Link
@@ -15,7 +17,12 @@ export function MenuCard({ product }: { product: Product }) {
         className="flex flex-1 items-center gap-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-xl"
       >
         <div className="flex shrink-0 flex-col items-center">
-          <div className="relative h-24 w-20 overflow-hidden rounded-2xl bg-black p-2">
+          <div
+            className={cn(
+              "relative h-24 w-20 overflow-hidden rounded-2xl bg-black p-2",
+              soldOut && "opacity-50 grayscale",
+            )}
+          >
             <SmartImage
               src={product.image}
               alt={product.name}
@@ -24,7 +31,11 @@ export function MenuCard({ product }: { product: Product }) {
               className="object-contain"
             />
           </div>
-          {onSale ? (
+          {soldOut ? (
+            <span className="relative z-10 -mt-2.5 inline-flex rounded-full bg-neutral-500 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-background">
+              Sold Out
+            </span>
+          ) : onSale ? (
             <span className="relative z-10 -mt-2.5 inline-flex rounded-full bg-rose-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-background">
               {pricing.percentOff}% Off
             </span>
@@ -38,7 +49,7 @@ export function MenuCard({ product }: { product: Product }) {
             </span>
           ) : null}
         </div>
-        <div className="flex flex-1 flex-col gap-1">
+        <div className={cn("flex flex-1 flex-col gap-1", soldOut && "opacity-60")}>
           <h3 className="font-heading text-sm font-bold leading-snug tracking-tight">
             {product.name}
           </h3>
@@ -46,13 +57,22 @@ export function MenuCard({ product }: { product: Product }) {
           <PriceTag pricing={pricing} className="mt-1" />
         </div>
       </Link>
-      <Link
-        href={`/menu/${product.slug}`}
-        aria-label={`Customize and add ${product.name}`}
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
-      >
-        <Plus className="size-4" strokeWidth={2.5} />
-      </Link>
+      {soldOut ? (
+        <span
+          aria-label={`${product.name} is sold out`}
+          className="flex size-8 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-neutral-200 text-neutral-400"
+        >
+          <Plus className="size-4" strokeWidth={2.5} />
+        </span>
+      ) : (
+        <Link
+          href={`/menu/${product.slug}`}
+          aria-label={`Customize and add ${product.name}`}
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
+        >
+          <Plus className="size-4" strokeWidth={2.5} />
+        </Link>
+      )}
     </div>
   );
 }
