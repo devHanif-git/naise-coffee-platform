@@ -1,3 +1,9 @@
+-- NOTE (history): this file was first applied with a buggy admin guard
+-- (`<> 'admin'`, which is null-unsafe). It has since been corrected on disk to
+-- `is distinct from 'admin'` and to also `revoke ... from anon`. The same
+-- corrections were shipped as migration 20260620110001_admin_phase3_rpcs_fix.sql
+-- (idempotent `create or replace`), so a fresh replay of both files is correct.
+
 -- Phase 3 privileged admin writes. SECURITY DEFINER so they bypass profiles /
 -- rewards RLS, but each gates internally on current_user_role()='admin' and is
 -- granted to authenticated only (revoked from public/anon). search_path pinned.
