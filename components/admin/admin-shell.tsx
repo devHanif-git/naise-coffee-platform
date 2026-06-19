@@ -53,9 +53,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </SheetTitle>
             <nav className="flex flex-col py-2">
               {NAV.map((item) => {
+                // "/admin" is a prefix of every CMS route, so it must match
+                // exactly; other items also light up on their sub-routes.
                 const active =
-                  pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`);
+                  item.href === "/admin"
+                    ? pathname === "/admin"
+                    : pathname === item.href ||
+                      pathname.startsWith(`${item.href}/`);
                 const Icon = item.icon;
                 return (
                   <Link
