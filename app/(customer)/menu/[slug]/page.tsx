@@ -3,21 +3,19 @@ import { Suspense } from "react";
 import { SmartImage } from "@/components/ui/smart-image";
 import { notFound } from "next/navigation";
 import { Star } from "lucide-react";
-import { getProduct, products } from "@/data/menu";
+import { getProductBySlug } from "@/lib/menu/store";
 import { getProductPricing } from "@/data/discounts";
 import { ProductCustomizer } from "@/components/product-customizer";
 import { ProductBackButton } from "@/components/product-back-button";
 import { PriceTag } from "@/components/price-tag";
 
-export function generateStaticParams() {
-  return products.map((p) => ({ slug: p.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(
   props: PageProps<"/menu/[slug]">,
 ): Promise<Metadata> {
   const { slug } = await props.params;
-  const product = getProduct(slug);
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     return { title: "Not found" };
@@ -37,7 +35,7 @@ export async function generateMetadata(
 
 export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
   const { slug } = await props.params;
-  const product = getProduct(slug);
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     notFound();

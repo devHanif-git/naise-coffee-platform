@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { categories, products } from "@/data/menu";
+import { listCategories, listProducts } from "@/lib/menu/store";
 import { MenuBrowser } from "@/components/menu-browser";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Menu",
@@ -14,6 +16,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function MenuPage() {
+export default async function MenuPage() {
+  const [categories, products] = await Promise.all([listCategories(), listProducts()]);
   return <MenuBrowser categories={categories} products={products} />;
 }
