@@ -27,6 +27,7 @@ export const paymentMethods: PaymentMethod[] = [
     name: "DuitNow QR",
     description: "Scan with any bank app",
     featured: true,
+    requiresReceipt: true,
   },
   {
     id: "apple-pay",
@@ -60,11 +61,13 @@ export const paymentMethods: PaymentMethod[] = [
   },
   {
     // Bank Transfer is prepaid (customer transfers before/at order), so unlike
-    // Cash it does NOT require auth — guests can use it.
+    // Cash it does NOT require auth — guests can use it. It does require proof
+    // of payment, so the customer attaches a transfer receipt at checkout.
     id: "bank-transfer",
     category: "bank",
     name: "Bank Transfer",
     description: "Transfer to our bank account",
+    requiresReceipt: true,
   },
 ];
 

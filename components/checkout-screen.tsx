@@ -120,6 +120,9 @@ export function CheckoutScreen({
   // Avoid a flash of the empty/redirecting state before localStorage loads.
   if (!placedNumber && (!hydrated || !hasItems)) return null;
 
+  // The currently selected method (null when nothing is selectable). Drives the
+  // method-specific blocks below (QR card, bank details, receipt upload).
+  const selectedMethod = methods.find((m) => m.id === selected) ?? null;
   const featured = methods.filter((m) => m.featured);
   const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
@@ -192,8 +195,8 @@ export function CheckoutScreen({
       return;
     }
 
-    if (selected === "duitnow-qr" && !receiptFile) {
-      setError("Please attach your DuitNow QR payment receipt.");
+    if (method.requiresReceipt && !receiptFile) {
+      setError("Please attach your payment receipt.");
       return;
     }
 
@@ -204,7 +207,7 @@ export function CheckoutScreen({
       // ownerId sent to the action (the server validates they agree).
       const ownerId = getOrCreateOwnerId();
       let proofOfPaymentPath: string | undefined;
-      if (selected === "duitnow-qr" && receiptFile) {
+      if (method.requiresReceipt && receiptFile) {
         proofOfPaymentPath = await uploadReceipt(receiptFile, ownerId);
       }
 
@@ -446,7 +449,25 @@ export function CheckoutScreen({
           </div>
         )}
 
-        {selected === "duitnow-qr" && (
+        {selected === "bank-transfer" && (
+          <div className="mt-4 flex flex-col divide-y divide-border rounded-2xl border border-border bg-white px-4 py-2">
+            {bank.name && <BankDetailRow label="Bank" value={bank.name} />}
+            {bank.accountNumber && (
+              <BankDetailRow label="Account number" value={bank.accountNumber} />
+            )}
+            {bank.accountHolder && (
+              <BankDetailRow label="Account holder" value={bank.accountHolder} />
+            )}
+            {!bank.name && !bank.accountNumber && !bank.accountHolder && (
+              <p className="py-3 text-xs text-muted-foreground">
+                Bank details aren&rsquo;t set up yet. Please choose another method or contact the
+                store.
+              </p>
+            )}
+          </div>
+        )}
+
+        {selectedMethod?.requiresReceipt && (
           <div className="mt-2.5 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
             <label
               htmlFor="receipt"
@@ -465,24 +486,6 @@ export function CheckoutScreen({
               <span className="truncate text-xs text-muted-foreground">
                 {receiptFile.name}
               </span>
-            )}
-          </div>
-        )}
-
-        {selected === "bank-transfer" && (
-          <div className="mt-4 flex flex-col divide-y divide-border rounded-2xl border border-border bg-white px-4 py-2">
-            {bank.name && <BankDetailRow label="Bank" value={bank.name} />}
-            {bank.accountNumber && (
-              <BankDetailRow label="Account number" value={bank.accountNumber} />
-            )}
-            {bank.accountHolder && (
-              <BankDetailRow label="Account holder" value={bank.accountHolder} />
-            )}
-            {!bank.name && !bank.accountNumber && !bank.accountHolder && (
-              <p className="py-3 text-xs text-muted-foreground">
-                Bank details aren&rsquo;t set up yet. Please choose another method or contact the
-                store.
-              </p>
             )}
           </div>
         )}

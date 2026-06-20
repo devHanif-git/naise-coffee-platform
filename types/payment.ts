@@ -27,6 +27,10 @@ export type PaymentMethod = {
   // gated this way — guests must use a prepaid method or sign in. Selecting a
   // gated method as a guest prompts sign-in rather than placing the order.
   requiresAuth?: boolean;
+  // Prepaid methods where the customer pays out-of-band and must attach proof
+  // of payment (DuitNow QR, Bank Transfer). Checkout requires a receipt upload
+  // and stores it as the order's proof of payment before placing.
+  requiresReceipt?: boolean;
 };
 
 export type PaymentCategory = {
