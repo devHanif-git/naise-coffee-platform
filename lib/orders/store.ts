@@ -166,9 +166,12 @@ export async function countOrdersByGroup(
   return { all, pending, in_progress, completed, cancelled };
 }
 
-// One customer's orders, newest first. Members match on user_id (RLS-scoped via
-// the cookie client); guests match on owner_id via the admin client. A member is
-// also shown any guest orders that share this browser's owner_id (carry-over).
+// One customer's orders, newest first, via the admin client (these run
+// server-side only). Members match on user_id alone: their guest orders were
+// re-owned to the account at sign-in (claim_device_orders), so user_id is the
+// single source of truth — and matching owner_id too would leak other guests'
+// orders on a shared device. Guests match on owner_id AND user_id IS NULL, so a
+// claimed order never reappears as a guest order from a stale cookie.
 export async function listOrdersFor(
   ownerId: string | null | undefined,
   userId: string | null,
@@ -181,12 +184,10 @@ export async function listOrdersFor(
     .select("*, order_items(*)")
     .order("created_at", { ascending: false });
 
-  if (userId && ownerId) {
-    query = query.or(`user_id.eq.${userId},owner_id.eq.${ownerId}`);
-  } else if (userId) {
+  if (userId) {
     query = query.eq("user_id", userId);
   } else {
-    query = query.eq("owner_id", ownerId!);
+    query = query.eq("owner_id", ownerId!).is("user_id", null);
   }
 
   const { data: orderRows, error } = await query;
