@@ -8,6 +8,7 @@ import { useAuth } from "@/store/auth";
 import { useProfile } from "@/store/profile";
 import { uploadAvatar } from "@/lib/supabase/avatar";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { normalizeMyPhone, formatMyPhoneForDisplay } from "@/lib/phone";
 
 // Edit Profile — photo and display name only (security lives in Settings).
 // Persists to the Supabase `profiles` row: the picked photo is uploaded to the
@@ -20,6 +21,10 @@ export function ProfileEditScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState(profile.displayName);
+  // WhatsApp number, shown in human format; normalized to +60… on save.
+  const [phone, setPhone] = useState(
+    profile.phone ? formatMyPhoneForDisplay(profile.phone) : "",
+  );
   // Preview shown in the avatar. Starts at the stored URL; swaps to a local
   // object URL the moment a new file is picked (instant feedback before upload).
   const [previewUrl, setPreviewUrl] = useState(profile.avatarUrl);
@@ -44,6 +49,18 @@ export function ProfileEditScreen() {
       return;
     }
 
+    // Empty = clear the number. Non-empty must be a valid MY mobile.
+    const trimmedPhone = phone.trim();
+    let normalizedPhone: string | undefined;
+    if (trimmedPhone) {
+      const normalized = normalizeMyPhone(trimmedPhone);
+      if (!normalized) {
+        setError("Enter a valid Malaysian mobile number, e.g. 011-2561 7058.");
+        return;
+      }
+      normalizedPhone = normalized;
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -56,6 +73,7 @@ export function ProfileEditScreen() {
       await updateProfile({
         displayName: displayName.trim() || profile.displayName,
         avatarUrl,
+        phone: normalizedPhone,
       });
       router.push("/profile");
     } catch {
@@ -132,6 +150,34 @@ export function ProfileEditScreen() {
             placeholder="Your name"
             className="h-12 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           />
+        </section>
+
+        {/* WhatsApp number — unverified; used for order updates. */}
+        <section className="flex flex-col gap-2 naise-rise [animation-delay:100ms]">
+          <label
+            htmlFor="phone"
+            className="text-xs font-bold uppercase tracking-wide text-muted-foreground"
+          >
+            WhatsApp Number
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="flex h-12 shrink-0 items-center rounded-2xl border border-border bg-neutral-50 px-3 text-sm font-semibold text-muted-foreground">
+              +60
+            </span>
+            <input
+              id="phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="11-2561 7058"
+              className="h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </div>
+          <p className="text-[0.6875rem] text-muted-foreground">
+            We&rsquo;ll use this to message you about your orders on WhatsApp.
+          </p>
         </section>
 
         {error && (
