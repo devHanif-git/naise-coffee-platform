@@ -9,8 +9,10 @@ import {
   Banknote,
   Check,
   ChevronLeft,
+  Copy,
   CreditCard,
   Flame,
+  Landmark,
   Loader2,
   Lock,
   QrCode,
@@ -29,8 +31,8 @@ import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
 import { useBeans } from "@/store/beans";
 import type { StreakAward } from "@/types/reward";
-import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
-import type { PaymentMethodId } from "@/types/payment";
+import type { PaymentMethod, PaymentMethodId } from "@/types/payment";
+import type { BankDetails } from "@/lib/settings/payments";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { StoreClosedBanner } from "@/components/store-closed-banner";
@@ -52,12 +54,17 @@ const methodIcons: Record<PaymentMethodId, LucideIcon> = {
   "tng-ewallet": Wallet,
   boost: Zap,
   grabpay: Smartphone,
+  "bank-transfer": Landmark,
 };
 
 export function CheckoutScreen({
   closedMessage,
+  methods,
+  bank,
 }: {
   closedMessage?: string | null;
+  methods: PaymentMethod[];
+  bank: BankDetails;
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
@@ -65,8 +72,10 @@ export function CheckoutScreen({
   const { isAuthenticated, hydrated: authHydrated } = useAuth();
   const { canAfford, earnRate } = useBeans();
   const { profile, updateProfile } = useProfile();
-  const [selected, setSelected] =
-    useState<PaymentMethodId>(defaultPaymentMethodId);
+  // Default to the first enabled method; null when none are enabled.
+  const [selected, setSelected] = useState<PaymentMethodId | null>(
+    methods[0]?.id ?? null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // DuitNow QR receipt: the picked file (held until place) and any upload error.
@@ -95,24 +104,24 @@ export function CheckoutScreen({
     if (hydrated && !hasItems && !placedNumber) router.replace("/cart");
   }, [hydrated, hasItems, placedNumber, router]);
 
-  // A guest can't keep Cash selected (it's pay-at-counter, members only). Once
-  // the auth state has loaded, move them to the first prepaid method so the
+  // A guest can't keep a members-only method (Cash) selected. Once the auth
+  // state has loaded, move them to the first non-gated enabled method so the
   // selector never sits on a locked option.
   useEffect(() => {
     if (!authHydrated || isAuthenticated) return;
-    const current = paymentMethods.find((m) => m.id === selected);
+    const current = methods.find((m) => m.id === selected);
     if (current?.requiresAuth) {
-      const fallback = paymentMethods.find((m) => !m.requiresAuth);
+      const fallback = methods.find((m) => !m.requiresAuth);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile selection once auth state is known
-      if (fallback) setSelected(fallback.id);
+      setSelected(fallback ? fallback.id : null);
     }
-  }, [authHydrated, isAuthenticated, selected]);
+  }, [authHydrated, isAuthenticated, selected, methods]);
 
   // Avoid a flash of the empty/redirecting state before localStorage loads.
   if (!placedNumber && (!hydrated || !hasItems)) return null;
 
-  const featured = paymentMethods.filter((m) => m.featured);
-  const others = paymentMethods.filter((m) => !m.featured);
+  const featured = methods.filter((m) => m.featured);
+  const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
   // Beans this order would earn if the customer were signed in — drives the
   // guest nudge's headline. Mirrors the store's earn rule (floor of RM × rate).
@@ -121,7 +130,7 @@ export function CheckoutScreen({
   // Selecting a members-only method (Cash) as a guest opens the sign-in nudge
   // instead of switching to it; otherwise it's a normal selection.
   function selectMethod(id: PaymentMethodId) {
-    const method = paymentMethods.find((m) => m.id === id);
+    const method = methods.find((m) => m.id === id);
     if (!isAuthenticated && method?.requiresAuth) {
       setShowGuestModal(true);
       return;
@@ -139,6 +148,10 @@ export function CheckoutScreen({
   // number on file get the phone prompt; everyone else places straight.
   function onPlaceOrder() {
     if (submitting) return;
+    if (!selected) {
+      setError("No payment method is available right now.");
+      return;
+    }
     if (!isAuthenticated) {
       setShowGuestModal(true);
       return;
@@ -162,7 +175,7 @@ export function CheckoutScreen({
     if (submitting) return;
     // Cash is members-only (pay-at-counter); a guest should never reach here
     // with it selected, but guard server-side intent anyway.
-    const method = paymentMethods.find((m) => m.id === selected);
+    const method = methods.find((m) => m.id === selected);
     if (!method) return;
     if (method.requiresAuth && !isAuthenticated) {
       setShowGuestModal(true);
@@ -319,6 +332,12 @@ export function CheckoutScreen({
           Payment Method
         </h2>
 
+        {methods.length === 0 && (
+          <p className="rounded-2xl bg-neutral-50 px-4 py-3 text-xs text-muted-foreground">
+            Payments are temporarily unavailable. Please try again later or contact the store.
+          </p>
+        )}
+
         <div className="grid grid-cols-2 gap-2.5">
           {featured.map((method) => {
             const Icon = methodIcons[method.id];
@@ -449,6 +468,24 @@ export function CheckoutScreen({
             )}
           </div>
         )}
+
+        {selected === "bank-transfer" && (
+          <div className="mt-4 flex flex-col divide-y divide-border rounded-2xl border border-border bg-white px-4 py-2">
+            {bank.name && <BankDetailRow label="Bank" value={bank.name} />}
+            {bank.accountNumber && (
+              <BankDetailRow label="Account number" value={bank.accountNumber} />
+            )}
+            {bank.accountHolder && (
+              <BankDetailRow label="Account holder" value={bank.accountHolder} />
+            )}
+            {!bank.name && !bank.accountNumber && !bank.accountHolder && (
+              <p className="py-3 text-xs text-muted-foreground">
+                Bank details aren&rsquo;t set up yet. Please choose another method or contact the
+                store.
+              </p>
+            )}
+          </div>
+        )}
       </section>
 
       <section
@@ -554,7 +591,7 @@ export function CheckoutScreen({
       <button
         type="button"
         onClick={onPlaceOrder}
-        disabled={submitting}
+        disabled={submitting || !selected}
         className="mt-4 flex h-12 w-full items-center justify-between rounded-2xl bg-black px-5 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 naise-rise [animation-delay:240ms]"
       >
         {submitting ? (
@@ -614,5 +651,43 @@ export function CheckoutScreen({
         />
       )}
     </main>
+  );
+}
+
+// A single bank-detail line (label + value) with a copy-to-clipboard button,
+// shown when Bank Transfer is the selected payment method.
+function BankDetailRow({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard unavailable (insecure context / denied) — leave the value
+      // visible for manual copy; nothing to surface.
+    }
+  }
+  return (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <div className="flex min-w-0 flex-col">
+        <span className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </span>
+        <span className="truncate text-sm font-semibold">{value}</span>
+      </div>
+      <button
+        type="button"
+        onClick={copy}
+        aria-label={`Copy ${label}`}
+        className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-foreground transition-colors hover:bg-neutral-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {copied ? (
+          <Check className="size-3.5" strokeWidth={3} aria-hidden />
+        ) : (
+          <Copy className="size-3.5" strokeWidth={2} aria-hidden />
+        )}
+      </button>
+    </div>
   );
 }
