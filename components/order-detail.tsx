@@ -198,7 +198,7 @@ export function OrderDetail({
           <div className="flex flex-col gap-2.5">
             <p className="text-xs font-medium text-emerald-700">
               {waReadyLink
-                ? "All drinks ready — send the buyer their pickup notice on WhatsApp."
+                ? "All drinks ready — buyer notified on WhatsApp. Resend below if it didn't go through."
                 : "All drinks ready — buyer will be notified for pickup."}
               {completedAt && (
                 <>
@@ -221,7 +221,7 @@ export function OrderDetail({
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <MessageCircle className="size-4" strokeWidth={2} aria-hidden />
-                Send ready message on WhatsApp
+                Resend on WhatsApp
               </a>
             )}
           </div>

@@ -65,7 +65,7 @@ export function buildOrderReadyMessage(order: Order): string {
   });
 
   const parts = [
-    "☕ Your drink is ready!",
+    "Your drink is ready!",
     "",
     `Order ${order.orderNumber} is ready for pickup.`,
     "",
