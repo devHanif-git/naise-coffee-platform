@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { paymentCategories, paymentMethods } from "@/data/payment-methods";
 import type { PaymentSettings } from "@/lib/settings/payments";
-import { updatePaymentSettings } from "@/app/(admin)/admin/settings/actions";
+import { updatePaymentSettings, uploadDuitnowQr } from "@/app/(admin)/admin/settings/actions";
+import { ImageUpload } from "@/components/admin/image-upload";
+import { images } from "@/constants/images";
 
 export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
   const [s, setS] = useState<PaymentSettings>(initial);
@@ -113,6 +115,24 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
                     placeholder="e.g. Naise Coffee Sdn Bhd"
                   />
                 </div>
+              </div>
+            )}
+
+            {cat.id === "qr" && (
+              <div className="flex flex-col gap-2.5 border-t border-border pt-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-bold">DuitNow QR image</span>
+                  <span className="text-xs text-muted-foreground">
+                    Shown at checkout when DuitNow QR is selected. Leave empty to
+                    use the built-in QR.
+                  </span>
+                </div>
+                <ImageUpload
+                  value={s.duitnowQrUrl}
+                  onChange={(url) => setS({ ...s, duitnowQrUrl: url })}
+                  upload={uploadDuitnowQr}
+                  placeholder={images.qrDuitnow}
+                />
               </div>
             )}
           </div>
