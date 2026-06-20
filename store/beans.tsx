@@ -11,6 +11,7 @@ import {
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { BeanActivity } from "@/types/reward";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/store/auth";
 
 // How many recent ledger rows to load for the activity feed. The full feed lives
 // at /rewards/activity; this is plenty for the previews and that page.
@@ -68,7 +69,17 @@ export function BeansProvider({
   const [activity, setActivity] = useState<BeanActivity[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
+  // Drive the rewards load off the auth store's user. Re-keying the effect on
+  // the user id means signing out resets the previous member's balance/activity
+  // and signing in loads the new account — without a full page reload.
+  const { user: authUser, hydrated: authHydrated } = useAuth();
+  const authUserId = authUser?.id ?? null;
+
   useEffect(() => {
+    // Wait until auth has resolved so we don't flash guest zeros over a member's
+    // real balance during the initial session check.
+    if (!authHydrated) return;
+
     let active = true;
     let channel: RealtimeChannel | null = null;
     const supabase = createClient();
@@ -100,13 +111,28 @@ export function BeansProvider({
       );
     }
 
+    function resetToGuest() {
+      setBalance(0);
+      setLifetimeEarned(0);
+      setActivity([]);
+      setHydrated(true);
+    }
+
     (async () => {
+      // No auth-store user (signed out / guest): clear any previous member's
+      // rewards so they don't linger after sign-out.
+      if (!authUserId) {
+        resetToGuest();
+        return;
+      }
+      // The phone path is a local mock with no real Supabase session, so the
+      // authoritative getUser() reads null there — treat it as a guest too.
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!active) return;
       if (!user) {
-        setHydrated(true);
+        resetToGuest();
         return;
       }
       await load(user.id);
@@ -155,7 +181,7 @@ export function BeansProvider({
         channel = null;
       }
     };
-  }, []);
+  }, [authUserId, authHydrated]);
 
   const canAfford = useCallback((cost: number) => balance >= cost, [balance]);
 

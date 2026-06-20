@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import type { AuthMethod, AuthUser } from "@/types/auth";
 import { getOrCreateOwnerId, setOwnerId } from "@/lib/auth/owner-id";
@@ -110,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // the browser client is created exactly once (not on every render) without
   // touching a ref during render.
   const [supabase] = useState(() => createClient());
+  const router = useRouter();
 
   useEffect(() => {
     // Every visitor gets an owner id from first paint so guest orders attribute
@@ -194,6 +196,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Did a real Supabase session exist? The phone path is still a local mock
+    // with no Supabase session — only real members had their device's guest
+    // orders re-owned to their account at sign-in, so only they need a fresh
+    // guest identity here.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const hadRealSession = session !== null;
+
     // Clear the real Supabase session (no-op if only the phone mock is active).
     await supabase.auth.signOut();
     setUser(null);
@@ -203,10 +214,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Non-fatal.
     }
-    // Intentionally keep the owner id intact. A signed-out browser is back to
-    // being a "guest" — orders placed in this state should still attach to the
-    // same id, so signing in again carries the full history over.
-  }, [supabase]);
+    // A real member's device orders were re-owned to their account at sign-in,
+    // so this browser must start a fresh guest identity — otherwise the claimed
+    // orders would still surface here, and a later sign-in could merge another
+    // guest's orders into the account. The phone mock keeps its id so its guest
+    // orders stay visible.
+    if (hadRealSession) {
+      setOwnerId(crypto.randomUUID());
+    }
+    // Re-run Server Components for the current route AFTER rotating the owner id
+    // above, so server-rendered, session-scoped data (e.g. the profile's recent
+    // orders, read from the cookie) reflects the signed-out state immediately
+    // instead of showing the previous member's data until a manual reload.
+    router.refresh();
+  }, [supabase, router]);
 
   const dismissWelcome = useCallback(() => {
     // Just clear the in-memory flag. The persistent greeted record was written
