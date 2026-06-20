@@ -26,5 +26,11 @@ export type CartItem = {
   isReward?: boolean;
   rewardId?: string;
   rewardCost?: number;
+  // User id of the member who redeemed this reward line. Stamped at redemption
+  // so the cart can drop the line when a different identity — a guest after
+  // sign-out, or another member on the same device — takes over the browser. A
+  // reward belongs to the member who claimed it, never to whoever checks out
+  // next. Only set on reward lines.
+  redeemedBy?: string;
   quantity: number;
 };

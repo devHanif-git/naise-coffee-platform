@@ -61,6 +61,19 @@ export async function placeOrder(
   } = await supabase.auth.getUser();
   const userId = user?.id ?? null;
 
+  // A reward line is a member entitlement, settled against their Bean balance.
+  // The cart lives in per-browser localStorage and can outlive the member who
+  // redeemed it (sign-out, or a different person on the same device), leaving a
+  // stale RM0.00 reward line a guest could otherwise check out for free — no
+  // Beans charged, no redemption recorded. Block it. The client also strips
+  // these on any identity change, but this is the authoritative guard.
+  if (!userId && input.items.some((i) => i.isReward)) {
+    return {
+      ok: false,
+      error: "Please sign in to redeem a reward, or remove it from your cart.",
+    };
+  }
+
   // Re-validate availability against the live catalogue: the cart is client
   // localStorage and may hold a drink that went sold-out (or was archived)
   // after it was added. RLS returns non-archived products only, so a missing
