@@ -299,6 +299,7 @@ export type Database = {
           cash_method_enabled: boolean
           created_at: string
           duitnow_qr_enabled: boolean
+          duitnow_qr_url: string | null
           ewallet_enabled: boolean
           google_pay_enabled: boolean
           grabpay_enabled: boolean
@@ -320,6 +321,7 @@ export type Database = {
           cash_method_enabled?: boolean
           created_at?: string
           duitnow_qr_enabled?: boolean
+          duitnow_qr_url?: string | null
           ewallet_enabled?: boolean
           google_pay_enabled?: boolean
           grabpay_enabled?: boolean
@@ -341,6 +343,7 @@ export type Database = {
           cash_method_enabled?: boolean
           created_at?: string
           duitnow_qr_enabled?: boolean
+          duitnow_qr_url?: string | null
           ewallet_enabled?: boolean
           google_pay_enabled?: boolean
           grabpay_enabled?: boolean
