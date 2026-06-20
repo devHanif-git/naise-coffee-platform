@@ -9,11 +9,13 @@ import { BellRing } from "lucide-react";
 export function OrderCompleteModal({
   orderNumber,
   busy,
+  hasContactPhone,
   onConfirm,
   onCancel,
 }: {
   orderNumber: string;
   busy: boolean;
+  hasContactPhone: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -53,8 +55,9 @@ export function OrderCompleteModal({
           Complete {orderNumber}?
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-          This marks the order complete and notifies the buyer that their order
-          is ready for pickup.
+          {hasContactPhone
+            ? "This marks the order complete. Next, send the buyer their ready notice on WhatsApp."
+            : "This marks the order complete and notifies the buyer that their order is ready for pickup."}
         </p>
 
         <button
@@ -64,7 +67,11 @@ export function OrderCompleteModal({
           className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <BellRing className="size-4" strokeWidth={2} aria-hidden />
-          {busy ? "Notifying…" : "Complete & Notify"}
+          {busy
+            ? "Completing…"
+            : hasContactPhone
+              ? "Complete order"
+              : "Complete & Notify"}
         </button>
 
         <button

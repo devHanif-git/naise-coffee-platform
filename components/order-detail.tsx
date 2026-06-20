@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, ChevronLeft, ChevronRight, Loader2, Receipt, TriangleAlert } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Loader2, MessageCircle, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
+import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
 import {
@@ -58,6 +59,8 @@ export function OrderDetail({
 
   const doneCount = statuses.filter((s) => s === "done").length;
   const allDone = doneCount === order.items.length;
+  // wa.me deep link for the manual ready handoff; null when no number on file.
+  const waReadyLink = buildWhatsAppReadyLink(order);
 
   // Optimistically set a drink's status, then persist (for real orders).
   function applyStatus(index: number, status: DrinkStatus) {
@@ -187,21 +190,36 @@ export function OrderDetail({
           ))}
         </div>
         {justCompleted && (
-          <p className="text-xs font-medium text-emerald-700">
-            All drinks ready — buyer will be notified for pickup.
-            {completedAt && (
-              <>
-                {" "}
-                <span className="text-emerald-700/70">
-                  Completed{" "}
-                  <time dateTime={completedAt} className="tabular-nums">
-                    {formatOrderTime(completedAt)}
-                  </time>
-                  .
-                </span>
-              </>
+          <div className="flex flex-col gap-2.5">
+            <p className="text-xs font-medium text-emerald-700">
+              {waReadyLink
+                ? "All drinks ready — send the buyer their pickup notice on WhatsApp."
+                : "All drinks ready — buyer will be notified for pickup."}
+              {completedAt && (
+                <>
+                  {" "}
+                  <span className="text-emerald-700/70">
+                    Completed{" "}
+                    <time dateTime={completedAt} className="tabular-nums">
+                      {formatOrderTime(completedAt)}
+                    </time>
+                    .
+                  </span>
+                </>
+              )}
+            </p>
+            {waReadyLink && (
+              <a
+                href={waReadyLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <MessageCircle className="size-4" strokeWidth={2} aria-hidden />
+                Send ready message on WhatsApp
+              </a>
             )}
-          </p>
+          </div>
         )}
       </section>
 
@@ -368,6 +386,7 @@ export function OrderDetail({
         <OrderCompleteModal
           orderNumber={order.orderNumber}
           busy={completing}
+          hasContactPhone={Boolean(order.contactPhone)}
           onConfirm={confirmComplete}
           onCancel={cancelComplete}
         />
