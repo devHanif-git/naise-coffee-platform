@@ -101,6 +101,11 @@ export function OrderDetail({
       if (persist) await markReadyAndNotify(order.token);
       setCompleting(false);
       setShowComplete(false);
+      // Auto-open WhatsApp with the prefilled ready notice so staff don't tap a
+      // second button. Same-tab navigation (not window.open) so it isn't
+      // popup-blocked after the await; on mobile this hands off to the WA app.
+      // The persistent button below stays for manual re-sends.
+      if (persist && waReadyLink) window.location.href = waReadyLink;
     });
   }
 

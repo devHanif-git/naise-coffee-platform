@@ -56,7 +56,7 @@ export function OrderCompleteModal({
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
           {hasContactPhone
-            ? "This marks the order complete. Next, send the buyer their ready notice on WhatsApp."
+            ? "This marks the order complete and opens WhatsApp so you can send the buyer their ready notice."
             : "This marks the order complete and notifies the buyer that their order is ready for pickup."}
         </p>
 
