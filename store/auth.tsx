@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import type { AuthMethod, AuthUser } from "@/types/auth";
 import { getOrCreateOwnerId, setOwnerId } from "@/lib/auth/owner-id";
@@ -110,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // the browser client is created exactly once (not on every render) without
   // touching a ref during render.
   const [supabase] = useState(() => createClient());
+  const router = useRouter();
 
   useEffect(() => {
     // Every visitor gets an owner id from first paint so guest orders attribute
@@ -220,7 +222,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (hadRealSession) {
       setOwnerId(crypto.randomUUID());
     }
-  }, [supabase]);
+    // Re-run Server Components for the current route AFTER rotating the owner id
+    // above, so server-rendered, session-scoped data (e.g. the profile's recent
+    // orders, read from the cookie) reflects the signed-out state immediately
+    // instead of showing the previous member's data until a manual reload.
+    router.refresh();
+  }, [supabase, router]);
 
   const dismissWelcome = useCallback(() => {
     // Just clear the in-memory flag. The persistent greeted record was written
