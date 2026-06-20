@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
+import { claimDeviceOrders } from "@/lib/orders/claim";
 
 // Supabase redirects here after Google. Exchange the PKCE code for a session
 // (cookies are set by the server client), then send the user to `next`.
@@ -22,6 +24,10 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // Re-own any guest orders placed on this browser before signing in, so
+      // they move under the new account. Best-effort; never blocks the redirect.
+      const ownerId = await getOwnerIdFromCookie();
+      await claimDeviceOrders(ownerId);
       return NextResponse.redirect(`${publicOrigin}${next}`);
     }
   }

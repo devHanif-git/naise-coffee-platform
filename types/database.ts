@@ -782,6 +782,7 @@ export type Database = {
         Returns: undefined
       }
       apply_order_rewards: { Args: { p_token: string }; Returns: Json }
+      claim_device_orders: { Args: { p_owner_id: string }; Returns: number }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
