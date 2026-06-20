@@ -285,6 +285,72 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_settings: {
+        Row: {
+          apple_pay_enabled: boolean
+          bank_account_holder: string
+          bank_account_number: string
+          bank_enabled: boolean
+          bank_name: string
+          bank_transfer_enabled: boolean
+          boost_enabled: boolean
+          card_enabled: boolean
+          cash_enabled: boolean
+          cash_method_enabled: boolean
+          created_at: string
+          duitnow_qr_enabled: boolean
+          ewallet_enabled: boolean
+          google_pay_enabled: boolean
+          grabpay_enabled: boolean
+          id: boolean
+          qr_enabled: boolean
+          tng_ewallet_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          apple_pay_enabled?: boolean
+          bank_account_holder?: string
+          bank_account_number?: string
+          bank_enabled?: boolean
+          bank_name?: string
+          bank_transfer_enabled?: boolean
+          boost_enabled?: boolean
+          card_enabled?: boolean
+          cash_enabled?: boolean
+          cash_method_enabled?: boolean
+          created_at?: string
+          duitnow_qr_enabled?: boolean
+          ewallet_enabled?: boolean
+          google_pay_enabled?: boolean
+          grabpay_enabled?: boolean
+          id?: boolean
+          qr_enabled?: boolean
+          tng_ewallet_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          apple_pay_enabled?: boolean
+          bank_account_holder?: string
+          bank_account_number?: string
+          bank_enabled?: boolean
+          bank_name?: string
+          bank_transfer_enabled?: boolean
+          boost_enabled?: boolean
+          card_enabled?: boolean
+          cash_enabled?: boolean
+          cash_method_enabled?: boolean
+          created_at?: string
+          duitnow_qr_enabled?: boolean
+          ewallet_enabled?: boolean
+          google_pay_enabled?: boolean
+          grabpay_enabled?: boolean
+          id?: boolean
+          qr_enabled?: boolean
+          tng_ewallet_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       product_addons: {
         Row: {
           addon_id: string
