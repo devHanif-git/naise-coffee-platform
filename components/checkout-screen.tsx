@@ -449,23 +449,63 @@ export function CheckoutScreen({
           </div>
         )}
 
-        {selected === "bank-transfer" && (
-          <div className="mt-4 flex flex-col divide-y divide-border rounded-2xl border border-border bg-white px-4 py-2">
-            {bank.name && <BankDetailRow label="Bank" value={bank.name} />}
-            {bank.accountNumber && (
-              <BankDetailRow label="Account number" value={bank.accountNumber} />
-            )}
-            {bank.accountHolder && (
-              <BankDetailRow label="Account holder" value={bank.accountHolder} />
-            )}
-            {!bank.name && !bank.accountNumber && !bank.accountHolder && (
-              <p className="py-3 text-xs text-muted-foreground">
+        {selected === "bank-transfer" &&
+          (bank.name || bank.accountNumber || bank.accountHolder ? (
+            <div className="relative mt-4 overflow-hidden rounded-2xl bg-neutral-900 p-5 text-white">
+              {/* Soft decorative glows give the panel a card-like feel without
+                  any imagery. */}
+              <div
+                className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/5"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute -bottom-12 -left-8 size-32 rounded-full bg-white/[0.04]"
+                aria-hidden
+              />
+
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+                    Bank
+                  </span>
+                  <span className="truncate font-heading text-lg font-bold tracking-tight">
+                    {bank.name || "—"}
+                  </span>
+                </div>
+                <Landmark className="size-6 shrink-0 text-white/40" strokeWidth={2} aria-hidden />
+              </div>
+
+              {bank.accountHolder && (
+                <div className="relative mt-3 flex flex-col gap-0.5">
+                  <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+                    Account holder
+                  </span>
+                  <span className="truncate text-sm font-medium">{bank.accountHolder}</span>
+                </div>
+              )}
+
+              <div className="relative mt-5 flex items-end justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+                    Account number
+                  </span>
+                  <span className="break-all font-heading text-xl font-bold tabular-nums tracking-[0.08em]">
+                    {bank.accountNumber || "—"}
+                  </span>
+                </div>
+                {bank.accountNumber && (
+                  <CopyButton value={bank.accountNumber} label="account number" />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-border bg-white px-4 py-3">
+              <p className="text-xs text-muted-foreground">
                 Bank details aren&rsquo;t set up yet. Please choose another method or contact the
                 store.
               </p>
-            )}
-          </div>
-        )}
+            </div>
+          ))}
 
         {selectedMethod?.requiresReceipt && (
           <div className="mt-2.5 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
@@ -657,9 +697,10 @@ export function CheckoutScreen({
   );
 }
 
-// A single bank-detail line (label + value) with a copy-to-clipboard button,
-// shown when Bank Transfer is the selected payment method.
-function BankDetailRow({ label, value }: { label: string; value: string }) {
+// Copy-to-clipboard button styled for the dark Bank Transfer card. Swaps to a
+// check for 1.5s on success; silently no-ops if the clipboard is unavailable
+// (insecure context / denied) — the value stays visible for manual copy.
+function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
@@ -667,30 +708,21 @@ function BankDetailRow({ label, value }: { label: string; value: string }) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard unavailable (insecure context / denied) — leave the value
-      // visible for manual copy; nothing to surface.
+      // Nothing to surface — leave the value on screen for manual copy.
     }
   }
   return (
-    <div className="flex items-center justify-between gap-3 py-2">
-      <div className="flex min-w-0 flex-col">
-        <span className="text-[0.625rem] font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <span className="truncate text-sm font-semibold">{value}</span>
-      </div>
-      <button
-        type="button"
-        onClick={copy}
-        aria-label={`Copy ${label}`}
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-foreground transition-colors hover:bg-neutral-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        {copied ? (
-          <Check className="size-3.5" strokeWidth={3} aria-hidden />
-        ) : (
-          <Copy className="size-3.5" strokeWidth={2} aria-hidden />
-        )}
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
+      className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-white/20 outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+    >
+      {copied ? (
+        <Check className="size-4" strokeWidth={3} aria-hidden />
+      ) : (
+        <Copy className="size-4" strokeWidth={2} aria-hidden />
+      )}
+    </button>
   );
 }
