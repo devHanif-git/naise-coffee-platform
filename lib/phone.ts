@@ -36,6 +36,15 @@ export function formatMyPhoneForDisplay(e164: string): string {
   return `+60 ${m[1]}-${m[2]} ${m[3]}`;
 }
 
+// Renders a stored +60… value as the NATIONAL part only ("11-2561 7058") — for
+// inputs that already show a "+60" prefix affordance. Best-effort: strips a
+// leading +60 if the shape doesn't match.
+export function formatMyPhoneNational(e164: string): string {
+  const m = /^\+60(1\d)(\d{3,4})(\d{4})$/.exec(e164);
+  if (!m) return e164.replace(/^\+?60/, "");
+  return `${m[1]}-${m[2]} ${m[3]}`;
+}
+
 // Strips to bare international digits for a wa.me/<digits> link (no +, no
 // spaces): "+601125617058" -> "601125617058".
 export function toWaMeDigits(e164: string): string {

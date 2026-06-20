@@ -162,7 +162,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
         displayName: data.display_name ?? edit.displayName ?? prev.displayName,
         avatarUrl: data.avatar_url ?? undefined,
         memberSince: data.created_at ?? prev.memberSince,
-        phone: data.phone ?? prev.phone,
+        // Mirror the DB exactly — `data` is the returned row, so a cleared
+        // number comes back null and must become undefined, not fall back to
+        // the stale previous value.
+        phone: data.phone ?? undefined,
       }));
     },
     [user, supabase],

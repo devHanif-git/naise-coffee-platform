@@ -8,7 +8,7 @@ import { useAuth } from "@/store/auth";
 import { useProfile } from "@/store/profile";
 import { uploadAvatar } from "@/lib/supabase/avatar";
 import { ProfileAvatar } from "@/components/profile-avatar";
-import { normalizeMyPhone, formatMyPhoneForDisplay } from "@/lib/phone";
+import { normalizeMyPhone, formatMyPhoneNational } from "@/lib/phone";
 
 // Edit Profile — photo and display name only (security lives in Settings).
 // Persists to the Supabase `profiles` row: the picked photo is uploaded to the
@@ -23,7 +23,7 @@ export function ProfileEditScreen() {
   const [displayName, setDisplayName] = useState(profile.displayName);
   // WhatsApp number, shown in human format; normalized to +60… on save.
   const [phone, setPhone] = useState(
-    profile.phone ? formatMyPhoneForDisplay(profile.phone) : "",
+    profile.phone ? formatMyPhoneNational(profile.phone) : "",
   );
   // Preview shown in the avatar. Starts at the stored URL; swaps to a local
   // object URL the moment a new file is picked (instant feedback before upload).
