@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -23,10 +25,10 @@ function fromLocalInput(value: string): string | null {
 }
 
 const STATUS_STYLE: Record<PromotionStatus, string> = {
-  active: "bg-emerald-600 text-white",
-  scheduled: "bg-amber-500 text-white",
-  expired: "bg-neutral-300 text-neutral-700",
-  off: "bg-neutral-200 text-neutral-500",
+  active: "bg-emerald-600 text-primary-foreground",
+  scheduled: "bg-amber-500 text-primary-foreground",
+  expired: "bg-muted text-muted-foreground",
+  off: "bg-muted text-muted-foreground",
 };
 
 export function PromotionsManager({
@@ -37,13 +39,15 @@ export function PromotionsManager({
   function reload() { startTransition(() => window.location.reload()); }
 
   return (
-    <div className="flex flex-col gap-4 px-5 py-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-lg font-bold tracking-tight">Promotions</h1>
-        <button onClick={() => setCreating((v) => !v)} className="rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white">
+    <div className="flex flex-col gap-6">
+      <AdminPageHeader
+        title="Promotions"
+        description="Create discounts and schedule when they run."
+      >
+        <Button onClick={() => setCreating((v) => !v)} size="sm">
           {creating ? "Close" : "New promotion"}
-        </button>
-      </div>
+        </Button>
+      </AdminPageHeader>
 
       {creating && (
         <PromotionEditor products={products} categories={categories}
@@ -67,30 +71,36 @@ function PromotionRow({
   const [, startTransition] = useTransition();
   const status = promotionStatus(promo, new Date());
   const window = promo.startsAt || promo.endsAt
-    ? `${promo.startsAt ? new Date(promo.startsAt).toLocaleDateString() : "—"} → ${promo.endsAt ? new Date(promo.endsAt).toLocaleDateString() : "—"}`
+    ? `${promo.startsAt ? new Date(promo.startsAt).toLocaleDateString() : "Any"} to ${promo.endsAt ? new Date(promo.endsAt).toLocaleDateString() : "Any"}`
     : "Always";
 
   return (
-    <div className="rounded-2xl border border-border p-3">
+    <div className="rounded-xl border border-border bg-card p-3">
       <div className="flex items-center gap-3">
         <div className="flex flex-1 flex-col">
-          <span className="text-sm font-semibold">{promo.label} · {promo.percentOff}% off</span>
+          <span className="text-sm font-semibold">
+            {promo.label} <span className="font-mono tabular-nums">{promo.percentOff}%</span> off
+          </span>
           <span className="text-xs text-muted-foreground">{window}</span>
         </div>
-        <span className={cn("rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase", STATUS_STYLE[status])}>{status}</span>
-        <label className="flex flex-col items-center gap-1 text-[0.625rem] font-medium text-muted-foreground">
+        <span className={cn("rounded-full px-2 py-0.5 text-xs font-bold uppercase", STATUS_STYLE[status])}>{status}</span>
+        <label className="flex flex-col items-center gap-1 text-xs font-medium text-muted-foreground">
           On
           <Switch checked={promo.isActive} onCheckedChange={(v) => startTransition(async () => { await setPromotionActive(promo.id, v); onChanged(); })} />
         </label>
-        <button onClick={() => setOpen((v) => !v)} className="text-xs font-semibold text-muted-foreground underline">{open ? "Close" : "Edit"}</button>
+        <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "Edit"}</Button>
       </div>
       {open && (
         <div className="mt-3 border-t border-border pt-3">
           <PromotionEditor promo={promo} products={products} categories={categories} onDone={onChanged} />
-          <button onClick={() => startTransition(async () => { await deletePromotion(promo.id); onChanged(); })}
-            className="mt-2 flex items-center gap-1 text-[0.625rem] font-semibold text-rose-600">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => startTransition(async () => { await deletePromotion(promo.id); onChanged(); })}
+            className="mt-2"
+          >
             <Trash2 className="size-3.5" /> Delete promotion
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -154,9 +164,12 @@ function PromotionEditor({
 
       <div className="flex flex-col gap-1.5">
         <Label>Target categories</Label>
+        {categories.filter((c) => !c.isArchived).length === 0 && (
+          <p className="text-sm text-muted-foreground">No categories available.</p>
+        )}
         {categories.filter((c) => !c.isArchived).map((c) => (
           <label key={c.id} className="flex items-center gap-3 py-1 text-sm">
-            <input type="checkbox" checked={categoryIds.has(c.id)} onChange={() => toggle(categoryIds, c.id, setCategoryIds)} className="size-4" />
+            <input type="checkbox" checked={categoryIds.has(c.id)} onChange={() => toggle(categoryIds, c.id, setCategoryIds)} className="size-4 rounded-lg focus-visible:ring-3 focus-visible:ring-ring/50" />
             <span>{c.name}</span>
           </label>
         ))}
@@ -164,18 +177,21 @@ function PromotionEditor({
 
       <div className="flex flex-col gap-1.5">
         <Label>Target products</Label>
+        {products.filter((p) => !p.isArchived).length === 0 && (
+          <p className="text-sm text-muted-foreground">No products available.</p>
+        )}
         {products.filter((p) => !p.isArchived).map((p) => (
           <label key={p.id} className="flex items-center gap-3 py-1 text-sm">
-            <input type="checkbox" checked={productIds.has(p.id)} onChange={() => toggle(productIds, p.id, setProductIds)} className="size-4" />
+            <input type="checkbox" checked={productIds.has(p.id)} onChange={() => toggle(productIds, p.id, setProductIds)} className="size-4 rounded-lg focus-visible:ring-3 focus-visible:ring-ring/50" />
             <span>{p.name}</span>
           </label>
         ))}
       </div>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-      <button onClick={save} disabled={pending} className="self-start rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-        {pending ? "Saving…" : promo ? "Save promotion" : "Add promotion"}
-      </button>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button onClick={save} disabled={pending} className="self-start">
+        {pending ? "Saving..." : promo ? "Save promotion" : "Add promotion"}
+      </Button>
     </div>
   );
 }

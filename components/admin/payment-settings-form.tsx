@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -22,9 +23,9 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-border p-4">
+    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-1">
-        <h2 className="font-heading text-base font-bold tracking-tight">Payments</h2>
+        <h2 className="font-heading text-base font-semibold">Payments</h2>
         <p className="text-xs text-muted-foreground">
           Turn whole categories or individual methods on or off. Disabled methods don&rsquo;t
           appear at checkout.
@@ -35,7 +36,7 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
         const methods = paymentMethods.filter((m) => m.category === cat.id);
         const catOn = s.categories[cat.id];
         return (
-          <div key={cat.id} className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3">
+          <div key={cat.id} className="flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-3">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-bold">{cat.label}</span>
               <Switch
@@ -119,15 +120,11 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
       })}
 
       {msg && (
-        <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-rose-600"}>{msg.text}</p>
+        <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"}>{msg.text}</p>
       )}
-      <button
-        onClick={save}
-        disabled={pending}
-        className="self-start rounded-2xl bg-black px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        {pending ? "Saving…" : "Save payments"}
-      </button>
+      <Button onClick={save} disabled={pending} className="self-start">
+        {pending ? "Saving..." : "Save payments"}
+      </Button>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { getReportData } from "@/lib/analytics/reports";
 import type { ReportRange } from "@/lib/analytics/types";
 import { ReportsView } from "@/components/admin/reports-view";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { isAdmin } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,8 @@ async function loadReport(range: ReportRange) {
 export default async function ReportsPage() {
   const initial = await getReportData("7d");
   return (
-    <div className="flex flex-col gap-4 px-5 py-4">
-      <h1 className="font-heading text-lg font-bold tracking-tight">Reports</h1>
+    <div className="flex flex-col gap-6">
+      <AdminPageHeader title="Reports" description="Sales and revenue trends." />
       <ReportsView initial={initial} load={loadReport} />
     </div>
   );

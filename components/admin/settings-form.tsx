@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,8 +45,8 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-3 rounded-2xl border border-border p-4">
-        <h2 className="font-heading text-base font-bold tracking-tight">Store status</h2>
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+        <h2 className="font-heading text-base font-semibold">Store details</h2>
         <ToggleRow
           label="Store open"
           hint="When off, checkout is blocked and customers see the closed message."
@@ -62,8 +63,8 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-border p-4">
-        <h2 className="font-heading text-base font-bold tracking-tight">Features</h2>
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+        <h2 className="font-heading text-base font-semibold">Features</h2>
         <ToggleRow
           label="Rewards"
           hint="Show the Rewards tab, page, and Beans banner."
@@ -85,15 +86,11 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
       </section>
 
       {msg && (
-        <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-rose-600"}>{msg.text}</p>
+        <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"}>{msg.text}</p>
       )}
-      <button
-        onClick={save}
-        disabled={pending}
-        className="self-start rounded-2xl bg-black px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        {pending ? "Saving…" : "Save settings"}
-      </button>
+      <Button onClick={save} disabled={pending} className="self-start">
+        {pending ? "Saving..." : "Save settings"}
+      </Button>
     </div>
   );
 }
