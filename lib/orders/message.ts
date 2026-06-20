@@ -1,4 +1,5 @@
 import { formatPrice } from "@/lib/format";
+import { toWaMeDigits } from "@/lib/phone";
 import type { Order } from "@/types/order";
 
 // Builds the plain-text message posted to the team's Telegram group. Kept
@@ -75,4 +76,15 @@ export function buildOrderReadyMessage(order: Order): string {
   ];
 
   return parts.join("\n");
+}
+
+// Builds a wa.me deep link that opens WhatsApp at the customer's chat with the
+// "ready" notice pre-filled. Staff tap it and press send by hand (no API). Reuses
+// buildOrderReadyMessage so the wording lives in one place. Returns null when the
+// order has no contact number (caller falls back to the Telegram notice).
+export function buildWhatsAppReadyLink(order: Order): string | null {
+  if (!order.contactPhone) return null;
+  const digits = toWaMeDigits(order.contactPhone);
+  const text = encodeURIComponent(buildOrderReadyMessage(order));
+  return `https://wa.me/${digits}?text=${text}`;
 }
