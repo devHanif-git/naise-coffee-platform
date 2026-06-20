@@ -85,9 +85,18 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
                   <Label htmlFor="bank-account-number">Account number</Label>
                   <Input
                     id="bank-account-number"
+                    inputMode="numeric"
                     value={s.bank.accountNumber}
                     onChange={(e) =>
-                      setS({ ...s, bank: { ...s.bank, accountNumber: e.target.value } })
+                      setS({
+                        ...s,
+                        bank: {
+                          ...s.bank,
+                          // Account numbers are digits only; allow spaces/dashes
+                          // for readability, strip anything else as they type.
+                          accountNumber: e.target.value.replace(/[^0-9\s-]/g, ""),
+                        },
+                      })
                     }
                     placeholder="e.g. 1234567890"
                   />

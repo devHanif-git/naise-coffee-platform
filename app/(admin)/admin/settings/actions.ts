@@ -43,6 +43,13 @@ export async function updateStoreSettings(input: StoreSettings): Promise<ActionR
 export async function updatePaymentSettings(input: PaymentSettings): Promise<ActionResult> {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
 
+  // Account numbers are digits only (spaces/dashes allowed for readability).
+  // Validate server-side too — never rely on the client filter alone.
+  const accountNumber = input.bank.accountNumber.trim();
+  if (accountNumber && !/^[0-9\s-]+$/.test(accountNumber)) {
+    return { ok: false, error: "Account number can only contain digits, spaces, or dashes." };
+  }
+
   const db = await createClient();
   const { data, error } = await db
     .from("payment_settings")
@@ -61,7 +68,7 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
       grabpay_enabled: input.methods.grabpay,
       bank_transfer_enabled: input.methods["bank-transfer"],
       bank_name: input.bank.name.trim(),
-      bank_account_number: input.bank.accountNumber.trim(),
+      bank_account_number: accountNumber,
       bank_account_holder: input.bank.accountHolder.trim(),
     })
     .eq("id", true)
