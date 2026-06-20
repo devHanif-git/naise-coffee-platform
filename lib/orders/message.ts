@@ -26,12 +26,19 @@ export function buildOrderMessage(
     "",
     `Order: ${order.orderNumber}`,
     `Payment: ${order.paymentMethod}`,
+  ];
+
+  if (order.contactPhone) {
+    parts.push(`Contact: ${order.contactPhone}`);
+  }
+
+  parts.push(
     "",
     "Items:",
     ...itemLines,
     "",
     `Total: ${formatPrice(order.total)}`,
-  ];
+  );
 
   if (order.notes?.trim()) {
     parts.push("", `Note: ${order.notes.trim()}`);
