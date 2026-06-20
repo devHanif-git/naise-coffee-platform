@@ -131,6 +131,21 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = useCallback(
     async (edit: ProfileEdit) => {
       if (!user) return;
+      // Only persist the keys this edit actually provided, so a partial update
+      // (e.g. the checkout nudge writing just `phone`) never clobbers the other
+      // columns. A present key with an undefined value means "clear it" → null.
+      const payload: {
+        id: string;
+        display_name?: string;
+        avatar_url?: string | null;
+        phone?: string | null;
+      } = { id: user.id };
+      if ("displayName" in edit && edit.displayName !== undefined) {
+        payload.display_name = edit.displayName;
+      }
+      if ("avatarUrl" in edit) payload.avatar_url = edit.avatarUrl ?? null;
+      if ("phone" in edit) payload.phone = edit.phone ?? null;
+
       // Upsert (not update): a plain UPDATE matching zero rows succeeds with 0
       // rows affected and throws nothing, so a deleted row would silently fail
       // to persist while the UI looked saved. Upserting recreates the row if
@@ -138,17 +153,13 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       // surfaces an error if nothing did (e.g. RLS denial).
       const { data, error } = await supabase
         .from("profiles")
-        .upsert({
-          id: user.id,
-          display_name: edit.displayName,
-          avatar_url: edit.avatarUrl ?? null,
-        })
+        .upsert(payload)
         .select("display_name, avatar_url, phone, created_at")
         .single();
       if (error) throw error;
       setProfile((prev) => ({
         ...prev,
-        displayName: data.display_name ?? edit.displayName,
+        displayName: data.display_name ?? edit.displayName ?? prev.displayName,
         avatarUrl: data.avatar_url ?? undefined,
         memberSince: data.created_at ?? prev.memberSince,
         phone: data.phone ?? prev.phone,
