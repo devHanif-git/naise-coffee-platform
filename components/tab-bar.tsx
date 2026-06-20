@@ -14,7 +14,7 @@ const tabs = [
   { href: "/profile", label: "Profile", icon: User },
 ] as const;
 
-export function TabBar() {
+export function TabBar({ showRewards = true }: { showRewards?: boolean }) {
   const pathname = usePathname();
   const { totalItems: cartCount } = useCart();
 
@@ -24,7 +24,9 @@ export function TabBar() {
       className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]"
     >
       <ul className="flex h-16 items-stretch justify-around px-2">
-        {tabs.map((tab) => {
+        {tabs
+          .filter((tab) => showRewards || tab.href !== "/rewards")
+          .map((tab) => {
           const active =
             pathname === tab.href || pathname.startsWith(`${tab.href}/`);
           const Icon = tab.icon;

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getBestSellers } from "@/lib/menu/store";
+import { getStoreSettings } from "@/lib/settings/store";
 import { images } from "@/constants/images";
 import { Button } from "@/components/ui/button";
 import { BestSellerCarousel } from "@/components/best-seller-carousel";
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const bestSellers = await getBestSellers();
+  const { rewardsEnabled } = await getStoreSettings();
 
   return (
     <main className="flex flex-1 flex-col">
@@ -64,9 +66,11 @@ export default async function HomePage() {
           </Reveal>
         )}
 
-        <Reveal delay={80}>
-          <RewardsBanner />
-        </Reveal>
+        {rewardsEnabled && (
+          <Reveal delay={80}>
+            <RewardsBanner />
+          </Reveal>
+        )}
       </div>
     </main>
   );

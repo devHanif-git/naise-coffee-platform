@@ -33,6 +33,7 @@ import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
 import type { PaymentMethodId } from "@/types/payment";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
+import { StoreClosedBanner } from "@/components/store-closed-banner";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
 import { uploadReceipt } from "@/lib/orders/receipt";
@@ -51,7 +52,11 @@ const methodIcons: Record<PaymentMethodId, LucideIcon> = {
   grabpay: Smartphone,
 };
 
-export function CheckoutScreen() {
+export function CheckoutScreen({
+  closedMessage,
+}: {
+  closedMessage?: string | null;
+}) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
@@ -172,6 +177,7 @@ export function CheckoutScreen() {
 
       const result = await placeOrderAction({
         items: items.map((item) => ({
+          productId: item.productId,
           name: item.name,
           quantity: item.quantity,
           sizeName: item.sizeName,
@@ -282,6 +288,10 @@ export function CheckoutScreen() {
         </h1>
         <span aria-hidden />
       </header>
+
+      {closedMessage && (
+        <StoreClosedBanner message={closedMessage} className="mt-4" />
+      )}
 
       <section className="mt-5 flex flex-col gap-2.5 naise-rise">
         <h2 className="text-[0.6875rem] font-bold uppercase tracking-wider">

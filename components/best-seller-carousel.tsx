@@ -114,7 +114,8 @@ export function BestSellerCarousel({ products }: { products: Product[] }) {
         >
           {slides.map((product, slideIndex) => {
             const pricing = getProductPricing(product);
-            const onSale = pricing.percentOff > 0;
+            const soldOut = !product.isAvailable;
+            const onSale = !soldOut && pricing.percentOff > 0;
             return (
               <div
                 key={`${product.id}-${slideIndex}`}
@@ -132,11 +133,15 @@ export function BestSellerCarousel({ products }: { products: Product[] }) {
                     aria-hidden
                     className="absolute left-2 top-2 z-10 size-20 -rotate-[25deg] rounded-full object-contain drop-shadow-sm"
                   />
-                  {onSale && (
+                  {soldOut ? (
+                    <span className="absolute right-4 top-4 z-10 inline-flex rounded-full bg-neutral-500 px-3 py-1 text-sm font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-background">
+                      Sold Out
+                    </span>
+                  ) : onSale ? (
                     <span className="absolute right-4 top-4 z-10 inline-flex rounded-full bg-rose-600 px-3 py-1 text-sm font-bold uppercase tracking-wide text-white shadow-md ring-2 ring-background">
                       {pricing.percentOff}% Off
                     </span>
-                  )}
+                  ) : null}
                   <Link
                     href={`/menu/${product.slug}`}
                     aria-label={`View ${product.name}`}
@@ -147,7 +152,10 @@ export function BestSellerCarousel({ products }: { products: Product[] }) {
                       alt={product.name}
                       fill
                       sizes="(max-width: 768px) 90vw, 400px"
-                      className="object-contain p-5 transition-transform duration-300 hover:scale-[1.03]"
+                      className={cn(
+                        "object-contain p-5 transition-transform duration-300 hover:scale-[1.03]",
+                        soldOut && "opacity-50 grayscale",
+                      )}
                     />
                   </Link>
                 </div>
@@ -176,13 +184,22 @@ export function BestSellerCarousel({ products }: { products: Product[] }) {
                     )}
                   </div>
 
-                  <Link
-                    href={`/menu/${product.slug}`}
-                    aria-label={`Customize and add ${product.name}`}
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
-                  >
-                    <Plus className="size-4" strokeWidth={2.5} />
-                  </Link>
+                  {soldOut ? (
+                    <span
+                      aria-label={`${product.name} is sold out`}
+                      className="flex size-10 shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-neutral-200 text-neutral-400"
+                    >
+                      <Plus className="size-4" strokeWidth={2.5} />
+                    </span>
+                  ) : (
+                    <Link
+                      href={`/menu/${product.slug}`}
+                      aria-label={`Customize and add ${product.name}`}
+                      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
+                    >
+                      <Plus className="size-4" strokeWidth={2.5} />
+                    </Link>
+                  )}
                 </div>
               </div>
             );

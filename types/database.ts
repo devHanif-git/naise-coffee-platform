@@ -672,6 +672,39 @@ export type Database = {
         }
         Relationships: []
       }
+      store_settings: {
+        Row: {
+          closed_message: string
+          created_at: string
+          id: boolean
+          is_open: boolean
+          referral_enabled: boolean
+          rewards_enabled: boolean
+          streak_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          closed_message?: string
+          created_at?: string
+          id?: boolean
+          is_open?: boolean
+          referral_enabled?: boolean
+          rewards_enabled?: boolean
+          streak_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          closed_message?: string
+          created_at?: string
+          id?: boolean
+          is_open?: boolean
+          referral_enabled?: boolean
+          rewards_enabled?: boolean
+          streak_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       streak_checkins: {
         Row: {
           check_in_date: string
@@ -737,6 +770,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_adjust_beans: {
+        Args: { p_amount: number; p_reason: string; p_user: string }
+        Returns: number
+      }
+      admin_set_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["user_role"]
+          p_user: string
+        }
+        Returns: undefined
+      }
       apply_order_rewards: { Args: { p_token: string }; Returns: Json }
       current_user_role: {
         Args: never

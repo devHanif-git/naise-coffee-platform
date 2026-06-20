@@ -9,8 +9,15 @@ import { formatPrice } from "@/lib/format";
 import { images } from "@/constants/images";
 import { useCart } from "@/store/cart";
 import { CartItemCard } from "@/components/cart-item-card";
+import { StoreClosedBanner } from "@/components/store-closed-banner";
 
-export function CartScreen() {
+export function CartScreen({
+  availableProductIds,
+  closedMessage,
+}: {
+  availableProductIds: string[];
+  closedMessage?: string | null;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { items, totalPrice, totalOriginal, totalSaving, notes, setNotes, clear } =
@@ -18,6 +25,13 @@ export function CartScreen() {
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [mergeNotice, setMergeNotice] = useState<string | null>(null);
   const touchStartY = useRef<number | null>(null);
+
+  // A drink can go sold-out (or archived) after it was added to the cart. The
+  // set of currently-orderable product ids comes from the server; any line not
+  // in it is flagged and blocks checkout until removed. (placeOrder re-checks
+  // this server-side too, as the authoritative guard.)
+  const availableSet = new Set(availableProductIds);
+  const hasUnavailable = items.some((item) => !availableSet.has(item.productId));
 
   // An edit that collapsed two lines into one arrives as ?merged=<name>. Show
   // the notice, then strip the param so a refresh doesn't repeat it.
@@ -96,6 +110,10 @@ export function CartScreen() {
         )}
       </header>
 
+      {closedMessage && (
+        <StoreClosedBanner message={closedMessage} className="mt-4" />
+      )}
+
       {!hasItems ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-5 pb-16 text-center naise-rise">
           <div className="relative size-32 rounded-full bg-neutral-100">
@@ -131,6 +149,7 @@ export function CartScreen() {
                 key={item.key}
                 item={item}
                 delay={Math.min(i, 6) * 60}
+                unavailable={!availableSet.has(item.productId)}
               />
             ))}
           </ul>
@@ -192,12 +211,21 @@ export function CartScreen() {
           </section>
 
           <div
-            className="mt-5 pb-6 naise-rise [animation-delay:300ms]"
+            className="mt-5 flex flex-col gap-2 pb-6 naise-rise [animation-delay:300ms]"
           >
+            {hasUnavailable && (
+              <p
+                role="alert"
+                className="rounded-2xl bg-rose-50 px-4 py-2.5 text-center text-xs font-medium text-rose-600"
+              >
+                Some items are sold out. Remove them to continue.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => router.push("/checkout")}
-              className="flex h-12 w-full items-center justify-center rounded-2xl bg-black text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+              disabled={hasUnavailable}
+              className="flex h-12 w-full items-center justify-center rounded-2xl bg-black text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:hover:scale-100"
             >
               <span className="text-xs font-bold uppercase tracking-wider">
                 Proceed to Checkout

@@ -70,3 +70,13 @@ export async function getBestSellers(): Promise<Product[]> {
   const all = await fetchCatalog();
   return all.filter((p) => p.isBestSeller);
 }
+
+// Ids of products that are currently orderable (non-archived AND available). The
+// cart uses this to flag lines whose drink went sold-out or was archived after
+// being added — RLS already excludes archived rows, so this is just the
+// available filter on top.
+export async function getAvailableProductIds(): Promise<string[]> {
+  const db = await createClient();
+  const { data } = await db.from("products").select("id").eq("is_available", true);
+  return (data ?? []).map((p) => p.id);
+}

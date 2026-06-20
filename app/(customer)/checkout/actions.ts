@@ -8,8 +8,10 @@ import { createClient } from "@/lib/supabase/server";
 import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
+import { getStoreSettingsForCheckout } from "@/lib/settings/store";
 
 type PlaceOrderItem = {
+  productId: string;
   name: string;
   quantity: number;
   sizeName?: string;
@@ -45,12 +47,49 @@ export async function placeOrder(
     return { ok: false, error: "Missing session id. Refresh and try again." };
   }
 
+  // Hard block: an admin can close the store from the CMS. Fail-closed — a
+  // settings read failure is treated as closed so it can't bypass a closure.
+  const settings = await getStoreSettingsForCheckout();
+  if (!settings.isOpen) {
+    return { ok: false, error: settings.closedMessage };
+  }
+
   // Derive identity server-side — never trust a user id from the client.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const userId = user?.id ?? null;
+
+  // Re-validate availability against the live catalogue: the cart is client
+  // localStorage and may hold a drink that went sold-out (or was archived)
+  // after it was added. RLS returns non-archived products only, so a missing
+  // id means archived/hidden; is_available=false means sold out. Either way,
+  // block the order with a clear message rather than persisting a bad line.
+  const productIds = [...new Set(input.items.map((i) => i.productId).filter(Boolean))];
+  if (productIds.length > 0) {
+    const { data: prods, error: prodErr } = await supabase
+      .from("products")
+      .select("id, is_available")
+      .in("id", productIds);
+    if (prodErr) {
+      return { ok: false, error: "Couldn't verify item availability. Please try again." };
+    }
+    const availableById = new Map((prods ?? []).map((p) => [p.id, p.is_available]));
+    const blocked = [
+      ...new Set(
+        input.items
+          .filter((i) => availableById.get(i.productId) !== true)
+          .map((i) => i.name),
+      ),
+    ];
+    if (blocked.length > 0) {
+      return {
+        ok: false,
+        error: `No longer available: ${blocked.join(", ")}. Please remove ${blocked.length > 1 ? "them" : "it"} from your cart and try again.`,
+      };
+    }
+  }
 
   // Sign the receipt server-side (staff-only read policy). Constrain to the
   // caller's own folder so a client can't sign someone else's receipt path.

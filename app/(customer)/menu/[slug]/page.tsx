@@ -48,7 +48,8 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
   }
 
   const pricing = getProductPricing(product);
-  const onSale = pricing.percentOff > 0;
+  const soldOut = !product.isAvailable;
+  const onSale = !soldOut && pricing.percentOff > 0;
 
   return (
     <article className="flex flex-col">
@@ -61,7 +62,15 @@ export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
           <ProductBackButton />
         </Suspense>
 
-        {(product.isBestSeller || product.isNew || onSale) && (
+        {soldOut && (
+          <div className="absolute right-4 top-4 z-10 flex items-center gap-1.5">
+            <span className="inline-flex items-center rounded-full bg-neutral-600 px-2.5 py-1 text-[0.6875rem] font-bold uppercase tracking-wider text-white shadow-lg shadow-black/20">
+              Sold Out
+            </span>
+          </div>
+        )}
+
+        {!soldOut && (product.isBestSeller || product.isNew || onSale) && (
           <div className="absolute right-4 top-4 z-10 flex items-center gap-1.5">
             {onSale && (
               <span className="inline-flex items-center rounded-full bg-rose-600 px-2.5 py-1 text-[0.6875rem] font-bold uppercase tracking-wider text-white shadow-lg shadow-rose-600/30">

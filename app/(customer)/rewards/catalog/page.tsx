@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { RewardsCatalog } from "@/components/rewards-catalog";
 import { listRewardCatalog } from "@/lib/rewards/config-store";
+import { getStoreSettings } from "@/lib/settings/store";
 
 export const metadata: Metadata = {
   title: "Available Rewards",
@@ -13,6 +15,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RewardsCatalogPage() {
+  const store = await getStoreSettings();
+  if (!store.rewardsEnabled) redirect("/home");
   const rewards = await listRewardCatalog();
   return (
     <div className="flex flex-col">

@@ -50,6 +50,9 @@ export function ProductCustomizer({
   );
   const sizes = product.sizes ?? [];
   const hasSizes = sizes.length > 0;
+  // Inventory toggle: a sold-out drink stays viewable but can't be ordered or
+  // redeemed. The customizer is the only path into the cart, so guard here.
+  const soldOut = !product.isAvailable;
 
   const [sizeId, setSizeId] = useState(sizes[0]?.id);
   const [addonIds, setAddonIds] = useState<string[]>([]);
@@ -103,6 +106,7 @@ export function ProductCustomizer({
   }
 
   function addToCart() {
+    if (soldOut) return;
     const selectedAddons = product.addons.filter((a) =>
       addonIds.includes(a.id),
     );
@@ -292,8 +296,15 @@ export function ProductCustomizer({
           <button
             type="button"
             onClick={addToCart}
-            className="flex h-12 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+            disabled={soldOut}
+            className="flex h-12 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:hover:scale-100"
           >
+            {soldOut ? (
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Sold Out
+              </span>
+            ) : (
+            <>
             <span className="text-xs font-bold uppercase tracking-wider">
               {isReward ? "Redeem Reward" : isEditing ? "Update Cart" : "Add to Cart"}
             </span>
@@ -319,6 +330,8 @@ export function ProductCustomizer({
               <span className="text-xs font-medium text-neutral-300">
                 {formatPrice(total)}
               </span>
+            )}
+            </>
             )}
           </button>
         </div>
