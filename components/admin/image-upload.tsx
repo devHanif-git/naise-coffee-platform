@@ -12,6 +12,7 @@ export function ImageUpload({
   onChange,
   upload = uploadProductImage,
   placeholder = images.coffeeWithLogo,
+  alt = "Product image",
 }: {
   value: string | null;
   onChange: (url: string | null) => void;
@@ -20,6 +21,8 @@ export function ImageUpload({
   upload?: (formData: FormData) => Promise<UploadResult>;
   // Thumbnail shown when `value` is null.
   placeholder?: string;
+  // Alt text for the thumbnail image.
+  alt?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -46,7 +49,7 @@ export function ImageUpload({
       <div className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
         <SmartImage
           src={value ?? placeholder}
-          alt="Product image"
+          alt={alt}
           fill
           sizes="80px"
           className="object-contain"

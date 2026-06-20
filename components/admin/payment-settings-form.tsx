@@ -132,6 +132,7 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
                   onChange={(url) => setS({ ...s, duitnowQrUrl: url })}
                   upload={uploadDuitnowQr}
                   placeholder={images.qrDuitnow}
+                  alt="DuitNow QR code"
                 />
               </div>
             )}
