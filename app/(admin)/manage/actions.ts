@@ -89,11 +89,19 @@ export async function markReadyAndNotify(
   const completed = await completeOrder(token);
   if (!completed) return { ok: false, error: "Could not complete the order." };
 
-  try {
-    await sendTelegramMessage(buildOrderReadyMessage(completed));
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : "Unknown error";
-    console.error(`Order ${completed.orderNumber} completed but ready-notice failed: ${reason}`);
+  // If we have the customer's number, staff send the ready notice over WhatsApp
+  // by hand (the wa.me button on the completed order). Only fall back to the
+  // Telegram notice when there is no number to message. The order is already
+  // completed above regardless.
+  if (!completed.contactPhone) {
+    try {
+      await sendTelegramMessage(buildOrderReadyMessage(completed));
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      console.error(
+        `Order ${completed.orderNumber} completed but ready-notice failed: ${reason}`,
+      );
+    }
   }
 
   revalidatePath(`/manage/${token}`);
