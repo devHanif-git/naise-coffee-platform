@@ -15,7 +15,10 @@ the customer at checkout. Checkout must only offer the methods the admin has lef
 - **Granularity:** category master switch + per-method toggles inside each category.
 - **Categories:** five — Cash, QR Code, Card, E-Wallet, Bank. Adds a new Bank Transfer method.
 - **Bank details:** admin-editable in Settings (bank name, account number, account holder).
-- **Receipt:** Bank Transfer does **not** require a receipt upload (unlike DuitNow QR).
+- **Receipt:** Bank Transfer **requires** a proof-of-payment receipt upload, like DuitNow QR.
+  (Revised after first review — originally specced as no receipt.) Implemented via a
+  `requiresReceipt` flag on the method so checkout gates the upload generically rather than by
+  hardcoded id.
 
 ## Category → method mapping
 
@@ -85,7 +88,8 @@ Migration file: `supabase/migrations/<timestamp>_payment_settings.sql`. Reuses e
 - Default selected method = first enabled method (no longer hardcoded `cash`).
 - The guest/`requiresAuth` reconciliation logic stays, but operates over the enabled list.
 - **Bank Transfer selected** → render a bank-details card (bank name, account number, account
-  holder, each with a copy-to-clipboard button). No receipt upload, no QR.
+  holder, each with a copy-to-clipboard button), followed by a proof-of-payment receipt upload
+  (details shown above the upload so the customer pays before attaching).
 - **DuitNow QR** behavior is unchanged (QR card + required receipt).
 - **Edge case — no methods enabled:** if the enabled list is empty, the payment section shows a
   "Payments are temporarily unavailable" notice and Place Order is disabled.
