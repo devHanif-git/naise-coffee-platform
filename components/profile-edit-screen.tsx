@@ -8,6 +8,7 @@ import { useAuth } from "@/store/auth";
 import { useProfile } from "@/store/profile";
 import { uploadAvatar } from "@/lib/supabase/avatar";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { AvatarCropModal } from "@/components/avatar-crop-modal";
 import { normalizeMyPhone, formatMyPhoneNational } from "@/lib/phone";
 
 // Edit Profile — photo and display name only (security lives in Settings).
@@ -30,15 +31,19 @@ export function ProfileEditScreen() {
   const [previewUrl, setPreviewUrl] = useState(profile.avatarUrl);
   // The newly-picked file, held until save so we only upload on confirm.
   const [pickedFile, setPickedFile] = useState<File | null>(null);
+  // Object URL of the just-picked image while the circular crop modal is open.
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Picking a photo opens the crop modal rather than uploading the raw file.
+  // Reset the input value so re-picking the same file fires onChange again.
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setError(null);
-    setPickedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    setCropSrc(URL.createObjectURL(file));
   }
 
   async function onSave(e: React.FormEvent) {
@@ -195,6 +200,22 @@ export function ProfileEditScreen() {
           {saving ? "Saving…" : "Save Changes"}
         </button>
       </form>
+
+      {cropSrc && (
+        <AvatarCropModal
+          src={cropSrc}
+          onCancel={() => {
+            URL.revokeObjectURL(cropSrc);
+            setCropSrc(null);
+          }}
+          onCropped={(file) => {
+            URL.revokeObjectURL(cropSrc);
+            setCropSrc(null);
+            setPickedFile(file);
+            setPreviewUrl(URL.createObjectURL(file));
+          }}
+        />
+      )}
     </div>
   );
 }
