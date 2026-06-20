@@ -8,13 +8,20 @@ export async function claimDeviceOrders(
   ownerId: string | null,
 ): Promise<number> {
   if (!ownerId) return 0;
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("claim_device_orders", {
-    p_owner_id: ownerId,
-  });
-  if (error) {
-    console.error("claim_device_orders failed:", error.message);
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("claim_device_orders", {
+      p_owner_id: ownerId,
+    });
+    if (error) {
+      console.error("claim_device_orders failed:", error.message);
+      return 0;
+    }
+    return data ?? 0;
+  } catch (err) {
+    // Honor the never-throws contract: a failure here must not turn the OAuth
+    // callback (where the session cookies are already set) into a 500.
+    console.error("claim_device_orders threw:", err);
     return 0;
   }
-  return data ?? 0;
 }
