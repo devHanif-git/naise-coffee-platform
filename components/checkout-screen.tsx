@@ -61,10 +61,12 @@ export function CheckoutScreen({
   closedMessage,
   methods,
   bank,
+  duitnowQrUrl,
 }: {
   closedMessage?: string | null;
   methods: PaymentMethod[];
   bank: BankDetails;
+  duitnowQrUrl: string | null;
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
@@ -445,7 +447,7 @@ export function CheckoutScreen({
 
         {selected === "duitnow-qr" && (
           <div className="mt-4">
-            <DuitnowQrCard />
+            <DuitnowQrCard src={duitnowQrUrl ?? undefined} />
           </div>
         )}
 
