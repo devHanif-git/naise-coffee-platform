@@ -7,10 +7,17 @@ export type PaymentMethodId =
   | "google-pay"
   | "tng-ewallet"
   | "boost"
-  | "grabpay";
+  | "grabpay"
+  | "bank-transfer";
+
+// Methods are grouped into these categories for admin enable/disable controls.
+export type PaymentCategoryId = "cash" | "qr" | "card" | "ewallet" | "bank";
 
 export type PaymentMethod = {
   id: PaymentMethodId;
+  // The category this method belongs to (drives the admin grouping and the
+  // category master switch).
+  category: PaymentCategoryId;
   name: string;
   // Short helper line shown under the name.
   description: string;
@@ -20,4 +27,9 @@ export type PaymentMethod = {
   // gated this way — guests must use a prepaid method or sign in. Selecting a
   // gated method as a guest prompts sign-in rather than placing the order.
   requiresAuth?: boolean;
+};
+
+export type PaymentCategory = {
+  id: PaymentCategoryId;
+  label: string;
 };
