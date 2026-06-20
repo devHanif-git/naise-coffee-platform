@@ -54,7 +54,7 @@ export function PhonePromptSheet({
       aria-modal="true"
       aria-labelledby="phone-prompt-title"
       onClick={() => !busy && onClose()}
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 p-4 naise-fade sm:items-center"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 naise-fade"
     >
       <form
         onClick={(e) => e.stopPropagation()}
