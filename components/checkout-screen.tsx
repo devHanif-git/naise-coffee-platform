@@ -34,9 +34,11 @@ import type { PaymentMethodId } from "@/types/payment";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { StoreClosedBanner } from "@/components/store-closed-banner";
+import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
 import { uploadReceipt } from "@/lib/orders/receipt";
+import { useProfile } from "@/store/profile";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
 // wallets use a representative lucide glyph (no official logos shipped yet);
@@ -62,6 +64,7 @@ export function CheckoutScreen({
     useCart();
   const { isAuthenticated, hydrated: authHydrated } = useAuth();
   const { canAfford, earnRate } = useBeans();
+  const { profile, updateProfile } = useProfile();
   const [selected, setSelected] =
     useState<PaymentMethodId>(defaultPaymentMethodId);
   const [submitting, setSubmitting] = useState(false);
@@ -75,6 +78,12 @@ export function CheckoutScreen({
   // Guest nudge shown at Place Order (or when a guest taps a members-only
   // method like Cash). Dismissed by signing in or choosing to continue.
   const [showGuestModal, setShowGuestModal] = useState(false);
+  // The number to stamp on this order: a value entered in the prompt this
+  // attempt, else the member's saved profile number. Guests have no profile, so
+  // theirs only ever comes from the prompt.
+  const [enteredPhone, setEnteredPhone] = useState<string | null>(null);
+  // Controls the phone prompt sheet shown before placing when no number is known.
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false);
 
   const hasItems = items.length > 0;
 
@@ -120,12 +129,23 @@ export function CheckoutScreen({
     setSelected(id);
   }
 
-  // Place Order entry point. Guests see the nudge first; from there they sign
-  // in or continue (which calls placeOrder directly). Members place straight.
+  // The number to attach to this order, if any: one entered in the prompt this
+  // attempt, else the member's saved profile number.
+  function resolveContactPhone(): string | undefined {
+    return enteredPhone ?? profile.phone ?? undefined;
+  }
+
+  // Place Order entry point. Guests see the sign-in nudge first; members with no
+  // number on file get the phone prompt; everyone else places straight.
   function onPlaceOrder() {
     if (submitting) return;
     if (!isAuthenticated) {
       setShowGuestModal(true);
+      return;
+    }
+    // Member with no number on file (and none entered yet): nudge first.
+    if (!resolveContactPhone()) {
+      setShowPhonePrompt(true);
       return;
     }
     void placeOrder();
@@ -138,7 +158,7 @@ export function CheckoutScreen({
     .filter((item) => item.isReward)
     .reduce((sum, item) => sum + (item.rewardCost ?? 0), 0);
 
-  async function placeOrder() {
+  async function placeOrder(phoneOverride?: string) {
     if (submitting) return;
     // Cash is members-only (pay-at-counter); a guest should never reach here
     // with it selected, but guard server-side intent anyway.
@@ -195,6 +215,7 @@ export function CheckoutScreen({
         // automatically belong to the registered account afterwards.
         ownerId,
         proofOfPaymentPath,
+        contactPhone: phoneOverride ?? resolveContactPhone(),
       });
 
       if (!result.ok) {
@@ -562,7 +583,33 @@ export function CheckoutScreen({
           onClose={() => setShowGuestModal(false)}
           onContinueAsGuest={() => {
             setShowGuestModal(false);
+            // Ask the guest for a number first (order-only), unless one was
+            // already entered this attempt.
+            if (!resolveContactPhone()) {
+              setShowPhonePrompt(true);
+              return;
+            }
             void placeOrder();
+          }}
+        />
+      )}
+
+      {showPhonePrompt && (
+        <PhonePromptSheet
+          busy={submitting}
+          onClose={() => setShowPhonePrompt(false)}
+          onSkip={() => {
+            setShowPhonePrompt(false);
+            void placeOrder();
+          }}
+          onSubmit={(phone) => {
+            setEnteredPhone(phone);
+            setShowPhonePrompt(false);
+            // Members: also save to their profile for next time. Guests have no
+            // profile, so updateProfile no-ops (it early-returns for guests).
+            if (isAuthenticated) void updateProfile({ phone });
+            // Pass the number explicitly — setEnteredPhone hasn't re-rendered yet.
+            void placeOrder(phone);
           }}
         />
       )}
