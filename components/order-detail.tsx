@@ -213,11 +213,12 @@ export function OrderDetail({
                 </>
               )}
             </p>
+            {/* Same-tab navigation to match the auto-open on Complete (which must
+                be same-tab to dodge popup blocking). Keeps both paths consistent
+                — on mobile this hands off to the WhatsApp app. */}
             {waReadyLink && (
               <a
                 href={waReadyLink}
-                target="_blank"
-                rel="noopener noreferrer"
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <MessageCircle className="size-4" strokeWidth={2} aria-hidden />
