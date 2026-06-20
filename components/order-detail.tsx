@@ -15,15 +15,15 @@ import {
 import { OrderCompleteModal } from "@/components/order-complete-modal";
 import type { Order } from "@/types/order";
 
-// Interactive single-order management view, shared by the real manage page
-// (/manage/[token]) and the mock test page (/manage/test). Each drink is
-// advanced individually by swiping (pending -> preparing -> done). When every
-// drink is done the whole order is complete — which is where the backend will
-// later notify the buyer over WhatsApp and mark the unique link as complete.
+// Interactive single-order management view used by the manage page
+// (/manage/[token]). Each drink is advanced individually by swiping
+// (pending -> preparing -> done). When every drink is done the whole order is
+// complete — which is where the backend will later notify the buyer over
+// WhatsApp and mark the unique link as complete.
 //
 // `persist` controls whether changes are written to the store: real orders
-// persist (and survive a refresh); the /manage/test mock isn't in the store, so
-// it runs local-only.
+// persist (and survive a refresh). It's kept as a prop so a non-persisting,
+// read-only render stays possible without store writes.
 export function OrderDetail({
   order,
   persist = true,
@@ -127,8 +127,8 @@ export function OrderDetail({
     });
   }
 
-  // Whether the staff cancel control is offered: real orders that aren't already
-  // finished. The mock test page (persist=false) never shows it.
+  // Whether the staff cancel control is offered: persisted orders that aren't
+  // already finished. A non-persisting (persist=false) render never shows it.
   const canCancel =
     persist && order.status !== "completed" && order.status !== "cancelled";
 

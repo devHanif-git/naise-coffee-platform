@@ -5,8 +5,8 @@ import { useBeans } from "@/store/beans";
 import { cn } from "@/lib/utils";
 
 // Client view of the full Bean activity feed. Reads the live ledger so newly
-// earned/redeemed entries appear; falls back to the mock list until the store
-// hydrates (matching the server-rendered HTML to avoid a mismatch).
+// earned/redeemed entries appear; shows an empty list until the store hydrates
+// (matching the server-rendered HTML to avoid a mismatch).
 export function RewardsActivity() {
   const { activity } = useBeans();
   const entries = activity;
