@@ -1,9 +1,11 @@
--- NOTE (history): this file was first applied with a null-unsafe admin guard; the corrective patch ships as 20260620110001_admin_phase3_rpcs_fix.sql. A fresh replay applies this then the patch.
-
 -- Phase 3 privileged admin writes. SECURITY DEFINER so they bypass profiles /
--- rewards RLS, but each gates internally on current_user_role()='admin' and is
--- granted to authenticated only (revoked from public/anon). search_path pinned.
--- Mirrors the rewards-function pattern (20260618081000_rewards_functions.sql).
+-- rewards RLS, but each gates internally on the caller's role and is granted to
+-- authenticated only (revoked from public/anon). search_path pinned. Mirrors the
+-- rewards-function pattern (20260618081000_rewards_functions.sql).
+--
+-- The admin guard uses IS DISTINCT FROM so a NULL current_user_role()
+-- (unauthenticated / service-role caller with no profile row) still raises
+-- NOT_ADMIN rather than slipping past a null-unsafe `<>` comparison.
 
 -- Assign a role to another user. Guards: caller must be admin; cannot change own
 -- role; cannot remove the last remaining admin; user must exist.
@@ -14,7 +16,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if public.current_user_role() <> 'admin' then
+  if public.current_user_role() is distinct from 'admin' then
     raise exception 'NOT_ADMIN';
   end if;
   if p_user = (select auth.uid()) then
@@ -32,7 +34,7 @@ begin
 end;
 $$;
 
-revoke execute on function public.admin_set_role(uuid, public.user_role) from public;
+revoke execute on function public.admin_set_role(uuid, public.user_role) from public, anon;
 grant execute on function public.admin_set_role(uuid, public.user_role) to authenticated;
 
 -- Manually grant/deduct Beans with a reason. Writes one 'adjustment' ledger row;
@@ -48,7 +50,7 @@ as $$
 declare
   v_balance integer;
 begin
-  if public.current_user_role() <> 'admin' then
+  if public.current_user_role() is distinct from 'admin' then
     raise exception 'NOT_ADMIN';
   end if;
   if p_amount = 0 then
@@ -74,5 +76,5 @@ begin
 end;
 $$;
 
-revoke execute on function public.admin_adjust_beans(uuid, integer, text) from public;
+revoke execute on function public.admin_adjust_beans(uuid, integer, text) from public, anon;
 grant execute on function public.admin_adjust_beans(uuid, integer, text) to authenticated;

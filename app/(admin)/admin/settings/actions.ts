@@ -14,7 +14,7 @@ export async function updateStoreSettings(input: StoreSettings): Promise<ActionR
   if (!closedMessage) return { ok: false, error: "Closed message is required." };
 
   const db = await createClient();
-  const { error } = await db
+  const { data, error } = await db
     .from("store_settings")
     .update({
       is_open: input.isOpen,
@@ -23,8 +23,11 @@ export async function updateStoreSettings(input: StoreSettings): Promise<ActionR
       referral_enabled: input.referralEnabled,
       streak_enabled: input.streakEnabled,
     })
-    .eq("id", true);
+    .eq("id", true)
+    .select("id")
+    .maybeSingle();
   if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "Store settings row is missing." };
 
   // Revalidate the CMS page and every storefront surface a toggle can change.
   revalidatePath("/admin/settings");

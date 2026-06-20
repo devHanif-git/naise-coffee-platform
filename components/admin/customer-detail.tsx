@@ -19,6 +19,8 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
 
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const parsedAmount = Number(amount);
+  const validAmount = Number.isInteger(parsedAmount) && parsedAmount !== 0;
   const [confirming, setConfirming] = useState(false);
   const [beansMsg, setBeansMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [beansPending, startBeans] = useTransition();
@@ -113,7 +115,7 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
         {!confirming ? (
           <button
             onClick={() => setConfirming(true)}
-            disabled={!amount || !reason.trim() || Number(amount) === 0}
+            disabled={!validAmount || !reason.trim()}
             className="self-start rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             Adjust
@@ -121,7 +123,7 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
         ) : (
           <div className="flex items-center gap-2">
             <span className="text-sm">
-              {Number(amount) > 0 ? "Grant" : "Deduct"} {Math.abs(Number(amount))} Beans?
+              {parsedAmount > 0 ? "Grant" : "Deduct"} {Math.abs(parsedAmount)} Beans?
             </span>
             <button
               onClick={applyBeans}

@@ -28,6 +28,7 @@ export function CustomersList({ initial }: { initial: CustomerSummary[] }) {
         value={term}
         onChange={(e) => setTerm(e.target.value)}
         placeholder="Search name or phone"
+        aria-label="Search customers by name or phone"
         className="rounded-2xl border border-border px-4 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-black/20"
       />
       <ul className="flex flex-col gap-2">

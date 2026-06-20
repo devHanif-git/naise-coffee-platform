@@ -56,6 +56,7 @@ export async function getCustomerDetail(userId: string): Promise<CustomerDetail 
   ]);
   if (profileRes.error) throw new Error(`getCustomerDetail failed: ${profileRes.error.message}`);
   if (!profileRes.data) return null;
+  if (accountRes.error) throw new Error(`getCustomerDetail failed: ${accountRes.error.message}`);
   if (ordersRes.error) throw new Error(`getCustomerDetail failed: ${ordersRes.error.message}`);
   if (ledgerRes.error) throw new Error(`getCustomerDetail failed: ${ledgerRes.error.message}`);
 

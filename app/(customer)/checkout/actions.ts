@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
-import { getStoreSettings } from "@/lib/settings/store";
+import { getStoreSettingsForCheckout } from "@/lib/settings/store";
 
 type PlaceOrderItem = {
   productId: string;
@@ -47,8 +47,9 @@ export async function placeOrder(
     return { ok: false, error: "Missing session id. Refresh and try again." };
   }
 
-  // Hard block: an admin can close the store from the CMS.
-  const settings = await getStoreSettings();
+  // Hard block: an admin can close the store from the CMS. Fail-closed — a
+  // settings read failure is treated as closed so it can't bypass a closure.
+  const settings = await getStoreSettingsForCheckout();
   if (!settings.isOpen) {
     return { ok: false, error: settings.closedMessage };
   }
