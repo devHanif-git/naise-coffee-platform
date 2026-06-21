@@ -53,6 +53,10 @@ export type Order = {
   // Receipt image for a QR/transfer payment, shown in the manage screen's
   // proof-of-payment section. Absent for cash and other on-counter methods.
   proofOfPaymentUrl?: string;
+  // Unverified MY mobile (+60…) collected at checkout from the member or guest.
+  // Used for the WhatsApp-ready handoff and the staff "NEW ORDER!" notice.
+  // Absent when the customer skipped the prompt. Maps to orders.contact_phone.
+  contactPhone?: string;
   // ISO timestamp.
   createdAt: string;
   // ISO timestamp set when every drink is done and the order flips to

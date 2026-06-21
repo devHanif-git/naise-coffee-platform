@@ -35,6 +35,7 @@ export function rowToOrder(order: OrderRow, items: OrderItemRow[]): Order {
     subtotal: order.subtotal,
     total: order.total,
     notes: order.notes ?? undefined,
+    contactPhone: order.contact_phone ?? undefined,
     proofOfPaymentUrl: order.proof_of_payment_url ?? undefined,
     createdAt: order.created_at,
     completedAt: order.completed_at ?? undefined,

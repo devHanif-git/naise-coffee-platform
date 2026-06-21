@@ -34,7 +34,7 @@ export function ImageUpload({
 
   return (
     <div className="flex items-center gap-3">
-      <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-neutral-100">
+      <div className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
         <SmartImage
           src={value ?? images.coffeeWithLogo}
           alt="Product image"
@@ -43,9 +43,9 @@ export function ImageUpload({
           className="object-contain"
         />
       </div>
-      <div className="flex flex-col gap-1">
-        <label className="cursor-pointer rounded-full border border-border px-3 py-1.5 text-xs font-semibold">
-          {pending ? "Uploading…" : value ? "Replace image" : "Upload image"}
+      <div className="flex flex-col items-start gap-1.5">
+        <label className="cursor-pointer rounded-full border border-border px-3 py-1.5 text-xs font-semibold outline-none transition-colors hover:bg-muted focus-within:ring-3 focus-within:ring-ring/50">
+          {pending ? "Uploading..." : value ? "Replace image" : "Upload image"}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -58,12 +58,12 @@ export function ImageUpload({
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-left text-[0.625rem] font-semibold text-muted-foreground underline"
+            className="rounded-sm text-xs font-semibold text-muted-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             Remove
           </button>
         )}
-        {error && <p className="text-[0.625rem] text-rose-600">{error}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     </div>
   );

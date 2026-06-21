@@ -7,9 +7,9 @@ import { useBeans } from "@/store/beans";
 
 // Client view of the rewards catalogue. Reads the live Beans balance so the
 // "to spend" figure and each reward's affordability match the persisted ledger;
-// falls back to the mock balance until the store hydrates (matching the
-// server-rendered HTML to avoid a mismatch). The reward list comes from the DB
-// (fetched server-side and passed in).
+// shows a zero balance until the store hydrates (matching the server-rendered
+// HTML to avoid a mismatch). The reward list comes from the DB (fetched
+// server-side and passed in).
 export function RewardsCatalog({ rewards }: { rewards: Reward[] }) {
   const { balance } = useBeans();
   const beans = balance;

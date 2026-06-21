@@ -9,6 +9,10 @@ export type CustomerProfile = {
   phone?: string;
 };
 
-// The fields the Edit Profile screen can change. Avatar and display name only —
-// security settings live on the Settings screen.
-export type ProfileEdit = Pick<CustomerProfile, "displayName" | "avatarUrl">;
+// A partial edit to the profile. Avatar, display name, and the (unverified)
+// WhatsApp number — security settings live on the Settings screen. Partial so
+// callers can update one field (e.g. the checkout nudge writes only `phone`)
+// without clobbering the others; updateProfile persists exactly the keys given.
+export type ProfileEdit = Partial<
+  Pick<CustomerProfile, "displayName" | "avatarUrl" | "phone">
+>;

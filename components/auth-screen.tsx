@@ -4,9 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Coffee, Flame, Loader2, Phone, Star } from "lucide-react";
+import { ChevronLeft, Coffee, Flame, Loader2, Star } from "lucide-react";
 import { images } from "@/constants/images";
-import { useAuth } from "@/store/auth";
 import { createClient } from "@/lib/supabase/client";
 
 // Google "G" mark — lucide ships no brand glyphs, so this is an inline SVG
@@ -43,7 +42,6 @@ const perks = [
 export function AuthScreen() {
   const router = useRouter();
   const params = useSearchParams();
-  const { signIn } = useAuth();
 
   // Where to land after sign-in. Defaults to Home; the profile/checkout entry
   // points pass ?redirect=… so the customer returns to where they were (with
@@ -54,28 +52,7 @@ export function AuthScreen() {
       ? rawRedirect
       : "/home";
 
-  // Phone flow is two steps: enter number, then the 6-digit OTP. `null` = the
-  // method chooser is showing; "phone" = the number/OTP form.
-  const [mode, setMode] = useState<"choose" | "phone">("choose");
-  const [otpSent, setOtpSent] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState("");
-  const [pending, setPending] = useState<"google" | "phone" | null>(null);
-
-  // MOCKED — phone/OTP is not yet wired to Supabase. It still uses the local
-  // auth-store mock (`signIn`) until WhatsApp/WABA is approved (a later plan).
-  // Google sign-in below is the real Supabase OAuth flow; this is not.
-  function finish(
-    method: "google" | "phone",
-    extra: Parameters<typeof signIn>[0],
-  ) {
-    setPending(method);
-    // Simulate the round-trip to the provider so the mock feels real.
-    setTimeout(() => {
-      signIn(extra);
-      router.replace(redirect);
-    }, 700);
-  }
+  const [pending, setPending] = useState<"google" | null>(null);
 
   async function onGoogle() {
     setPending("google");
@@ -92,18 +69,6 @@ export function AuthScreen() {
       console.error("Google sign-in failed", error);
     }
     // On success the browser navigates away to Google — no further work here.
-  }
-
-  function onSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (phone.trim().length < 8) return;
-    setOtpSent(true);
-  }
-
-  function onVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (otp.trim().length !== 6) return;
-    finish("phone", { method: "phone", phone: phone.trim() });
   }
 
   return (
@@ -160,114 +125,21 @@ export function AuthScreen() {
       </ul>
 
       <div className="mt-auto flex flex-col gap-3 px-6 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-8">
-        {mode === "choose" ? (
-          <div className="flex flex-col gap-3 naise-rise [animation-delay:160ms]">
-            <button
-              type="button"
-              onClick={onGoogle}
-              disabled={pending !== null}
-              className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border bg-white text-sm font-semibold text-foreground outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {pending === "google" ? (
-                <Loader2
-                  className="size-5 animate-spin"
-                  strokeWidth={2.5}
-                  aria-hidden
-                />
-              ) : (
-                <GoogleIcon className="size-5" />
-              )}
-              Continue with Google
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMode("phone")}
-              disabled={pending !== null}
-              className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl bg-black text-sm font-semibold text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              <Phone className="size-4.5" strokeWidth={2} aria-hidden />
-              Continue with Phone
-            </button>
-          </div>
-        ) : (
-          <form
-            onSubmit={otpSent ? onVerifyOtp : onSendOtp}
-            className="flex flex-col gap-3 naise-rise"
+        <div className="flex flex-col gap-3 naise-rise [animation-delay:160ms]">
+          <button
+            type="button"
+            onClick={onGoogle}
+            disabled={pending !== null}
+            className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border bg-white text-sm font-semibold text-foreground outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            <label
-              htmlFor="phone"
-              className="text-xs font-bold uppercase tracking-wide text-muted-foreground"
-            >
-              {otpSent ? "Enter the 6-digit code" : "Phone number"}
-            </label>
-
-            {!otpSent ? (
-              <div className="flex items-center gap-2">
-                <span className="flex h-12 shrink-0 items-center rounded-2xl border border-border bg-neutral-50 px-3 text-sm font-semibold text-muted-foreground">
-                  +60
-                </span>
-                <input
-                  id="phone"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  value={phone}
-                  onChange={(e) =>
-                    setPhone(e.target.value.replace(/[^\d]/g, ""))
-                  }
-                  placeholder="12 345 6789"
-                  className="h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-              </div>
+            {pending === "google" ? (
+              <Loader2 className="size-5 animate-spin" strokeWidth={2.5} aria-hidden />
             ) : (
-              <>
-                <input
-                  id="phone"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/[^\d]/g, ""))}
-                  placeholder="••••••"
-                  className="h-14 rounded-2xl border border-border bg-white px-4 text-center text-xl font-bold tracking-[0.4em] tabular-nums outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-                />
-                <p className="text-xs text-muted-foreground">
-                  We sent a code to +60 {phone}.{" "}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOtpSent(false);
-                      setOtp("");
-                    }}
-                    className="font-semibold text-foreground underline-offset-2 hover:underline"
-                  >
-                    Change number
-                  </button>
-                </p>
-              </>
+              <GoogleIcon className="size-5" />
             )}
-
-            <button
-              type="submit"
-              disabled={pending !== null}
-              className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {pending === "phone" ? (
-                <Loader2
-                  className="size-4 animate-spin"
-                  strokeWidth={2.5}
-                  aria-hidden
-                />
-              ) : otpSent ? (
-                "Verify & continue"
-              ) : (
-                "Send code"
-              )}
-            </button>
-          </form>
-        )}
+            Continue with Google
+          </button>
+        </div>
 
         <p className="mt-2 text-center text-[0.6875rem] leading-relaxed text-muted-foreground naise-rise [animation-delay:200ms]">
           By continuing you agree to our Terms and acknowledge our Privacy

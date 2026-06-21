@@ -9,6 +9,7 @@ import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
+import { normalizeMyPhone } from "@/lib/phone";
 
 type PlaceOrderItem = {
   productId: string;
@@ -31,6 +32,9 @@ export type PlaceOrderInput = {
   // Storage path of the uploaded DuitNow QR receipt, if any (`<ownerId>/<uuid>`).
   // Signed into a URL server-side here — the bucket's read policy is staff-only.
   proofOfPaymentPath?: string;
+  // Unverified MY phone collected at checkout (member profile value or a number
+  // entered in the prompt). Re-normalized server-side; dropped if invalid.
+  contactPhone?: string;
 };
 
 export type PlaceOrderResult =
@@ -60,6 +64,19 @@ export async function placeOrder(
     data: { user },
   } = await supabase.auth.getUser();
   const userId = user?.id ?? null;
+
+  // A reward line is a member entitlement, settled against their Bean balance.
+  // The cart lives in per-browser localStorage and can outlive the member who
+  // redeemed it (sign-out, or a different person on the same device), leaving a
+  // stale RM0.00 reward line a guest could otherwise check out for free — no
+  // Beans charged, no redemption recorded. Block it. The client also strips
+  // these on any identity change, but this is the authoritative guard.
+  if (!userId && input.items.some((i) => i.isReward)) {
+    return {
+      ok: false,
+      error: "Please sign in to redeem a reward, or remove it from your cart.",
+    };
+  }
 
   // Re-validate availability against the live catalogue: the cart is client
   // localStorage and may hold a drink that went sold-out (or was archived)
@@ -105,6 +122,12 @@ export async function placeOrder(
     }
   }
 
+  // Re-normalize the contact phone server-side — never trust the client. An
+  // invalid value is dropped (the number is optional and must never fail the order).
+  const contactPhone = input.contactPhone
+    ? (normalizeMyPhone(input.contactPhone) ?? undefined)
+    : undefined;
+
   const lines: OrderLine[] = input.items.map((item) => ({
     name: item.name,
     quantity: item.quantity,
@@ -127,6 +150,7 @@ export async function placeOrder(
         subtotal: input.subtotal,
         total: input.total,
         notes: input.notes?.trim() || undefined,
+        contactPhone,
         proofOfPaymentUrl,
       },
       { userId },

@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, ChevronLeft, ChevronRight, Loader2, Receipt, TriangleAlert } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Loader2, MessageCircle, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
+import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
 import {
@@ -15,15 +16,15 @@ import {
 import { OrderCompleteModal } from "@/components/order-complete-modal";
 import type { Order } from "@/types/order";
 
-// Interactive single-order management view, shared by the real manage page
-// (/manage/[token]) and the mock test page (/manage/test). Each drink is
-// advanced individually by swiping (pending -> preparing -> done). When every
-// drink is done the whole order is complete — which is where the backend will
-// later notify the buyer over WhatsApp and mark the unique link as complete.
+// Interactive single-order management view used by the manage page
+// (/manage/[token]). Each drink is advanced individually by swiping
+// (pending -> preparing -> done). When every drink is done the whole order is
+// complete — which is where the backend will later notify the buyer over
+// WhatsApp and mark the unique link as complete.
 //
 // `persist` controls whether changes are written to the store: real orders
-// persist (and survive a refresh); the /manage/test mock isn't in the store, so
-// it runs local-only.
+// persist (and survive a refresh). It's kept as a prop so a non-persisting,
+// read-only render stays possible without store writes.
 export function OrderDetail({
   order,
   persist = true,
@@ -58,6 +59,8 @@ export function OrderDetail({
 
   const doneCount = statuses.filter((s) => s === "done").length;
   const allDone = doneCount === order.items.length;
+  // wa.me deep link for the manual ready handoff; null when no number on file.
+  const waReadyLink = buildWhatsAppReadyLink(order);
 
   // Optimistically set a drink's status, then persist (for real orders).
   function applyStatus(index: number, status: DrinkStatus) {
@@ -98,6 +101,11 @@ export function OrderDetail({
       if (persist) await markReadyAndNotify(order.token);
       setCompleting(false);
       setShowComplete(false);
+      // Auto-open WhatsApp with the prefilled ready notice so staff don't tap a
+      // second button. Same-tab navigation (not window.open) so it isn't
+      // popup-blocked after the await; on mobile this hands off to the WA app.
+      // The persistent button below stays for manual re-sends.
+      if (persist && waReadyLink) window.location.href = waReadyLink;
     });
   }
 
@@ -127,8 +135,8 @@ export function OrderDetail({
     });
   }
 
-  // Whether the staff cancel control is offered: real orders that aren't already
-  // finished. The mock test page (persist=false) never shows it.
+  // Whether the staff cancel control is offered: persisted orders that aren't
+  // already finished. A non-persisting (persist=false) render never shows it.
   const canCancel =
     persist && order.status !== "completed" && order.status !== "cancelled";
 
@@ -187,21 +195,37 @@ export function OrderDetail({
           ))}
         </div>
         {justCompleted && (
-          <p className="text-xs font-medium text-emerald-700">
-            All drinks ready — buyer will be notified for pickup.
-            {completedAt && (
-              <>
-                {" "}
-                <span className="text-emerald-700/70">
-                  Completed{" "}
-                  <time dateTime={completedAt} className="tabular-nums">
-                    {formatOrderTime(completedAt)}
-                  </time>
-                  .
-                </span>
-              </>
+          <div className="flex flex-col gap-2.5">
+            <p className="text-xs font-medium text-emerald-700">
+              {waReadyLink
+                ? "All drinks ready — buyer notified on WhatsApp. Resend below if it didn't go through."
+                : "All drinks ready — buyer will be notified for pickup."}
+              {completedAt && (
+                <>
+                  {" "}
+                  <span className="text-emerald-700/70">
+                    Completed{" "}
+                    <time dateTime={completedAt} className="tabular-nums">
+                      {formatOrderTime(completedAt)}
+                    </time>
+                    .
+                  </span>
+                </>
+              )}
+            </p>
+            {/* Same-tab navigation to match the auto-open on Complete (which must
+                be same-tab to dodge popup blocking). Keeps both paths consistent
+                — on mobile this hands off to the WhatsApp app. */}
+            {waReadyLink && (
+              <a
+                href={waReadyLink}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <MessageCircle className="size-4" strokeWidth={2} aria-hidden />
+                Resend on WhatsApp
+              </a>
             )}
-          </p>
+          </div>
         )}
       </section>
 
@@ -368,6 +392,7 @@ export function OrderDetail({
         <OrderCompleteModal
           orderNumber={order.orderNumber}
           busy={completing}
+          hasContactPhone={Boolean(order.contactPhone)}
           onConfirm={confirmComplete}
           onCancel={cancelComplete}
         />

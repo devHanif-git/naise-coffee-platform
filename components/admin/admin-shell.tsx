@@ -33,59 +33,93 @@ const NAV = [
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ] as const;
 
+function isActive(pathname: string, href: string) {
+  // "/admin" is a prefix of every CMS route, so it must match exactly; other
+  // items also light up on their sub-routes.
+  return href === "/admin"
+    ? pathname === "/admin"
+    : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function Wordmark() {
+  return (
+    <span className="font-heading text-sm font-bold uppercase tracking-[0.2em]">
+      Naise Admin
+    </span>
+  );
+}
+
+function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  const pathname = usePathname();
+  return (
+    <nav className="flex flex-col gap-1 p-3">
+      {NAV.map((item) => {
+        const active = isActive(pathname, item.href);
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+              active
+                ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                : "font-medium text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+            )}
+          >
+            <Icon className="size-5 shrink-0" aria-hidden />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background">
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-black px-4 text-white">
+    <div className="min-h-dvh bg-background">
+      {/* Desktop sidebar */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
+        <div className="flex h-16 items-center border-b border-sidebar-border px-5">
+          <Wordmark />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <NavLinks />
+        </div>
+      </aside>
+
+      {/* Mobile top bar */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-sidebar px-4 text-sidebar-foreground lg:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             aria-label="Open menu"
-            className="flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+            className="flex size-9 items-center justify-center rounded-lg outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <Menu className="size-6" />
+            <Menu className="size-5" />
           </SheetTrigger>
-          <SheetContent side="left" className="w-72 p-0">
-            <SheetTitle className="border-b border-border px-5 py-4 font-heading text-base font-bold uppercase tracking-[0.2em]">
-              Naise Admin
+          <SheetContent
+            side="left"
+            className="w-72 bg-sidebar p-0 text-sidebar-foreground"
+          >
+            <SheetTitle className="flex h-14 items-center border-b border-sidebar-border px-5">
+              <Wordmark />
             </SheetTitle>
-            <nav className="flex flex-col py-2">
-              {NAV.map((item) => {
-                // "/admin" is a prefix of every CMS route, so it must match
-                // exactly; other items also light up on their sub-routes.
-                const active =
-                  item.href === "/admin"
-                    ? pathname === "/admin"
-                    : pathname === item.href ||
-                      pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex items-center gap-3 px-5 py-3 text-sm font-medium transition-colors",
-                      active
-                        ? "bg-neutral-100 text-black"
-                        : "text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    <Icon className="size-5" aria-hidden />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+            <NavLinks onNavigate={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
-        <span className="font-heading text-sm font-bold uppercase tracking-[0.2em]">
-          Naise Admin
-        </span>
+        <Wordmark />
       </header>
-      <main className="flex flex-1 flex-col">{children}</main>
+
+      <div className="lg:pl-60">
+        <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

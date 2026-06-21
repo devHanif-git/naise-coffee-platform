@@ -1,14 +1,18 @@
 import { getStoreSettings } from "@/lib/settings/store";
+import { getPaymentSettings } from "@/lib/settings/payments";
 import { SettingsForm } from "@/components/admin/settings-form";
+import { PaymentSettingsForm } from "@/components/admin/payment-settings-form";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const settings = await getStoreSettings();
+  const [settings, payments] = await Promise.all([getStoreSettings(), getPaymentSettings()]);
   return (
-    <div className="flex flex-col gap-4 px-5 py-4">
-      <h1 className="font-heading text-lg font-bold tracking-tight">Settings</h1>
+    <div className="flex max-w-2xl flex-col gap-6">
+      <AdminPageHeader title="Settings" description="Store and payment configuration." />
       <SettingsForm initial={settings} />
+      <PaymentSettingsForm initial={payments} />
     </div>
   );
 }

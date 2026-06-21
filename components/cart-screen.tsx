@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronLeft, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, Gift, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { images } from "@/constants/images";
 import { useCart } from "@/store/cart";
 import { CartItemCard } from "@/components/cart-item-card";
@@ -20,11 +21,22 @@ export function CartScreen({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { items, totalPrice, totalOriginal, totalSaving, notes, setNotes, clear } =
-    useCart();
+  const {
+    items,
+    totalPrice,
+    totalOriginal,
+    totalSaving,
+    notes,
+    setNotes,
+    clear,
+    rewardsRemoved,
+    acknowledgeRewardsRemoved,
+  } = useCart();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [mergeNotice, setMergeNotice] = useState<string | null>(null);
-  const touchStartY = useRef<number | null>(null);
+  // Count of reward lines the store auto-removed (sign-out / account switch),
+  // captured locally so the toast survives after we acknowledge the store.
+  const [rewardNotice, setRewardNotice] = useState<number | null>(null);
 
   // A drink can go sold-out (or archived) after it was added to the cart. The
   // set of currently-orderable product ids comes from the server; any line not
@@ -51,39 +63,45 @@ export function CartScreen({
     return () => clearTimeout(timer);
   }, [mergeNotice]);
 
+  // The store auto-strips reward lines when the signed-in identity changes
+  // (sign-out or an account switch). Pull that one-shot count into a local
+  // notice and acknowledge the store so it can't re-fire on the next render.
+  useEffect(() => {
+    if (rewardsRemoved <= 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- surface the store's one-shot removal count
+    setRewardNotice(rewardsRemoved);
+    acknowledgeRewardsRemoved();
+  }, [rewardsRemoved, acknowledgeRewardsRemoved]);
+
+  // Auto-dismiss the reward notice on its own timer, independent of the merge one.
+  useEffect(() => {
+    if (rewardNotice === null) return;
+    const timer = setTimeout(() => setRewardNotice(null), 4500);
+    return () => clearTimeout(timer);
+  }, [rewardNotice]);
+
   const hasItems = items.length > 0;
   const hasSaving = totalSaving > 0;
 
   return (
     <main className="flex flex-1 flex-col px-5 pt-5">
       {mergeNotice && (
-        <button
-          type="button"
-          role="status"
-          onClick={() => setMergeNotice(null)}
-          onTouchStart={(e) => {
-            touchStartY.current = e.touches[0].clientY;
-          }}
-          onTouchMove={(e) => {
-            // Swipe up past a small threshold dismisses the toast.
-            if (
-              touchStartY.current !== null &&
-              touchStartY.current - e.touches[0].clientY > 24
-            ) {
-              setMergeNotice(null);
-              touchStartY.current = null;
-            }
-          }}
-          className="fixed left-1/2 top-4 z-[70] flex w-[calc(100%-2.5rem)] max-w-[calc(28rem-2.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl bg-black px-4 py-2.5 text-left text-xs font-medium text-white shadow-lg naise-rise outline-none focus-visible:ring-3 focus-visible:ring-white/30"
-          aria-label="Dismiss notification"
-        >
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500">
-            <Check className="size-3" strokeWidth={3} aria-hidden />
-          </span>
-          <span className="flex-1">
-            Combined with your existing {mergeNotice}.
-          </span>
-        </button>
+        <CartToast
+          tone="success"
+          message={`Combined with your existing ${mergeNotice}.`}
+          onDismiss={() => setMergeNotice(null)}
+        />
+      )}
+      {rewardNotice !== null && (
+        <CartToast
+          tone="info"
+          message={
+            rewardNotice === 1
+              ? "A reward was removed from your cart because it was tied to a different account."
+              : `${rewardNotice} rewards were removed from your cart because they were tied to a different account.`
+          }
+          onDismiss={() => setRewardNotice(null)}
+        />
       )}
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         <button
@@ -286,5 +304,57 @@ export function CartScreen({
         </div>
       )}
     </main>
+  );
+}
+
+// Top-of-screen toast used for transient cart notices. Tapping or swiping up
+// dismisses it; each instance owns its own touch tracking so multiple toasts
+// don't fight over one ref. `success` is the merge confirmation; `info` is the
+// reward-removed notice.
+function CartToast({
+  tone,
+  message,
+  onDismiss,
+}: {
+  tone: "success" | "info";
+  message: string;
+  onDismiss: () => void;
+}) {
+  const touchStartY = useRef<number | null>(null);
+  return (
+    <button
+      type="button"
+      role="status"
+      onClick={onDismiss}
+      onTouchStart={(e) => {
+        touchStartY.current = e.touches[0].clientY;
+      }}
+      onTouchMove={(e) => {
+        // Swipe up past a small threshold dismisses the toast.
+        if (
+          touchStartY.current !== null &&
+          touchStartY.current - e.touches[0].clientY > 24
+        ) {
+          onDismiss();
+          touchStartY.current = null;
+        }
+      }}
+      className="fixed left-1/2 top-4 z-[70] flex w-[calc(100%-2.5rem)] max-w-[calc(28rem-2.5rem)] -translate-x-1/2 items-center gap-2 rounded-2xl bg-black px-4 py-2.5 text-left text-xs font-medium text-white shadow-lg naise-rise outline-none focus-visible:ring-3 focus-visible:ring-white/30"
+      aria-label="Dismiss notification"
+    >
+      <span
+        className={cn(
+          "flex size-5 shrink-0 items-center justify-center rounded-full",
+          tone === "success" ? "bg-emerald-500" : "bg-amber-500",
+        )}
+      >
+        {tone === "success" ? (
+          <Check className="size-3" strokeWidth={3} aria-hidden />
+        ) : (
+          <Gift className="size-3" strokeWidth={2.5} aria-hidden />
+        )}
+      </span>
+      <span className="flex-1">{message}</span>
+    </button>
   );
 }

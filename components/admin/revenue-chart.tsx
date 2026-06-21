@@ -19,17 +19,33 @@ export function RevenueChart({ data }: { data: { date: string; revenue: number }
     <div className="h-48 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-          <YAxis tick={{ fontSize: 10 }} width={40} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            stroke="var(--border)"
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+            stroke="var(--border)"
+            width={40}
+          />
           <Tooltip
+            cursor={{ fill: "var(--muted)" }}
             formatter={(v) => {
               const val = typeof v === "number" ? v : 0;
               return [`RM ${val.toFixed(2)}`, "Revenue"];
             }}
-            labelStyle={{ fontSize: 12 }}
-            contentStyle={{ fontSize: 12, borderRadius: 12 }}
+            labelStyle={{ fontSize: 12, color: "var(--foreground)" }}
+            contentStyle={{
+              fontSize: 12,
+              borderRadius: 12,
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
+              color: "var(--foreground)",
+            }}
           />
-          <Bar dataKey="revenue" fill="#000000" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="revenue" fill="var(--primary)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

@@ -6,9 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { CartItem } from "@/types/cart";
+import { useAuth } from "@/store/auth";
 
 const STORAGE_KEY = "naise-cart";
 const NOTES_STORAGE_KEY = "naise-cart-notes";
@@ -57,6 +59,12 @@ type CartContextValue = {
   decrementItem: (key: string) => void;
   removeItem: (key: string) => void;
   clear: () => void;
+  // Count of reward lines auto-removed since the last acknowledgement — bumped
+  // when the signed-in identity changes (sign-out or an account switch) and the
+  // stale free line is dropped. The cart screen reads this to explain why a
+  // redeemed drink disappeared, then acknowledges to reset it.
+  rewardsRemoved: number;
+  acknowledgeRewardsRemoved: () => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -65,6 +73,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [notes, setNotes] = useState("");
   const [hydrated, setHydrated] = useState(false);
+
+  // The cart is per-browser; reward lines, however, are a member entitlement.
+  // Track who's signed in so a reward line can be dropped when the identity that
+  // claimed it goes away.
+  const { user, hydrated: authHydrated } = useAuth();
+  const authUserId = user?.id ?? null;
+  // How many reward lines the strip below has removed, awaiting acknowledgement.
+  const [rewardsRemoved, setRewardsRemoved] = useState(0);
+  // Live mirror of `items` so the strip effect — keyed on the auth id, not on
+  // items — reads the current cart rather than a stale closure. Synced in the
+  // effect just above the strip so it's current on every commit.
+  const itemsRef = useRef(items);
 
   // Load persisted cart once on mount. Reading in an effect (rather than a lazy
   // useState initializer) keeps the first client render matching the server's
@@ -93,6 +113,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Storage may be full or unavailable; cart still works in-memory.
     }
   }, [items, notes, hydrated]);
+
+  // Reward lines belong to the member who redeemed them. Once both the cart and
+  // the auth session have loaded, drop any reward line not stamped with the
+  // current user's id — covering sign-out (now a guest, id null), a different
+  // member signing in on this browser, and pre-stamp lines from older builds.
+  // Paid lines are never touched. Waiting on authHydrated avoids stripping a
+  // member's own line during the brief window before their session resolves.
+  // Returning the same array when nothing changes prevents a needless re-render.
+  // The server still enforces this authoritatively at checkout; this keeps the
+  // cart honest in the UI and stops a stale free line from ever being placed.
+  // Keep the items mirror current. Runs after every commit and — being defined
+  // before the strip effect — updates the ref before the strip reads it.
+  useEffect(() => {
+    itemsRef.current = items;
+  });
+
+  useEffect(() => {
+    if (!hydrated || !authHydrated) return;
+    const current = itemsRef.current;
+    const next = current.filter((i) => !i.isReward || i.redeemedBy === authUserId);
+    if (next.length === current.length) return;
+    setItems(next);
+    setRewardsRemoved((n) => n + (current.length - next.length));
+  }, [hydrated, authHydrated, authUserId]);
+
+  const acknowledgeRewardsRemoved = useCallback(() => setRewardsRemoved(0), []);
 
   const addItem = useCallback((input: AddInput) => {
     const key = buildKey(input.productId, input.sizeId, input.addonIds, input.rewardId);
@@ -189,8 +235,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       decrementItem,
       removeItem,
       clear,
+      rewardsRemoved,
+      acknowledgeRewardsRemoved,
     };
-  }, [items, hydrated, notes, addItem, updateItem, incrementItem, decrementItem, removeItem, clear]);
+  }, [items, hydrated, notes, addItem, updateItem, incrementItem, decrementItem, removeItem, clear, rewardsRemoved, acknowledgeRewardsRemoved]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

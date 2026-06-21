@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { listAdminProducts, listAdminCategories } from "@/lib/menu/admin";
 import { MenuListLive } from "@/components/admin/menu-list-live";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -11,30 +13,20 @@ export default async function AdminMenuPage() {
     listAdminCategories(),
   ]);
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between px-5 py-4">
-        <h1 className="font-heading text-lg font-bold tracking-tight">Menu</h1>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/categories"
-            className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold"
-          >
-            Categories
+    <div className="flex flex-col gap-6">
+      <AdminPageHeader title="Menu" description="Items, pricing, and availability.">
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/admin/categories">Categories</Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/admin/addons">Add-ons</Link>
+        </Button>
+        <Button size="sm" asChild>
+          <Link href="/admin/menu/new">
+            <Plus /> New item
           </Link>
-          <Link
-            href="/admin/addons"
-            className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold"
-          >
-            Add-ons
-          </Link>
-          <Link
-            href="/admin/menu/new"
-            className="flex items-center gap-1 rounded-full bg-black px-3 py-1.5 text-xs font-semibold text-white"
-          >
-            <Plus className="size-4" /> New
-          </Link>
-        </div>
-      </div>
+        </Button>
+      </AdminPageHeader>
       <MenuListLive products={products} categories={categories} />
     </div>
   );

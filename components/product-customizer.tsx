@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useBeans } from "@/store/beans";
+import { useAuth } from "@/store/auth";
 import { applyDiscount, getProductDiscount } from "@/lib/promotions/pricing";
 
 export function ProductCustomizer({
@@ -23,6 +24,7 @@ export function ProductCustomizer({
   const editKey = searchParams.get("edit") ?? undefined;
   const { items, addItem, updateItem } = useCart();
   const { canAfford } = useBeans();
+  const { user } = useAuth();
   const editLine = editKey ? items.find((i) => i.key === editKey) : undefined;
   const isEditing = Boolean(editKey && editLine);
 
@@ -44,6 +46,10 @@ export function ProductCustomizer({
   // line's own reward id/cost when editing.
   const activeRewardId = newReward ? reward!.id : editLine?.rewardId;
   const activeRewardCost = newReward ? reward!.cost : editLine?.rewardCost ?? 0;
+  // Member who owns this reward line: the signed-in user when redeeming fresh,
+  // or the line's existing stamp when editing. Lets the cart drop the line if a
+  // different identity takes over the browser.
+  const activeRedeemedBy = newReward ? user?.id : editLine?.redeemedBy;
   const maxAddons = Math.min(
     product.addons.length,
     Math.max(0, product.maxAddons ?? product.addons.length),
@@ -126,6 +132,7 @@ export function ProductCustomizer({
       isReward: isReward || undefined,
       rewardId: isReward ? activeRewardId : undefined,
       rewardCost: isReward ? activeRewardCost : undefined,
+      redeemedBy: isReward ? activeRedeemedBy : undefined,
       quantity: effectiveQuantity,
     };
 

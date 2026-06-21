@@ -9,8 +9,10 @@ import {
   Banknote,
   Check,
   ChevronLeft,
+  Copy,
   CreditCard,
   Flame,
+  Landmark,
   Loader2,
   Lock,
   QrCode,
@@ -29,14 +31,16 @@ import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
 import { useBeans } from "@/store/beans";
 import type { StreakAward } from "@/types/reward";
-import { paymentMethods, defaultPaymentMethodId } from "@/data/payment-methods";
-import type { PaymentMethodId } from "@/types/payment";
+import type { PaymentMethod, PaymentMethodId } from "@/types/payment";
+import type { BankDetails } from "@/lib/settings/payments";
 import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { StoreClosedBanner } from "@/components/store-closed-banner";
+import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
 import { uploadReceipt } from "@/lib/orders/receipt";
+import { useProfile } from "@/store/profile";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
 // wallets use a representative lucide glyph (no official logos shipped yet);
@@ -50,20 +54,28 @@ const methodIcons: Record<PaymentMethodId, LucideIcon> = {
   "tng-ewallet": Wallet,
   boost: Zap,
   grabpay: Smartphone,
+  "bank-transfer": Landmark,
 };
 
 export function CheckoutScreen({
   closedMessage,
+  methods,
+  bank,
 }: {
   closedMessage?: string | null;
+  methods: PaymentMethod[];
+  bank: BankDetails;
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
   const { isAuthenticated, hydrated: authHydrated } = useAuth();
   const { canAfford, earnRate } = useBeans();
-  const [selected, setSelected] =
-    useState<PaymentMethodId>(defaultPaymentMethodId);
+  const { profile, updateProfile } = useProfile();
+  // Default to the first enabled method; null when none are enabled.
+  const [selected, setSelected] = useState<PaymentMethodId | null>(
+    methods[0]?.id ?? null,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // DuitNow QR receipt: the picked file (held until place) and any upload error.
@@ -75,6 +87,12 @@ export function CheckoutScreen({
   // Guest nudge shown at Place Order (or when a guest taps a members-only
   // method like Cash). Dismissed by signing in or choosing to continue.
   const [showGuestModal, setShowGuestModal] = useState(false);
+  // The number to stamp on this order: a value entered in the prompt this
+  // attempt, else the member's saved profile number. Guests have no profile, so
+  // theirs only ever comes from the prompt.
+  const [enteredPhone, setEnteredPhone] = useState<string | null>(null);
+  // Controls the phone prompt sheet shown before placing when no number is known.
+  const [showPhonePrompt, setShowPhonePrompt] = useState(false);
 
   const hasItems = items.length > 0;
 
@@ -86,24 +104,27 @@ export function CheckoutScreen({
     if (hydrated && !hasItems && !placedNumber) router.replace("/cart");
   }, [hydrated, hasItems, placedNumber, router]);
 
-  // A guest can't keep Cash selected (it's pay-at-counter, members only). Once
-  // the auth state has loaded, move them to the first prepaid method so the
+  // A guest can't keep a members-only method (Cash) selected. Once the auth
+  // state has loaded, move them to the first non-gated enabled method so the
   // selector never sits on a locked option.
   useEffect(() => {
     if (!authHydrated || isAuthenticated) return;
-    const current = paymentMethods.find((m) => m.id === selected);
+    const current = methods.find((m) => m.id === selected);
     if (current?.requiresAuth) {
-      const fallback = paymentMethods.find((m) => !m.requiresAuth);
+      const fallback = methods.find((m) => !m.requiresAuth);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile selection once auth state is known
-      if (fallback) setSelected(fallback.id);
+      setSelected(fallback ? fallback.id : null);
     }
-  }, [authHydrated, isAuthenticated, selected]);
+  }, [authHydrated, isAuthenticated, selected, methods]);
 
   // Avoid a flash of the empty/redirecting state before localStorage loads.
   if (!placedNumber && (!hydrated || !hasItems)) return null;
 
-  const featured = paymentMethods.filter((m) => m.featured);
-  const others = paymentMethods.filter((m) => !m.featured);
+  // The currently selected method (null when nothing is selectable). Drives the
+  // method-specific blocks below (QR card, bank details, receipt upload).
+  const selectedMethod = methods.find((m) => m.id === selected) ?? null;
+  const featured = methods.filter((m) => m.featured);
+  const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
   // Beans this order would earn if the customer were signed in — drives the
   // guest nudge's headline. Mirrors the store's earn rule (floor of RM × rate).
@@ -112,7 +133,7 @@ export function CheckoutScreen({
   // Selecting a members-only method (Cash) as a guest opens the sign-in nudge
   // instead of switching to it; otherwise it's a normal selection.
   function selectMethod(id: PaymentMethodId) {
-    const method = paymentMethods.find((m) => m.id === id);
+    const method = methods.find((m) => m.id === id);
     if (!isAuthenticated && method?.requiresAuth) {
       setShowGuestModal(true);
       return;
@@ -120,12 +141,27 @@ export function CheckoutScreen({
     setSelected(id);
   }
 
-  // Place Order entry point. Guests see the nudge first; from there they sign
-  // in or continue (which calls placeOrder directly). Members place straight.
+  // The number to attach to this order, if any: one entered in the prompt this
+  // attempt, else the member's saved profile number.
+  function resolveContactPhone(): string | undefined {
+    return enteredPhone ?? profile.phone ?? undefined;
+  }
+
+  // Place Order entry point. Guests see the sign-in nudge first; members with no
+  // number on file get the phone prompt; everyone else places straight.
   function onPlaceOrder() {
     if (submitting) return;
+    if (!selected) {
+      setError("No payment method is available right now.");
+      return;
+    }
     if (!isAuthenticated) {
       setShowGuestModal(true);
+      return;
+    }
+    // Member with no number on file (and none entered yet): nudge first.
+    if (!resolveContactPhone()) {
+      setShowPhonePrompt(true);
       return;
     }
     void placeOrder();
@@ -138,11 +174,11 @@ export function CheckoutScreen({
     .filter((item) => item.isReward)
     .reduce((sum, item) => sum + (item.rewardCost ?? 0), 0);
 
-  async function placeOrder() {
+  async function placeOrder(phoneOverride?: string) {
     if (submitting) return;
     // Cash is members-only (pay-at-counter); a guest should never reach here
     // with it selected, but guard server-side intent anyway.
-    const method = paymentMethods.find((m) => m.id === selected);
+    const method = methods.find((m) => m.id === selected);
     if (!method) return;
     if (method.requiresAuth && !isAuthenticated) {
       setShowGuestModal(true);
@@ -159,8 +195,8 @@ export function CheckoutScreen({
       return;
     }
 
-    if (selected === "duitnow-qr" && !receiptFile) {
-      setError("Please attach your DuitNow QR payment receipt.");
+    if (method.requiresReceipt && !receiptFile) {
+      setError("Please attach your payment receipt.");
       return;
     }
 
@@ -171,7 +207,7 @@ export function CheckoutScreen({
       // ownerId sent to the action (the server validates they agree).
       const ownerId = getOrCreateOwnerId();
       let proofOfPaymentPath: string | undefined;
-      if (selected === "duitnow-qr" && receiptFile) {
+      if (method.requiresReceipt && receiptFile) {
         proofOfPaymentPath = await uploadReceipt(receiptFile, ownerId);
       }
 
@@ -195,6 +231,7 @@ export function CheckoutScreen({
         // automatically belong to the registered account afterwards.
         ownerId,
         proofOfPaymentPath,
+        contactPhone: phoneOverride ?? resolveContactPhone(),
       });
 
       if (!result.ok) {
@@ -297,6 +334,12 @@ export function CheckoutScreen({
         <h2 className="text-[0.6875rem] font-bold uppercase tracking-wider">
           Payment Method
         </h2>
+
+        {methods.length === 0 && (
+          <p className="rounded-2xl bg-neutral-50 px-4 py-3 text-xs text-muted-foreground">
+            Payments are temporarily unavailable. Please try again later or contact the store.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-2.5">
           {featured.map((method) => {
@@ -406,7 +449,65 @@ export function CheckoutScreen({
           </div>
         )}
 
-        {selected === "duitnow-qr" && (
+        {selected === "bank-transfer" &&
+          (bank.name || bank.accountNumber || bank.accountHolder ? (
+            <div className="relative mt-4 overflow-hidden rounded-2xl bg-neutral-900 p-5 text-white">
+              {/* Soft decorative glows give the panel a card-like feel without
+                  any imagery. */}
+              <div
+                className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-white/5"
+                aria-hidden
+              />
+              <div
+                className="pointer-events-none absolute -bottom-12 -left-8 size-32 rounded-full bg-white/[0.04]"
+                aria-hidden
+              />
+
+              <div className="relative flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+                    Bank
+                  </span>
+                  <span className="truncate font-heading text-lg font-bold tracking-tight">
+                    {bank.name || "—"}
+                  </span>
+                </div>
+                <Landmark className="size-6 shrink-0 text-white/40" strokeWidth={2} aria-hidden />
+              </div>
+
+              {bank.accountHolder && (
+                <div className="relative mt-3 flex flex-col gap-0.5">
+                  <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+                    Account holder
+                  </span>
+                  <span className="truncate text-sm font-medium">{bank.accountHolder}</span>
+                </div>
+              )}
+
+              <div className="relative mt-5 flex items-end justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
+                    Account number
+                  </span>
+                  <span className="break-all font-heading text-xl font-bold tabular-nums tracking-[0.08em]">
+                    {bank.accountNumber || "—"}
+                  </span>
+                </div>
+                {bank.accountNumber && (
+                  <CopyButton value={bank.accountNumber} label="account number" />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl border border-border bg-white px-4 py-3">
+              <p className="text-xs text-muted-foreground">
+                Bank details aren&rsquo;t set up yet. Please choose another method or contact the
+                store.
+              </p>
+            </div>
+          ))}
+
+        {selectedMethod?.requiresReceipt && (
           <div className="mt-2.5 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
             <label
               htmlFor="receipt"
@@ -533,7 +634,7 @@ export function CheckoutScreen({
       <button
         type="button"
         onClick={onPlaceOrder}
-        disabled={submitting}
+        disabled={submitting || !selected}
         className="mt-4 flex h-12 w-full items-center justify-between rounded-2xl bg-black px-5 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100 naise-rise [animation-delay:240ms]"
       >
         {submitting ? (
@@ -562,10 +663,66 @@ export function CheckoutScreen({
           onClose={() => setShowGuestModal(false)}
           onContinueAsGuest={() => {
             setShowGuestModal(false);
+            // Ask the guest for a number first (order-only), unless one was
+            // already entered this attempt.
+            if (!resolveContactPhone()) {
+              setShowPhonePrompt(true);
+              return;
+            }
             void placeOrder();
           }}
         />
       )}
+
+      {showPhonePrompt && (
+        <PhonePromptSheet
+          busy={submitting}
+          onClose={() => setShowPhonePrompt(false)}
+          onSkip={() => {
+            setShowPhonePrompt(false);
+            void placeOrder();
+          }}
+          onSubmit={(phone) => {
+            setEnteredPhone(phone);
+            setShowPhonePrompt(false);
+            // Members: also save to their profile for next time. Guests have no
+            // profile, so updateProfile no-ops (it early-returns for guests).
+            if (isAuthenticated) void updateProfile({ phone });
+            // Pass the number explicitly — setEnteredPhone hasn't re-rendered yet.
+            void placeOrder(phone);
+          }}
+        />
+      )}
     </main>
+  );
+}
+
+// Copy-to-clipboard button styled for the dark Bank Transfer card. Swaps to a
+// check for 1.5s on success; silently no-ops if the clipboard is unavailable
+// (insecure context / denied) — the value stays visible for manual copy.
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Nothing to surface — leave the value on screen for manual copy.
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
+      className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-white/20 outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+    >
+      {copied ? (
+        <Check className="size-4" strokeWidth={3} aria-hidden />
+      ) : (
+        <Copy className="size-4" strokeWidth={2} aria-hidden />
+      )}
+    </button>
   );
 }

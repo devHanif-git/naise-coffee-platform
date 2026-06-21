@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -123,9 +124,9 @@ export function ProductForm({
   }
 
   return (
-    <div className="flex flex-col gap-5 px-5 py-4">
+    <div className="flex max-w-2xl flex-col gap-5">
       <AdminBackLink href="/admin/menu" label="Back to Menu" />
-      <h1 className="font-heading text-lg font-bold tracking-tight">
+      <h1 className="font-heading text-xl font-bold tracking-tight">
         {product ? "Edit item" : "New item"}
       </h1>
 
@@ -134,7 +135,7 @@ export function ProductForm({
       <Field label="Name">
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Slug (optional — auto from name)">
+      <Field label="Slug (optional, auto from name)">
         <Input
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
@@ -153,7 +154,7 @@ export function ProductForm({
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
-          className="h-10 rounded-md border border-border bg-white px-3 text-sm"
+          className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {categories
             .filter((c) => !c.isArchived)
@@ -238,7 +239,7 @@ export function ProductForm({
         )}
       </div>
 
-      <Field label="Max add-ons (optional — defaults to category)">
+      <Field label="Max add-ons (optional, defaults to category)">
         <Input
           inputMode="numeric"
           value={maxAddons}
@@ -277,31 +278,32 @@ export function ProductForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-2xl border border-border p-3">
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
         <ToggleRow label="Available" checked={isAvailable} onChange={setIsAvailable} />
         <ToggleRow label="Best Seller" checked={isBestSeller} onChange={setIsBestSeller} />
         <ToggleRow label="New" checked={isNew} onChange={setIsNew} />
         <ToggleRow label="Featured" checked={isFeatured} onChange={setIsFeatured} />
       </div>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex gap-2 pb-8">
-        <button
+      <div className="flex gap-2">
+        <Button
           type="button"
+          variant="outline"
+          className="h-11 flex-1"
           onClick={() => router.push("/admin/menu")}
-          className="flex-1 rounded-2xl border border-border py-3 text-sm font-semibold"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          className="h-11 flex-1"
           onClick={submit}
           disabled={pending}
-          className="flex-1 rounded-2xl bg-black py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -330,8 +332,10 @@ function ModeButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-3 py-1.5 text-xs font-semibold",
-        active ? "border-black bg-black text-white" : "border-border",
+        "rounded-full border px-3 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border hover:bg-muted",
       )}
     >
       {children}

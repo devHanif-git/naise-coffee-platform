@@ -26,9 +26,10 @@ import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 
 // The full Rewards screen. Client component because it owns the info-modal
-// state and the "?" trigger. Data is passed in (mocked today, server-fetched
-// once the Supabase rewards tables land). Mobile-first: the layout targets the
-// app's max-w-md shell, scaling type/spacing up at sm.
+// state and the "?" trigger. Program config (tiers, catalog, milestones) is
+// server-fetched from Supabase and passed in; per-user values (Beans, streak)
+// come from the live client stores. Mobile-first: the layout targets the app's
+// max-w-md shell, scaling type/spacing up at sm.
 export function RewardsScreen({
   tiers,
   catalog,

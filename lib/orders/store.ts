@@ -44,6 +44,7 @@ export async function createOrder(
       subtotal: draft.subtotal,
       total: draft.total,
       notes: draft.notes ?? null,
+      contact_phone: draft.contactPhone ?? null,
       proof_of_payment_url: draft.proofOfPaymentUrl ?? null,
     })
     .select()
