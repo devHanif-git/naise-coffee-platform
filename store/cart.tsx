@@ -12,8 +12,8 @@ import {
 import type { CartItem } from "@/types/cart";
 import { useAuth } from "@/store/auth";
 
-const STORAGE_KEY = "naise-cart";
-const NOTES_STORAGE_KEY = "naise-cart-notes";
+const DEFAULT_STORAGE_KEY = "naise-cart";
+const DEFAULT_NOTES_STORAGE_KEY = "naise-cart-notes";
 
 // Identifies a line by product + size + sorted add-ons. Same drink, different
 // settings => different key => separate line. A reward line carries its
@@ -69,7 +69,15 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
+export function CartProvider({
+  children,
+  storageKey = DEFAULT_STORAGE_KEY,
+  notesStorageKey = DEFAULT_NOTES_STORAGE_KEY,
+}: {
+  children: React.ReactNode;
+  storageKey?: string;
+  notesStorageKey?: string;
+}) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [notes, setNotes] = useState("");
   const [hydrated, setHydrated] = useState(false);
@@ -91,28 +99,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // empty cart, avoiding a hydration mismatch.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(storageKey);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
       if (raw) setItems(JSON.parse(raw) as CartItem[]);
-      const storedNotes = localStorage.getItem(NOTES_STORAGE_KEY);
+      const storedNotes = localStorage.getItem(notesStorageKey);
       if (storedNotes) setNotes(storedNotes);
     } catch {
       // Ignore malformed/unavailable storage; start with an empty cart.
     }
     setHydrated(true);
-  }, []);
+  }, [storageKey, notesStorageKey]);
 
   // Persist on change, but only after the initial load so we never overwrite
   // stored data with the empty starting state.
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      localStorage.setItem(NOTES_STORAGE_KEY, notes);
+      localStorage.setItem(storageKey, JSON.stringify(items));
+      localStorage.setItem(notesStorageKey, notes);
     } catch {
       // Storage may be full or unavailable; cart still works in-memory.
     }
-  }, [items, notes, hydrated]);
+  }, [items, notes, hydrated, storageKey, notesStorageKey]);
 
   // Reward lines belong to the member who redeemed them. Once both the cart and
   // the auth session have loaded, drop any reward line not stamped with the
