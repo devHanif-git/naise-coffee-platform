@@ -178,6 +178,28 @@ export function ReportsView({
           />
         </div>
 
+        {/* Online vs in-store split. */}
+        <div className="grid grid-cols-2 gap-4">
+          <StatTile
+            label="Online orders"
+            value={String(data.totalsBySource.online.orders)}
+            foot={
+              <span className="text-xs text-muted-foreground">
+                {formatPrice(data.totalsBySource.online.revenue)}
+              </span>
+            }
+          />
+          <StatTile
+            label="In-store orders"
+            value={String(data.totalsBySource.store.orders)}
+            foot={
+              <span className="text-xs text-muted-foreground">
+                {formatPrice(data.totalsBySource.store.revenue)}
+              </span>
+            }
+          />
+        </div>
+
         {/* Top items + payment mix. */}
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">

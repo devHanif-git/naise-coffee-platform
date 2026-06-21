@@ -17,6 +17,11 @@ export type ReportData = {
     rewardLines: number;
     itemsSold: number; // total quantity across completed orders
   };
+  // Online vs in-store split of completed orders in the range.
+  totalsBySource: {
+    online: { orders: number; revenue: number };
+    store: { orders: number; revenue: number };
+  };
   previous: { orders: number; revenue: number }; // equal-length window immediately before
   trend: { date: string; revenue: number; orders: number }[]; // per KL day, completed
   topItems: { name: string; quantity: number; revenue: number }[]; // top 10, completed

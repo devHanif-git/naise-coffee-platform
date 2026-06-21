@@ -42,12 +42,19 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
 
   const { data: orders, error } = await db
     .from("orders")
-    .select("id, status, total, payment_method, created_at");
+    .select("id, status, total, payment_method, source, created_at");
   if (error) throw new Error(`getReportData failed: ${error.message}`);
 
   const completed = (orders ?? []).filter(
     (o) => klDate(o.created_at) >= start && o.status === "completed",
   );
+
+  // Online vs in-store split (completed orders in range).
+  const bySource = (src: "online" | "store") => {
+    const rows = completed.filter((o) => (o.source ?? "online") === src);
+    return { orders: rows.length, revenue: rows.reduce((s, o) => s + o.total, 0) };
+  };
+  const totalsBySource = { online: bySource("online"), store: bySource("store") };
 
   // Prior-period completed totals (revenue + order count) for delta arrows.
   let prevRevenue = 0;
@@ -111,6 +118,7 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
   return {
     range,
     totals: { orders: completed.length, revenue: totalsRevenue, redemptionBeans, rewardLines, itemsSold },
+    totalsBySource,
     previous: { orders: prevOrders, revenue: prevRevenue },
     trend,
     topItems,
