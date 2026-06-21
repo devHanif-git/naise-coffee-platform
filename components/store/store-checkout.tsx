@@ -25,7 +25,6 @@ export function StoreCheckout({
   const router = useRouter();
   const { items, totalPrice, notes, clear } = useCart();
   const [method, setMethod] = useState<Method | null>(cashOk ? "cash" : qrOk ? "duitnow-qr" : null);
-  const [showQr, setShowQr] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -63,10 +62,6 @@ export function StoreCheckout({
 
   function submit() {
     if (!method) return;
-    if (method === "duitnow-qr" && !showQr) {
-      setShowQr(true);
-      return;
-    }
     setError(null);
     startTransition(async () => {
       const res = await placeStoreOrder({
@@ -97,7 +92,7 @@ export function StoreCheckout({
 
       <div className="flex flex-col gap-2">
         {cashOk && (
-          <button type="button" onClick={() => { setMethod("cash"); setShowQr(false); }} aria-pressed={method === "cash"} className={`h-14 rounded-2xl border text-sm font-semibold ${method === "cash" ? "border-black bg-black text-white" : "border-border bg-white"}`}>
+          <button type="button" onClick={() => setMethod("cash")} aria-pressed={method === "cash"} className={`h-14 rounded-2xl border text-sm font-semibold ${method === "cash" ? "border-black bg-black text-white" : "border-border bg-white"}`}>
             Cash
           </button>
         )}
@@ -111,7 +106,7 @@ export function StoreCheckout({
         )}
       </div>
 
-      {method === "duitnow-qr" && showQr && (
+      {method === "duitnow-qr" && (
         <div className="flex flex-col items-center gap-3 rounded-2xl bg-neutral-50 p-6">
           <div className="relative size-64">
             <SmartImage src={qrUrl ?? images.qrDuitnow} alt="DuitNow QR" fill sizes="256px" className="object-contain" />
@@ -128,7 +123,7 @@ export function StoreCheckout({
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       <button type="button" onClick={submit} disabled={pending || !method || items.length === 0} className="h-14 rounded-2xl bg-black text-base font-semibold text-white disabled:opacity-40">
-        {method === "duitnow-qr" && !showQr ? "Show QR" : "Place order"}
+        Place order
       </button>
     </div>
   );
