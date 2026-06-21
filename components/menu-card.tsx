@@ -1,3 +1,5 @@
+"use client";
+
 import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
 import { Plus } from "lucide-react";
@@ -5,15 +7,17 @@ import type { Product } from "@/types/menu";
 import { getProductPricing } from "@/lib/promotions/pricing";
 import { PriceTag } from "@/components/price-tag";
 import { cn } from "@/lib/utils";
+import { useOrderRoutes } from "@/store/order-mode";
 
 export function MenuCard({ product }: { product: Product }) {
+  const routes = useOrderRoutes();
   const pricing = getProductPricing(product);
   const soldOut = !product.isAvailable;
   const onSale = !soldOut && pricing.percentOff > 0;
   return (
     <div className="flex items-center gap-3 py-4">
       <Link
-        href={`/menu/${product.slug}`}
+        href={routes.product(product.slug)}
         className="flex flex-1 items-center gap-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded-xl"
       >
         <div className="flex shrink-0 flex-col items-center">
@@ -66,7 +70,7 @@ export function MenuCard({ product }: { product: Product }) {
         </span>
       ) : (
         <Link
-          href={`/menu/${product.slug}`}
+          href={routes.product(product.slug)}
           aria-label={`Customize and add ${product.name}`}
           className="flex size-8 shrink-0 items-center justify-center rounded-full bg-black text-white transition-transform outline-none hover:scale-105 focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-95"
         >

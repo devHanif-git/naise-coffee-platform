@@ -46,6 +46,7 @@ export async function createOrder(
       notes: draft.notes ?? null,
       contact_phone: draft.contactPhone ?? null,
       proof_of_payment_url: draft.proofOfPaymentUrl ?? null,
+      source: draft.source ?? "online",
     })
     .select()
     .single();
