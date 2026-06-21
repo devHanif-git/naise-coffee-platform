@@ -31,3 +31,8 @@ export async function canManageOrders(): Promise<boolean> {
 export async function isAdmin(): Promise<boolean> {
   return (await getSessionRole()) === "admin";
 }
+
+// Whether the current session is the shared in-store kiosk account.
+export async function isStoreMode(): Promise<boolean> {
+  return (await getSessionRole()) === "store";
+}

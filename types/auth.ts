@@ -1,9 +1,12 @@
 // Roles mirror the set defined in AGENTS.md. `customer` is the default; the
 // management surfaces (order links, CMS) are gated to admin/manager/staff.
-export type Role = "admin" | "manager" | "staff" | "customer";
+// `store` is the shared in-store kiosk account — locked to the /store order
+// flow and deliberately NOT a management role.
+export type Role = "admin" | "manager" | "staff" | "store" | "customer";
 
 // Roles permitted to open an order management link. "Seller"-type access maps
-// onto staff/manager here.
+// onto staff/manager here. `store` is intentionally excluded so the kiosk can
+// never reach the staff board.
 export const MANAGE_ROLES: readonly Role[] = ["admin", "manager", "staff"];
 
 // How the customer signed in. Mocked today (no real OAuth/OTP yet); maps onto
