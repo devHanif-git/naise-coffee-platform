@@ -27,8 +27,13 @@ export function LoyaltySettingsForm({ initial }: { initial: AdminLoyaltySettings
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
-      <h2 className="font-heading text-base font-semibold">Loyalty settings</h2>
+    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-heading text-base font-semibold">Loyalty settings</h2>
+        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Earning
+        </span>
+      </div>
       <div className="flex flex-col gap-1.5">
         <Label>Beans per RM1</Label>
         <Input inputMode="numeric" value={beansPerRinggit} onChange={(e) => setBeans(e.target.value)} className="w-28 font-mono tabular-nums" />
@@ -45,7 +50,7 @@ export function LoyaltySettingsForm({ initial }: { initial: AdminLoyaltySettings
         </div>
       </div>
       {msg && <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"}>{msg.text}</p>}
-      <Button onClick={save} disabled={pending} className="self-start">
+      <Button onClick={save} disabled={pending} className="self-start rounded-full">
         {pending ? "Saving..." : "Save settings"}
       </Button>
     </section>

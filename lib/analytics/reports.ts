@@ -9,17 +9,36 @@ function klToday(): string {
   return KL.format(new Date());
 }
 
+const DAY_MS = 86_400_000;
+
 // Inclusive start day (YYYY-MM-DD) for a range, in KL time.
 function rangeStart(range: ReportRange, today: string): string {
   if (range === "today") return today;
   if (range === "month") return `${today.slice(0, 7)}-01`;
   const days = range === "7d" ? 6 : 29; // inclusive of today
-  return KL.format(new Date(Date.now() - days * 86_400_000));
+  return KL.format(new Date(Date.now() - days * DAY_MS));
+}
+
+// Shift a YYYY-MM-DD day key by whole days. Day keys are only ever compared as
+// calendar days, so plain UTC arithmetic is safe here.
+function shiftDay(dayKey: string, deltaDays: number): string {
+  return new Date(Date.parse(`${dayKey}T00:00:00Z`) + deltaDays * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
 }
 
 export async function getReportData(range: ReportRange): Promise<ReportData> {
   const db = await createClient();
-  const start = rangeStart(range, klToday());
+  const today = klToday();
+  const start = rangeStart(range, today);
+
+  // Equal-length window immediately before `start`, for period-over-period deltas.
+  const windowDays =
+    Math.round(
+      (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / DAY_MS,
+    ) + 1;
+  const prevEnd = shiftDay(start, -1);
+  const prevStart = shiftDay(start, -windowDays);
 
   const { data: orders, error } = await db
     .from("orders")
@@ -29,6 +48,18 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
   const completed = (orders ?? []).filter(
     (o) => klDate(o.created_at) >= start && o.status === "completed",
   );
+
+  // Prior-period completed totals (revenue + order count) for delta arrows.
+  let prevRevenue = 0;
+  let prevOrders = 0;
+  for (const o of orders ?? []) {
+    if (o.status !== "completed") continue;
+    const d = klDate(o.created_at);
+    if (d >= prevStart && d <= prevEnd) {
+      prevRevenue += o.total;
+      prevOrders += 1;
+    }
+  }
 
   const totalsRevenue = completed.reduce((s, o) => s + o.total, 0);
 
@@ -56,6 +87,7 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
   let topItems: { name: string; quantity: number; revenue: number }[] = [];
   let redemptionBeans = 0;
   let rewardLines = 0;
+  let itemsSold = 0;
   if (ids.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
@@ -67,6 +99,7 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
       const cur = map.get(it.name) ?? { quantity: 0, revenue: 0 };
       cur.quantity += it.quantity; cur.revenue += it.line_total;
       map.set(it.name, cur);
+      itemsSold += it.quantity;
       if (it.is_reward) { rewardLines += 1; redemptionBeans += it.reward_cost; }
     }
     topItems = [...map.entries()]
@@ -77,7 +110,8 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
 
   return {
     range,
-    totals: { orders: completed.length, revenue: totalsRevenue, redemptionBeans, rewardLines },
+    totals: { orders: completed.length, revenue: totalsRevenue, redemptionBeans, rewardLines, itemsSold },
+    previous: { orders: prevOrders, revenue: prevRevenue },
     trend,
     topItems,
     paymentBreakdown,

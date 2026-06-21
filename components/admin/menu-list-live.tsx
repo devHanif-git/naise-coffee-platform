@@ -85,13 +85,32 @@ export function MenuListLive({
     });
   }
 
-  const byCategory = categories.map((c) => ({
-    category: c,
-    items: visible.filter((p) => p.categoryId === c.id),
-  }));
+  const live = rows.filter((p) => !p.isArchived);
+  const counts = {
+    items: live.length,
+    available: live.filter((p) => p.isAvailable).length,
+    hidden: live.filter((p) => !p.isAvailable).length,
+    archived: rows.filter((p) => p.isArchived).length,
+  };
+
+  const byCategory = categories
+    .map((c) => ({
+      category: c,
+      items: visible.filter((p) => p.categoryId === c.id),
+    }))
+    .filter(({ items }) => items.length > 0);
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Roster summary — Hidden carries the amber accent: items customers
+          can't currently order, the thing a manager scans for. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Stat value={counts.items} label="items" />
+        <Stat value={counts.available} label="available" tone="ok" />
+        <Stat value={counts.hidden} label="hidden" tone="warn" />
+        <Stat value={counts.archived} label="archived" tone="muted" />
+      </div>
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -100,7 +119,7 @@ export function MenuListLive({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search items..."
             aria-label="Search items"
-            className="h-10 pl-10"
+            className="h-10 rounded-full pl-10"
           />
         </div>
         <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -109,30 +128,39 @@ export function MenuListLive({
         </label>
       </div>
 
-      {byCategory.map(({ category, items }) => (
-        <section key={category.id} className="flex flex-col gap-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            {category.name}
-          </h2>
-          {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No items.</p>
-          ) : (
+      {byCategory.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-12 text-center text-sm text-muted-foreground">
+          {query.trim()
+            ? `No items match “${query.trim()}”.`
+            : "No items yet."}
+        </div>
+      ) : (
+        byCategory.map(({ category, items }) => (
+          <section key={category.id} className="flex flex-col gap-3">
+            <div className="flex items-baseline justify-between">
+              <h2 className="font-heading text-base font-semibold">
+                {category.name}
+              </h2>
+              <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {items.length} item{items.length === 1 ? "" : "s"}
+              </span>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((p) => (
                 <div
                   key={p.id}
                   className={cn(
-                    "flex flex-col gap-3 rounded-xl border border-border bg-card p-3 transition-colors",
-                    p.isArchived && "opacity-50",
+                    "flex flex-col gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors",
+                    p.isArchived && "opacity-60",
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-muted">
+                  <div className="flex items-start gap-3">
+                    <div className="relative size-14 shrink-0 overflow-hidden rounded-xl bg-muted">
                       <SmartImage
                         src={p.imageUrl ?? images.coffeeWithLogo}
                         alt={p.name}
                         fill
-                        sizes="48px"
+                        sizes="56px"
                         className="object-contain"
                       />
                     </div>
@@ -143,19 +171,33 @@ export function MenuListLive({
                       <span className="truncate text-sm font-semibold">
                         {p.name}
                       </span>
-                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      <span className="font-mono text-sm font-medium text-muted-foreground tabular-nums">
                         {formatPrice(p.fromPrice)}
                       </span>
                     </Link>
-                    <label className="flex flex-col items-center gap-1 text-xs font-medium text-muted-foreground">
-                      Available
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <Switch
                         checked={p.isAvailable}
                         onCheckedChange={(v) => onAvailability(p, v)}
+                        aria-label={`${p.name} available`}
                       />
-                    </label>
+                      <span
+                        className={cn(
+                          "flex items-center gap-1 text-[0.7rem] font-semibold",
+                          p.isAvailable ? "text-emerald-600" : "text-amber-600",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            p.isAvailable ? "bg-emerald-500" : "bg-amber-500",
+                          )}
+                        />
+                        {p.isAvailable ? "Available" : "Hidden"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
                     <FlagChip
                       label="Best Seller"
                       active={p.isBestSeller}
@@ -181,10 +223,41 @@ export function MenuListLive({
                 </div>
               ))}
             </div>
-          )}
-        </section>
-      ))}
+          </section>
+        ))
+      )}
     </div>
+  );
+}
+
+// Compact roster figure: mono count + label, with an optional status tone.
+function Stat({
+  value,
+  label,
+  tone = "default",
+}: {
+  value: number;
+  label: string;
+  tone?: "default" | "ok" | "warn" | "muted";
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-sm">
+      <span
+        className={cn(
+          "font-mono font-bold tabular-nums",
+          tone === "warn" && value > 0
+            ? "text-amber-600"
+            : tone === "ok"
+              ? "text-emerald-600"
+              : tone === "muted"
+                ? "text-muted-foreground"
+                : "text-foreground",
+        )}
+      >
+        {value}
+      </span>
+      <span className="text-muted-foreground">{label}</span>
+    </span>
   );
 }
 

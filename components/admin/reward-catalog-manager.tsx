@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { images } from "@/constants/images";
+import { SmartImage } from "@/components/ui/smart-image";
 import { ImageUpload } from "@/components/admin/image-upload";
 import type { AdminRewardItem } from "@/lib/rewards/types";
 import type { AdminProduct } from "@/lib/menu/types";
@@ -17,17 +19,26 @@ export function RewardCatalogManager({
   const [, startTransition] = useTransition();
   function reload() { startTransition(() => window.location.reload()); }
 
+  const activeCount = initial.filter((r) => r.isActive && !r.isArchived).length;
+
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
-      <h2 className="font-heading text-base font-semibold">Reward catalog</h2>
-      <div className="flex flex-col gap-2">
-        {initial.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No rewards yet. Add your first reward below.</p>
-        ) : (
-          initial.map((r) => <RewardRow key={r.id} reward={r} products={products} onChanged={reload} />)
-        )}
+    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-heading text-base font-semibold">Reward catalog</h2>
+        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {activeCount} live
+        </span>
       </div>
-      <div className="border-t border-border pt-3">
+      {initial.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-8 text-center text-sm text-muted-foreground">
+          No rewards yet. Add your first below.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {initial.map((r) => <RewardRow key={r.id} reward={r} products={products} onChanged={reload} />)}
+        </div>
+      )}
+      <div className="border-t border-border pt-4">
         <RewardEditor products={products} onChanged={reload} />
       </div>
     </section>
@@ -65,7 +76,7 @@ function RewardEditor({
         {products.filter((p) => !p.isArchived).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button onClick={save} className="self-start">{reward ? "Save" : "Add reward"}</Button>
+      <Button onClick={save} className="self-start rounded-full">{reward ? "Save" : "Add reward"}</Button>
     </div>
   );
 }
@@ -77,24 +88,45 @@ function RewardRow({
   const [, startTransition] = useTransition();
 
   return (
-    <div className={cn("rounded-xl border border-border bg-card p-3", reward.isArchived && "opacity-50")}>
+    <div className={cn("rounded-2xl border border-border bg-card p-3", reward.isArchived && "opacity-60")}>
       <div className="flex items-center gap-3">
-        <div className="flex flex-1 flex-col">
-          <span className="text-sm font-semibold">{reward.name}</span>
-          <span className="text-xs text-muted-foreground"><span className="font-mono tabular-nums">{reward.cost.toLocaleString()}</span> Beans · {reward.productName}</span>
+        <div className="relative size-12 shrink-0 overflow-hidden rounded-xl bg-muted">
+          <SmartImage
+            src={reward.imageUrl ?? images.coffeeWithLogo}
+            alt={reward.name}
+            fill
+            sizes="48px"
+            className="object-contain"
+          />
         </div>
-        <label className="flex flex-col items-center gap-1 text-xs font-medium text-muted-foreground">
-          Active
-          <Switch checked={reward.isActive} onCheckedChange={(v) => startTransition(async () => { await setRewardActive(reward.id, v); onChanged(); })} />
-        </label>
-        <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "Edit"}</Button>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-2 truncate text-sm font-semibold">
+            {reward.name}
+            {reward.isArchived && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                Archived
+              </span>
+            )}
+          </span>
+          <span className="truncate text-xs text-muted-foreground">
+            <span className="font-mono font-medium tabular-nums text-foreground">{reward.cost.toLocaleString()}</span> Beans · {reward.productName}
+          </span>
+        </div>
+        <Switch
+          checked={reward.isActive}
+          aria-label={`${reward.name} active`}
+          onCheckedChange={(v) => startTransition(async () => { await setRewardActive(reward.id, v); onChanged(); })}
+        />
+        <Button variant="outline" size="sm" className="rounded-full" onClick={() => setOpen((v) => !v)}>{open ? "Close" : "Edit"}</Button>
       </div>
-      <div className="mt-2 flex justify-end">
-        <Button variant="outline" size="sm" onClick={() => startTransition(async () => { await setRewardArchived(reward.id, !reward.isArchived); onChanged(); })}>
-          {reward.isArchived ? "Restore" : "Archive"}
-        </Button>
-      </div>
-      {open && <div className="mt-3 border-t border-border pt-3"><RewardEditor reward={reward} products={products} onChanged={onChanged} /></div>}
+      {open && (
+        <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3">
+          <RewardEditor reward={reward} products={products} onChanged={onChanged} />
+          <Button variant="outline" size="sm" className="self-start rounded-full" onClick={() => startTransition(async () => { await setRewardArchived(reward.id, !reward.isArchived); onChanged(); })}>
+            {reward.isArchived ? "Restore" : "Archive"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -73,9 +73,9 @@ export function CategoryManager({
         description="Order, rename, and set default add-ons for each menu category."
       />
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <h2 className="font-heading text-base font-semibold">New category</h2>
-        <div className="mt-3 flex items-end gap-2">
+        <div className="flex items-end gap-2">
           <div className="flex flex-1 flex-col gap-1.5">
             <Label htmlFor="new-category">Name</Label>
             <Input
@@ -85,42 +85,63 @@ export function CategoryManager({
               placeholder="e.g. Pastries"
             />
           </div>
-          <Button onClick={add}>Add</Button>
+          <Button onClick={add} className="rounded-full">
+            Add category
+          </Button>
         </div>
-        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-      </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </section>
 
-      {cats.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No categories yet.</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {cats.map((c, i) => (
-            <CategoryRow
-              key={c.id}
-              category={c}
-              addons={addons}
-              onUp={() => move(i, -1)}
-              onDown={() => move(i, 1)}
-              onChanged={refreshFromServer}
-            />
-          ))}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-heading text-base font-semibold">Display order</h2>
+          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Top shows first
+          </span>
         </div>
-      )}
+        {cats.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-12 text-center text-sm text-muted-foreground">
+            No categories yet.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {cats.map((c, i) => (
+              <CategoryRow
+                key={c.id}
+                index={i}
+                category={c}
+                addons={addons}
+                onUp={() => move(i, -1)}
+                onDown={() => move(i, 1)}
+                isFirst={i === 0}
+                isLast={i === cats.length - 1}
+                onChanged={refreshFromServer}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
 
 function CategoryRow({
+  index,
   category,
   addons,
   onUp,
   onDown,
+  isFirst,
+  isLast,
   onChanged,
 }: {
+  index: number;
   category: AdminCategory;
   addons: AdminAddon[];
   onUp: () => void;
   onDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -161,16 +182,20 @@ function CategoryRow({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card p-4",
-        category.isArchived && "opacity-50",
+        "rounded-2xl border border-border bg-card p-3 sm:p-4",
+        category.isArchived && "opacity-60",
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted font-mono text-xs font-bold tabular-nums text-muted-foreground">
+          {index + 1}
+        </span>
         <div className="flex flex-col">
           <Button
             variant="ghost"
             size="icon-sm"
             onClick={onUp}
+            disabled={isFirst}
             aria-label="Move up"
           >
             <ChevronUp className="size-4 text-muted-foreground" />
@@ -179,15 +204,30 @@ function CategoryRow({
             variant="ghost"
             size="icon-sm"
             onClick={onDown}
+            disabled={isLast}
             aria-label="Move down"
           >
             <ChevronDown className="size-4 text-muted-foreground" />
           </Button>
         </div>
-        <span className="flex-1 text-sm font-semibold">{category.name}</span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-2 truncate text-sm font-semibold">
+            {category.name}
+            {category.isArchived && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground">
+                Archived
+              </span>
+            )}
+          </span>
+          <span className="text-[0.7rem] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+            {category.addonIds.length} add-on
+            {category.addonIds.length === 1 ? "" : "s"} · max {category.maxAddons}
+          </span>
+        </div>
         <Button
-          variant="ghost"
+          variant={open ? "secondary" : "ghost"}
           size="sm"
+          className="rounded-full"
           onClick={() => setOpen((v) => !v)}
         >
           {open ? "Close" : "Edit"}
@@ -195,7 +235,7 @@ function CategoryRow({
       </div>
 
       {open && (
-        <div className="mt-4 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`name-${category.id}`}>Name</Label>
             <Input
@@ -221,26 +261,39 @@ function CategoryRow({
                 No add-ons available.
               </p>
             ) : (
-              activeAddons.map((a) => (
-                <label
-                  key={a.id}
-                  className="flex items-center gap-3 py-1 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    checked={picked.has(a.id)}
-                    onChange={() => toggleAddon(a.id)}
-                    className="size-4 rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                  />
-                  <span className="flex-1">{a.name}</span>
-                </label>
-              ))
+              <div className="flex flex-col divide-y divide-border">
+                {activeAddons.map((a) => {
+                  const checked = picked.has(a.id);
+                  return (
+                    <label
+                      key={a.id}
+                      className="flex cursor-pointer items-center gap-3 py-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAddon(a.id)}
+                        className="size-4 accent-foreground rounded-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                      />
+                      <span
+                        className={cn("flex-1", !checked && "text-muted-foreground")}
+                      >
+                        {a.name}
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                        RM {(a.price / 100).toFixed(2)}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-2">
             <Button
               variant="outline"
+              className="rounded-full"
               onClick={() => {
                 setError(null);
                 startTransition(async () => {
@@ -259,7 +312,7 @@ function CategoryRow({
             >
               {category.isArchived ? "Restore" : "Archive"}
             </Button>
-            <Button onClick={save} className="flex-1">
+            <Button onClick={save} className="flex-1 rounded-full">
               Save
             </Button>
           </div>

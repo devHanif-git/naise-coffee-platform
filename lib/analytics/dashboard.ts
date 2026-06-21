@@ -23,20 +23,27 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const month = today.slice(0, 7); // YYYY-MM
   const cutoff30 = KL.format(new Date(Date.now() - 30 * 86_400_000));
 
-  let todayOrders = 0, todayRevenue = 0, todayInProgress = 0;
+  let todayOrders = 0, todayRevenue = 0, todayInProgress = 0, todayCompleted = 0;
   let monthOrders = 0, monthRevenue = 0;
   const activeUsers = new Set<string>();
   const statusCounts = new Map<string, number>();
   const monthCompletedIds: string[] = [];
+  const dayRevenue = new Map<string, number>(); // KL day -> completed revenue (sen)
 
   for (const o of orders ?? []) {
     const d = klDate(o.created_at);
     const m = d.slice(0, 7);
     statusCounts.set(o.status, (statusCounts.get(o.status) ?? 0) + 1);
+    if (o.status === "completed") {
+      dayRevenue.set(d, (dayRevenue.get(d) ?? 0) + o.total);
+    }
 
     if (d === today) {
       todayOrders++;
-      if (o.status === "completed") todayRevenue += o.total;
+      if (o.status === "completed") {
+        todayRevenue += o.total;
+        todayCompleted++;
+      }
       if (IN_PROGRESS.has(o.status)) todayInProgress++;
     }
     if (m === month) {
@@ -48,6 +55,12 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     }
     if (d >= cutoff30 && o.user_id) activeUsers.add(o.user_id);
   }
+
+  // Last 14 KL days, oldest -> newest, zero-filled so the trend line is continuous.
+  const trend14 = Array.from({ length: 14 }, (_, i) => {
+    const date = KL.format(new Date(Date.now() - (13 - i) * 86_400_000));
+    return { date, revenue: dayRevenue.get(date) ?? 0 };
+  });
 
   let topSellers: { name: string; quantity: number }[] = [];
   if (monthCompletedIds.length > 0) {
@@ -67,8 +80,19 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   }
 
   return {
-    today: { orders: todayOrders, revenue: todayRevenue, inProgress: todayInProgress },
-    month: { orders: monthOrders, revenue: monthRevenue, activeCustomers: activeUsers.size },
+    today: {
+      orders: todayOrders,
+      revenue: todayRevenue,
+      inProgress: todayInProgress,
+      completed: todayCompleted,
+    },
+    month: {
+      orders: monthOrders,
+      revenue: monthRevenue,
+      activeCustomers: activeUsers.size,
+      completed: monthCompletedIds.length,
+    },
+    trend14,
     topSellers,
     statusBreakdown: [...statusCounts.entries()].map(([status, count]) => ({ status, count })),
   };
