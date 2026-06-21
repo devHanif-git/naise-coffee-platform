@@ -2,10 +2,11 @@
 // this user's password (set/rotated from admin). Not a secret on its own.
 export const STORE_ACCOUNT_EMAIL = "store@naise.coffee";
 
-// owner_id stamped on every kiosk order. orders.owner_id is NOT NULL; kiosk
-// orders have no per-browser identity, so they share this sentinel. A real
-// customer can never have this value, so it never collides with order claiming.
-export const STORE_OWNER_ID = "store-kiosk";
+// owner_id stamped on every kiosk order. orders.owner_id is NOT NULL and is
+// guarded by a UUID-format CHECK constraint, so this must be a valid UUID. Kiosk
+// orders have no per-browser identity, so they share this fixed sentinel — a
+// real customer's random owner_id can never collide with it.
+export const STORE_OWNER_ID = "00000000-0000-4000-8000-000000005702";
 
 // Separate localStorage keys so the kiosk cart never collides with the
 // customer-app cart on the same browser.
