@@ -5,14 +5,16 @@ import { SmartImage } from "@/components/ui/smart-image";
 import { Download, Loader2 } from "lucide-react";
 import { images } from "@/constants/images";
 
-const QR_SRC = images.qrDuitnow;
 const SAVE_FILENAME = "naise-duitnow-qr.png";
 
 // Shows the branded DuitNow QR card and a "Save to device" action so the
 // customer can scan in their bank app or stash the image in their gallery and
 // scan it from another phone. The PNG is already a finished card (header, logo,
 // QR, brand) — we just frame it and hang the save button beneath.
-export function DuitnowQrCard() {
+// `src` is the CMS-uploaded QR URL; when absent we fall back to the bundled
+// asset so the card never renders empty.
+export function DuitnowQrCard({ src }: { src?: string }) {
+  const QR_SRC = src ?? images.qrDuitnow;
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

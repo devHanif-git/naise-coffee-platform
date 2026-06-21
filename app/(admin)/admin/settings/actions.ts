@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/auth/session";
 import type { StoreSettings } from "@/lib/settings/types";
 import type { PaymentSettings } from "@/lib/settings/payments";
@@ -70,6 +71,8 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
       bank_name: input.bank.name.trim(),
       bank_account_number: accountNumber,
       bank_account_holder: input.bank.accountHolder.trim(),
+      // Empty/blank normalizes to null so checkout falls back to the bundled QR.
+      duitnow_qr_url: input.duitnowQrUrl?.trim() ? input.duitnowQrUrl.trim() : null,
     })
     .eq("id", true)
     .select("id")
@@ -82,4 +85,30 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
   revalidatePath("/admin/settings");
   revalidatePath("/checkout");
   return { ok: true };
+}
+
+// Upload the merchant DuitNow QR to the public `payments` bucket and return its
+// URL. Uses the service-role client so the write succeeds regardless of cookie
+// propagation; the action is admin-gated above. Mirrors uploadProductImage.
+export async function uploadDuitnowQr(
+  formData: FormData,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0)
+    return { ok: false, error: "No file." };
+  if (file.size > 5_242_880) return { ok: false, error: "Image must be under 5 MB." };
+  const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+  if (!allowed.has(file.type))
+    return { ok: false, error: "Only JPEG, PNG, and WebP images are allowed." };
+
+  const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const db = createAdminClient();
+  const { error } = await db.storage
+    .from("payments")
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (error) return { ok: false, error: error.message };
+  const { data } = db.storage.from("payments").getPublicUrl(path);
+  return { ok: true, url: data.publicUrl };
 }

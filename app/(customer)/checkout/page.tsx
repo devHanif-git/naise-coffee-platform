@@ -15,6 +15,7 @@ export default async function CheckoutPage() {
       closedMessage={settings.isOpen ? null : settings.closedMessage}
       methods={methods}
       bank={payments.bank}
+      duitnowQrUrl={payments.duitnowQrUrl}
     />
   );
 }

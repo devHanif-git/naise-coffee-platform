@@ -15,6 +15,8 @@ export type PaymentSettings = {
   categories: Record<PaymentCategoryId, boolean>;
   methods: Record<PaymentMethodId, boolean>;
   bank: BankDetails;
+  // Public URL of the uploaded DuitNow QR; null = use the bundled fallback.
+  duitnowQrUrl: string | null;
 };
 
 // Safe defaults if the row is missing or unreadable. Payment config FAILS OPEN
@@ -33,6 +35,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
     "bank-transfer": true,
   },
   bank: { name: "", accountNumber: "", accountHolder: "" },
+  duitnowQrUrl: null,
 };
 
 type Row = {
@@ -52,13 +55,14 @@ type Row = {
   bank_name: string;
   bank_account_number: string;
   bank_account_holder: string;
+  duitnow_qr_url: string | null;
 };
 
 const COLUMNS =
   "cash_enabled, qr_enabled, card_enabled, ewallet_enabled, bank_enabled, " +
   "cash_method_enabled, duitnow_qr_enabled, apple_pay_enabled, google_pay_enabled, " +
   "tng_ewallet_enabled, boost_enabled, grabpay_enabled, bank_transfer_enabled, " +
-  "bank_name, bank_account_number, bank_account_holder";
+  "bank_name, bank_account_number, bank_account_holder, duitnow_qr_url";
 
 function map(row: Row): PaymentSettings {
   return {
@@ -84,6 +88,7 @@ function map(row: Row): PaymentSettings {
       accountNumber: row.bank_account_number,
       accountHolder: row.bank_account_holder,
     },
+    duitnowQrUrl: row.duitnow_qr_url,
   };
 }
 

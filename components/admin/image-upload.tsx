@@ -5,12 +5,24 @@ import { SmartImage } from "@/components/ui/smart-image";
 import { images } from "@/constants/images";
 import { uploadProductImage } from "@/app/(admin)/admin/menu/actions";
 
+type UploadResult = { ok: true; url: string } | { ok: false; error: string };
+
 export function ImageUpload({
   value,
   onChange,
+  upload = uploadProductImage,
+  placeholder = images.coffeeWithLogo,
+  alt = "Product image",
 }: {
   value: string | null;
   onChange: (url: string | null) => void;
+  // Server action that stores the file and returns its public URL. Defaults to
+  // the product-image uploader so existing callers are unaffected.
+  upload?: (formData: FormData) => Promise<UploadResult>;
+  // Thumbnail shown when `value` is null.
+  placeholder?: string;
+  // Alt text for the thumbnail image.
+  alt?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -23,7 +35,7 @@ export function ImageUpload({
     fd.set("file", file);
     startTransition(async () => {
       try {
-        const res = await uploadProductImage(fd);
+        const res = await upload(fd);
         if (res.ok) onChange(res.url);
         else setError(res.error);
       } catch {
@@ -36,8 +48,8 @@ export function ImageUpload({
     <div className="flex items-center gap-3">
       <div className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-border bg-muted">
         <SmartImage
-          src={value ?? images.coffeeWithLogo}
-          alt="Product image"
+          src={value ?? placeholder}
+          alt={alt}
           fill
           sizes="80px"
           className="object-contain"
