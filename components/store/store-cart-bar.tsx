@@ -21,7 +21,7 @@ export function StoreCartBar() {
       <Link
         href="/store/cart"
         aria-label="Cart (empty)"
-        className="naise-fade fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] left-5 z-40 flex size-14 items-center justify-center rounded-full bg-black text-white shadow-lg outline-none transition-transform hover:scale-105 active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="naise-fade fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-40 flex size-14 items-center justify-center rounded-full bg-black text-white shadow-lg outline-none transition-transform hover:scale-105 active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <ShoppingBag className="size-6" aria-hidden />
       </Link>
