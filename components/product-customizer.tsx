@@ -11,6 +11,7 @@ import { useCart } from "@/store/cart";
 import { useBeans } from "@/store/beans";
 import { useAuth } from "@/store/auth";
 import { applyDiscount, getProductDiscount } from "@/lib/promotions/pricing";
+import { useOrderRoutes } from "@/store/order-mode";
 
 export function ProductCustomizer({
   product,
@@ -20,6 +21,7 @@ export function ProductCustomizer({
   catalog: Reward[];
 }) {
   const router = useRouter();
+  const routes = useOrderRoutes();
   const searchParams = useSearchParams();
   const editKey = searchParams.get("edit") ?? undefined;
   const { items, addItem, updateItem } = useCart();
@@ -139,15 +141,18 @@ export function ProductCustomizer({
     if (isEditing && editKey) {
       const merged = updateItem(editKey, input);
       router.push(
-        merged ? `/cart?merged=${encodeURIComponent(product.name)}` : "/cart",
+        merged
+          ? `${routes.cart}?merged=${encodeURIComponent(product.name)}`
+          : routes.cart,
       );
       return;
     }
 
     addItem(input);
     // A redeemed reward returns to Rewards (where the redemption started); a
-    // normal add returns to the menu to keep browsing.
-    router.push(isReward ? "/rewards" : "/menu");
+    // normal add returns to the menu to keep browsing. Reward mode never engages
+    // in the kiosk (empty catalog), so it always lands on the menu there.
+    router.push(isReward ? "/rewards" : routes.menu);
   }
 
   return (

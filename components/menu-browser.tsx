@@ -9,6 +9,7 @@ import { MenuCard } from "@/components/menu-card";
 import { Reveal } from "@/components/reveal";
 import { CategoryTabs, type Filter } from "@/components/category-tabs";
 import { getBasePrice } from "@/lib/menu/pricing";
+import { useOrderRoutes } from "@/store/order-mode";
 
 type SortKey = "popular" | "price-asc" | "price-desc";
 
@@ -19,6 +20,7 @@ export function MenuBrowser({
   categories: Category[];
   products: Product[];
 }) {
+  const routes = useOrderRoutes();
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("popular");
@@ -53,13 +55,17 @@ export function MenuBrowser({
       <div className="sticky top-0 z-20 bg-black">
         <header className="px-5 pb-4 pt-3 text-white">
           <div className="flex items-center justify-between">
-            <Link
-              href="/"
-              aria-label="Go back"
-              className="flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-            >
-              <ChevronLeft className="size-6" />
-            </Link>
+            {routes.mode === "customer" ? (
+              <Link
+                href="/"
+                aria-label="Go back"
+                className="flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
+              >
+                <ChevronLeft className="size-6" />
+              </Link>
+            ) : (
+              <div className="size-9" aria-hidden />
+            )}
             <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
               MENU
             </h1>
