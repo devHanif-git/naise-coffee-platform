@@ -63,6 +63,9 @@ export type Order = {
   // completed; cleared if a drink is re-opened. Absent until then. Maps to
   // orders.completed_at in Supabase later.
   completedAt?: string;
+  // Channel the order came from. Defaults to "online" for the storefront; the
+  // in-store kiosk sets "store". Maps to orders.source.
+  source?: "online" | "store";
 };
 
 // The fields a caller supplies when placing an order. The store fills in the

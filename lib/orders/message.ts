@@ -29,6 +29,10 @@ export function buildOrderMessage(
     `Payment: ${order.paymentMethod}`,
   ];
 
+  if (order.source === "store") {
+    parts.push("Source: Store Kiosk");
+  }
+
   if (order.contactPhone) {
     parts.push(`Contact: ${order.contactPhone}`);
   }

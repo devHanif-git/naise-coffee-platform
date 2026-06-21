@@ -39,5 +39,6 @@ export function rowToOrder(order: OrderRow, items: OrderItemRow[]): Order {
     proofOfPaymentUrl: order.proof_of_payment_url ?? undefined,
     createdAt: order.created_at,
     completedAt: order.completed_at ?? undefined,
+    source: order.source,
   };
 }
