@@ -240,6 +240,7 @@ export type Database = {
           owner_id: string
           payment_method: string
           proof_of_payment_url: string | null
+          source: Database["public"]["Enums"]["order_source"]
           status: Database["public"]["Enums"]["order_status"]
           subtotal: number
           token: string
@@ -258,6 +259,7 @@ export type Database = {
           owner_id: string
           payment_method: string
           proof_of_payment_url?: string | null
+          source?: Database["public"]["Enums"]["order_source"]
           status?: Database["public"]["Enums"]["order_status"]
           subtotal: number
           token?: string
@@ -276,6 +278,7 @@ export type Database = {
           owner_id?: string
           payment_method?: string
           proof_of_payment_url?: string | null
+          source?: Database["public"]["Enums"]["order_source"]
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
           token?: string
@@ -744,6 +747,30 @@ export type Database = {
         }
         Relationships: []
       }
+      store_account: {
+        Row: {
+          id: boolean
+          is_enabled: boolean
+          last_rotated_at: string | null
+          store_user_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          is_enabled?: boolean
+          last_rotated_at?: string | null
+          store_user_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          is_enabled?: boolean
+          last_rotated_at?: string | null
+          store_user_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       store_settings: {
         Row: {
           closed_message: string
@@ -869,13 +896,14 @@ export type Database = {
         | "referral"
         | "adjustment"
       item_status: "pending" | "preparing" | "done"
+      order_source: "online" | "store"
       order_status:
         | "pending"
         | "preparing"
         | "ready"
         | "completed"
         | "cancelled"
-      user_role: "admin" | "manager" | "staff" | "customer"
+      user_role: "admin" | "manager" | "staff" | "customer" | "store"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1011,8 +1039,9 @@ export const Constants = {
         "adjustment",
       ],
       item_status: ["pending", "preparing", "done"],
+      order_source: ["online", "store"],
       order_status: ["pending", "preparing", "ready", "completed", "cancelled"],
-      user_role: ["admin", "manager", "staff", "customer"],
+      user_role: ["admin", "manager", "staff", "customer", "store"],
     },
   },
 } as const
