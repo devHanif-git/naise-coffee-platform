@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { ImageUpload } from "@/components/admin/image-upload";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
+import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { saveProduct } from "@/app/(admin)/admin/menu/actions";
 import type {
   AdminAddon,
@@ -123,189 +124,260 @@ export function ProductForm({
     });
   }
 
+  const activeAddons = addons.filter((a) => !a.isArchived);
+
   return (
-    <div className="flex max-w-2xl flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
       <AdminBackLink href="/admin/menu" label="Back to Menu" />
-      <h1 className="font-heading text-xl font-bold tracking-tight">
-        {product ? "Edit item" : "New item"}
-      </h1>
+      <AdminPageHeader
+        title={product ? "Edit item" : "New item"}
+        description="Details, pricing, add-ons, and where it shows."
+      />
 
-      <ImageUpload value={imageUrl} onChange={setImageUrl} />
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        {/* Main column — the substance of the item. */}
+        <div className="flex flex-col gap-4 lg:col-span-2">
+          <Panel title="Details">
+            <Field label="Name">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field label="Slug (optional, auto from name)">
+              <Input
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                placeholder="auto"
+              />
+            </Field>
+            <Field label="Description">
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+              />
+            </Field>
+            <Field label="Category">
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {categories
+                  .filter((c) => !c.isArchived)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          </Panel>
 
-      <Field label="Name">
-        <Input value={name} onChange={(e) => setName(e.target.value)} />
-      </Field>
-      <Field label="Slug (optional, auto from name)">
-        <Input
-          value={slug}
-          onChange={(e) => setSlug(e.target.value)}
-          placeholder="auto"
-        />
-      </Field>
-      <Field label="Description">
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-        />
-      </Field>
-
-      <Field label="Category">
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {categories
-            .filter((c) => !c.isArchived)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-        </select>
-      </Field>
-
-      <div className="flex flex-col gap-2">
-        <Label>Pricing</Label>
-        <div className="flex gap-2">
-          <ModeButton
-            active={pricingMode === "variants"}
-            onClick={() => setPricingMode("variants")}
+          <Panel
+            title="Pricing"
+            hint={pricingMode === "variants" ? "By size" : "Flat"}
           >
-            Sizes
-          </ModeButton>
-          <ModeButton
-            active={pricingMode === "flat"}
-            onClick={() => setPricingMode("flat")}
-          >
-            Flat price
-          </ModeButton>
-        </div>
-        {pricingMode === "flat" ? (
-          <Input
-            inputMode="decimal"
-            value={basePrice}
-            onChange={(e) => setBasePrice(e.target.value)}
-            placeholder="0.00"
-          />
-        ) : (
-          <div className="flex flex-col gap-2">
-            {variants.map((v, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Input
-                  value={v.name}
-                  onChange={(e) =>
-                    setVariants((p) =>
-                      p.map((x, j) =>
-                        j === i ? { ...x, name: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  placeholder="Size name"
-                  className="flex-1"
-                />
-                <Input
-                  inputMode="decimal"
-                  value={v.price}
-                  onChange={(e) =>
-                    setVariants((p) =>
-                      p.map((x, j) =>
-                        j === i ? { ...x, price: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  placeholder="0.00"
-                  className="w-24"
-                />
+            <div className="flex gap-2">
+              <ModeButton
+                active={pricingMode === "variants"}
+                onClick={() => setPricingMode("variants")}
+              >
+                Sizes
+              </ModeButton>
+              <ModeButton
+                active={pricingMode === "flat"}
+                onClick={() => setPricingMode("flat")}
+              >
+                Flat price
+              </ModeButton>
+            </div>
+            {pricingMode === "flat" ? (
+              <Input
+                inputMode="decimal"
+                value={basePrice}
+                onChange={(e) => setBasePrice(e.target.value)}
+                placeholder="0.00"
+                className="w-32 font-mono tabular-nums"
+              />
+            ) : (
+              <div className="flex flex-col gap-2">
+                {variants.map((v, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      value={v.name}
+                      onChange={(e) =>
+                        setVariants((p) =>
+                          p.map((x, j) =>
+                            j === i ? { ...x, name: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="Size name"
+                      className="flex-1"
+                    />
+                    <Input
+                      inputMode="decimal"
+                      value={v.price}
+                      onChange={(e) =>
+                        setVariants((p) =>
+                          p.map((x, j) =>
+                            j === i ? { ...x, price: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="0.00"
+                      className="w-24 font-mono tabular-nums"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVariants((p) => p.filter((_, j) => j !== i))
+                      }
+                      aria-label="Remove size"
+                      className="rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                ))}
                 <button
                   type="button"
-                  onClick={() => setVariants((p) => p.filter((_, j) => j !== i))}
-                  aria-label="Remove size"
-                  className="text-muted-foreground"
+                  onClick={() =>
+                    setVariants((p) => [...p, { name: "", price: "" }])
+                  }
+                  className="flex w-fit items-center gap-1 rounded-sm text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
-                  <Trash2 className="size-4" />
+                  <Plus className="size-4" /> Add size
                 </button>
               </div>
-            ))}
-            <button
-              type="button"
-              onClick={() => setVariants((p) => [...p, { name: "", price: "" }])}
-              className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"
-            >
-              <Plus className="size-4" /> Add size
-            </button>
-          </div>
-        )}
-      </div>
+            )}
+          </Panel>
 
-      <Field label="Max add-ons (optional, defaults to category)">
-        <Input
-          inputMode="numeric"
-          value={maxAddons}
-          onChange={(e) => setMaxAddons(e.target.value)}
-          placeholder={String(selectedCategory?.maxAddons ?? 3)}
-          className="w-24"
-        />
-      </Field>
-
-      <div className="flex flex-col gap-2">
-        <Label>
-          Add-ons{" "}
-          {selectedCategory && (
-            <span className="font-normal text-muted-foreground">
-              (category defaults pre-checked)
-            </span>
-          )}
-        </Label>
-        <div className="flex flex-col gap-1">
-          {addons
-            .filter((a) => !a.isArchived)
-            .map((a) => (
-              <label key={a.id} className="flex items-center gap-3 py-1.5 text-sm">
-                <input
-                  type="checkbox"
-                  checked={isChecked(a.id)}
-                  onChange={() => toggleAddon(a.id)}
-                  className="size-4"
-                />
-                <span className="flex-1">{a.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {toRm(a.price)}
-                </span>
-              </label>
-            ))}
+          <Panel
+            title="Add-ons"
+            hint={selectedCategory ? "Defaults pre-checked" : undefined}
+          >
+            <Field label="Max add-ons (optional, defaults to category)">
+              <Input
+                inputMode="numeric"
+                value={maxAddons}
+                onChange={(e) => setMaxAddons(e.target.value)}
+                placeholder={String(selectedCategory?.maxAddons ?? 3)}
+                className="w-24 font-mono tabular-nums"
+              />
+            </Field>
+            {activeAddons.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No add-ons yet. Create them under Add-ons.
+              </p>
+            ) : (
+              <div className="flex flex-col divide-y divide-border">
+                {activeAddons.map((a) => {
+                  const checked = isChecked(a.id);
+                  return (
+                    <label
+                      key={a.id}
+                      className="flex cursor-pointer items-center gap-3 py-2.5 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAddon(a.id)}
+                        className="size-4 accent-foreground"
+                      />
+                      <span
+                        className={cn(
+                          "flex-1",
+                          !checked && "text-muted-foreground",
+                        )}
+                      >
+                        {a.name}
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                        RM {toRm(a.price)}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </Panel>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-        <ToggleRow label="Available" checked={isAvailable} onChange={setIsAvailable} />
-        <ToggleRow label="Best Seller" checked={isBestSeller} onChange={setIsBestSeller} />
-        <ToggleRow label="New" checked={isNew} onChange={setIsNew} />
-        <ToggleRow label="Featured" checked={isFeatured} onChange={setIsFeatured} />
+        {/* Side column — image and where it surfaces. */}
+        <div className="flex flex-col gap-4">
+          <Panel title="Image">
+            <ImageUpload value={imageUrl} onChange={setImageUrl} />
+          </Panel>
+
+          <Panel title="Visibility">
+            <div className="flex flex-col divide-y divide-border">
+              <ToggleRow
+                label="Available"
+                checked={isAvailable}
+                onChange={setIsAvailable}
+              />
+              <ToggleRow
+                label="Best Seller"
+                checked={isBestSeller}
+                onChange={setIsBestSeller}
+              />
+              <ToggleRow label="New" checked={isNew} onChange={setIsNew} />
+              <ToggleRow
+                label="Featured"
+                checked={isFeatured}
+                onChange={setIsFeatured}
+              />
+            </div>
+          </Panel>
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="flex gap-2">
+      {/* Sticky action bar — Save stays reachable on long forms. */}
+      <div className="sticky bottom-4 z-10 flex gap-2 rounded-2xl border border-border bg-background/85 p-3 backdrop-blur">
         <Button
           type="button"
           variant="outline"
-          className="h-11 flex-1"
+          className="h-11 flex-1 rounded-full"
           onClick={() => router.push("/admin/menu")}
         >
           Cancel
         </Button>
         <Button
           type="button"
-          className="h-11 flex-1"
+          className="h-11 flex-1 rounded-full"
           onClick={submit}
           disabled={pending}
         >
-          {pending ? "Saving…" : "Save"}
+          {pending ? "Saving…" : "Save item"}
         </Button>
       </div>
     </div>
+  );
+}
+
+function Panel({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="font-heading text-base font-semibold">{title}</h2>
+        {hint && (
+          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {hint}
+          </span>
+        )}
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -353,7 +425,7 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between text-sm font-medium">
+    <label className="flex cursor-pointer items-center justify-between py-2.5 text-sm font-medium">
       <span>{label}</span>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>

@@ -15,13 +15,13 @@ export default async function AdminMenuPage() {
   return (
     <div className="flex flex-col gap-6">
       <AdminPageHeader title="Menu" description="Items, pricing, and availability.">
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" asChild className="rounded-full">
           <Link href="/admin/categories">Categories</Link>
         </Button>
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" asChild className="rounded-full">
           <Link href="/admin/addons">Add-ons</Link>
         </Button>
-        <Button size="sm" asChild>
+        <Button size="sm" asChild className="rounded-full">
           <Link href="/admin/menu/new">
             <Plus /> New item
           </Link>

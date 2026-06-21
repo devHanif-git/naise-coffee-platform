@@ -35,6 +35,9 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
     });
   }
 
+  const active = initial.filter((a) => !a.isArchived);
+  const archived = initial.filter((a) => a.isArchived);
+
   return (
     <div className="flex flex-col gap-6">
       <AdminBackLink href="/admin/menu" label="Back to Menu" />
@@ -43,9 +46,9 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
         description="Create and price add-ons available across menu categories."
       />
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
         <h2 className="font-heading text-base font-semibold">New add-on</h2>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <div className="flex flex-1 flex-col gap-1.5">
             <Label htmlFor="new-addon-name">Name</Label>
             <Input
@@ -55,8 +58,8 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
               placeholder="e.g. Oat Milk"
             />
           </div>
-          <div className="flex w-full flex-col gap-1.5 sm:w-24">
-            <Label htmlFor="new-addon-price">Price</Label>
+          <div className="flex w-full flex-col gap-1.5 sm:w-28">
+            <Label htmlFor="new-addon-price">Price (RM)</Label>
             <Input
               id="new-addon-price"
               inputMode="decimal"
@@ -66,22 +69,32 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
               className="font-mono tabular-nums"
             />
           </div>
-          <Button onClick={add} className="w-full sm:w-auto">
-            Add
+          <Button onClick={add} className="w-full rounded-full sm:w-auto">
+            Add add-on
           </Button>
         </div>
-        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-      </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </section>
 
-      {initial.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No add-ons yet.</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {initial.map((a) => (
-            <AddonRow key={a.id} addon={a} onChanged={reload} />
-          ))}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-heading text-base font-semibold">All add-ons</h2>
+          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {active.length} active · {archived.length} archived
+          </span>
         </div>
-      )}
+        {initial.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-12 text-center text-sm text-muted-foreground">
+            No add-ons yet.
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[...active, ...archived].map((a) => (
+              <AddonRow key={a.id} addon={a} onChanged={reload} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -101,8 +114,8 @@ function AddonRow({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border bg-card p-4",
-        addon.isArchived && "opacity-50",
+        "flex flex-col gap-3 rounded-2xl border border-border bg-card p-4",
+        addon.isArchived && "opacity-60",
       )}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -111,16 +124,27 @@ function AddonRow({
           onChange={(e) => setName(e.target.value)}
           className="w-full sm:flex-1"
         />
-        <Input
-          inputMode="decimal"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          className="w-full font-mono tabular-nums sm:w-20"
-        />
+        <div className="relative w-full sm:w-24">
+          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            RM
+          </span>
+          <Input
+            inputMode="decimal"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            className="w-full pl-9 font-mono tabular-nums"
+          />
+        </div>
       </div>
       <div className="flex items-center gap-2">
+        {addon.isArchived && (
+          <span className="mr-auto rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide text-muted-foreground">
+            Archived
+          </span>
+        )}
         <Button
           size="sm"
+          className="rounded-full"
           onClick={() => {
             setError(null);
             startTransition(async () => {
@@ -143,6 +167,7 @@ function AddonRow({
         <Button
           variant="ghost"
           size="sm"
+          className="rounded-full"
           onClick={() => {
             setError(null);
             startTransition(async () => {

@@ -25,22 +25,27 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-heading text-base font-semibold">Payments</h2>
-        <p className="text-xs text-muted-foreground">
-          Turn whole categories or individual methods on or off. Disabled methods don&rsquo;t
-          appear at checkout.
-        </p>
+    <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-heading text-base font-semibold">Payments</h2>
+          <p className="text-xs text-muted-foreground">
+            Turn whole categories or individual methods on or off. Disabled methods don&rsquo;t
+            appear at checkout.
+          </p>
+        </div>
+        <span className="shrink-0 text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Checkout
+        </span>
       </div>
 
       {paymentCategories.map((cat) => {
         const methods = paymentMethods.filter((m) => m.category === cat.id);
         const catOn = s.categories[cat.id];
         return (
-          <div key={cat.id} className="flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-3">
+          <div key={cat.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-3.5">
             <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-bold">{cat.label}</span>
+              <span className="font-heading text-sm font-semibold">{cat.label}</span>
               <Switch
                 checked={catOn}
                 onCheckedChange={(v) =>
@@ -143,7 +148,7 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
       {msg && (
         <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"}>{msg.text}</p>
       )}
-      <Button onClick={save} disabled={pending} className="self-start">
+      <Button onClick={save} disabled={pending} className="self-start rounded-full">
         {pending ? "Saving..." : "Save payments"}
       </Button>
     </section>
