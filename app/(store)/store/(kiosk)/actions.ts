@@ -2,7 +2,7 @@
 
 import { createOrder } from "@/lib/orders/store";
 import { createClient } from "@/lib/supabase/server";
-import { getSessionRole } from "@/lib/auth/session";
+import { inStoreMode } from "@/lib/auth/store-mode";
 import { getStoreAccountEnabled } from "@/lib/settings/store-account";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
 import { getPaymentSettings } from "@/lib/settings/payments";
@@ -38,7 +38,7 @@ export async function placeStoreOrder(
   if (input.items.length === 0) return { ok: false, error: "The order is empty." };
 
   // Defense in depth (the kiosk layout already gates these).
-  if ((await getSessionRole()) !== "store") return { ok: false, error: "Not authorized." };
+  if (!(await inStoreMode())) return { ok: false, error: "Not authorized." };
   if (!(await getStoreAccountEnabled())) return { ok: false, error: "Store ordering is off." };
 
   const settings = await getStoreSettingsForCheckout();

@@ -1,16 +1,15 @@
 import { redirect } from "next/navigation";
-import { getSessionRole } from "@/lib/auth/session";
+import { inStoreMode } from "@/lib/auth/store-mode";
 import { getStoreAccountEnabled } from "@/lib/settings/store-account";
-import { StoreLoginForm } from "@/components/store/store-login-form";
+import { StoreLoginScreen } from "@/components/store/store-login-screen";
 
 export const dynamic = "force-dynamic";
 
 export default async function StoreLoginPage() {
-  const role = await getSessionRole();
-  if (role === "store" && (await getStoreAccountEnabled())) redirect("/store");
-  // A non-store signed-in user (admin/customer) shouldn't sit on the kiosk login.
-  if (role && role !== "store") redirect("/");
-
-  const disabled = role === "store" && !(await getStoreAccountEnabled());
-  return <StoreLoginForm disabled={disabled} />;
+  const enabled = await getStoreAccountEnabled();
+  // Already unlocked and ordering on -> straight into the kiosk.
+  if (enabled && (await inStoreMode())) redirect("/store");
+  // Otherwise show the unlock prompt (or the "ordering off" message). We do NOT
+  // redirect signed-in users away anymore — anyone with the passcode can enter.
+  return <StoreLoginScreen disabled={!enabled} />;
 }
