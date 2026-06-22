@@ -83,7 +83,14 @@ export function CustomerOrderDetail({
                     {item.quantity}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate font-medium">{item.name}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium">{item.name}</span>
+                      {item.isCustom && (
+                        <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                          Custom
+                        </span>
+                      )}
+                    </span>
                     {subtitle && (
                       <span className="truncate text-xs text-muted-foreground">
                         {subtitle}
