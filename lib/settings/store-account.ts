@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-// Authoritative kill switch for the kiosk, read on every kiosk request as the
-// store user. FAIL-CLOSED: any read error or missing row is treated as disabled
-// so a transient glitch can never leave the kiosk open after it was turned off.
+// Authoritative kill switch for the kiosk, read on every kiosk request. Uses the
+// service-role client because store mode now runs under the user's own session
+// (or a guest with none), which cannot read store_account under RLS. FAIL-CLOSED:
+// any read error or missing row is treated as disabled.
 export async function getStoreAccountEnabled(): Promise<boolean> {
-  const db = await createClient();
+  const db = createAdminClient();
   const { data, error } = await db
     .from("store_account")
     .select("is_enabled")
