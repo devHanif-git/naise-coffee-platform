@@ -18,6 +18,8 @@ type Props = {
   initialCounts: OrderGroupCounts;
   initialFilter: OrderFilter;
   initialRange: DateRangeKey;
+  backHref: string;
+  backLabel: string;
 };
 
 // Owns the board's data: current status tab, date range, loaded orders, the
@@ -30,6 +32,8 @@ export function ManageOrdersLive({
   initialCounts,
   initialFilter,
   initialRange,
+  backHref,
+  backLabel,
 }: Props) {
   const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [range, setRange] = useState<DateRangeKey>(initialRange);
@@ -133,6 +137,8 @@ export function ManageOrdersLive({
 
   return (
     <ManageOrdersScreen
+      backHref={backHref}
+      backLabel={backLabel}
       orders={orders}
       counts={counts}
       filter={filter}

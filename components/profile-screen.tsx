@@ -5,8 +5,12 @@ import Link from "next/link";
 import {
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
+  Coffee,
+  LayoutDashboard,
   LogIn,
   LogOut,
+  type LucideIcon,
   Pencil,
   Settings,
   Star,
@@ -14,6 +18,7 @@ import {
 } from "lucide-react";
 import type { Order } from "@/types/order";
 import type { RewardTier } from "@/types/reward";
+import { MANAGE_ROLES, type Role } from "@/types/auth";
 import { getTierProgress } from "@/lib/rewards/tiers";
 import { useAuth } from "@/store/auth";
 import { useBeans } from "@/store/beans";
@@ -48,6 +53,55 @@ const menuRows = [
   },
 ] as const;
 
+// A single row inside the staff tools card. Renders a Link when `href` is set,
+// otherwise an inert button (used by the not-yet-built Custom Order entry).
+// Styling matches the account menu rows so the two cards read as one family.
+function StaffRow({
+  icon: Icon,
+  label,
+  description,
+  href,
+}: {
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  href?: string;
+}) {
+  const className =
+    "flex items-center gap-3.5 px-4 py-3.5 text-left outline-none transition-colors hover:bg-neutral-50 focus-visible:bg-neutral-50";
+  const content = (
+    <>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-foreground">
+        <Icon className="size-4.5" strokeWidth={2} aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-semibold">{label}</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {description}
+        </span>
+      </span>
+      <ChevronRight
+        className="size-4 shrink-0 text-muted-foreground"
+        strokeWidth={2.5}
+        aria-hidden
+      />
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+  // Custom Order is a placeholder for now — a button with no action.
+  return (
+    <button type="button" className={`w-full ${className}`}>
+      {content}
+    </button>
+  );
+}
+
 // The customer Profile screen. Client component because it reads the live
 // profile and Beans stores; `recentOrders` (already capped to 3) is passed in
 // from the server page so the list is server-rendered and crawlable. Mobile-
@@ -60,10 +114,20 @@ const menuRows = [
 export function ProfileScreen({
   recentOrders,
   tiers,
+  role,
 }: {
   recentOrders: Order[];
   tiers: RewardTier[];
+  role: Role | null;
 }) {
+  // Staff tooling is gated on the server-fetched role (authoritative, no
+  // hydration drift), so it renders consistently on first paint. Manage is for
+  // anyone who can work the order board; the dashboard is manager/admin only;
+  // Custom Order is admin only.
+  const canManage = role !== null && MANAGE_ROLES.includes(role);
+  const canViewDashboard = role === "admin" || role === "manager";
+  const isAdminRole = role === "admin";
+
   const { profile, hydrated: profileHydrated } = useProfile();
   const { balance, lifetimeEarned } = useBeans();
   const { isAuthenticated, hydrated: authHydrated, signOut } = useAuth();
@@ -191,6 +255,38 @@ export function ProfileScreen({
               aria-hidden
             />
           </Link>
+        )}
+
+        {/* Staff tools — only for accounts with a manage-capable role. Sits
+            above the account rows so it's the first thing staff reach. Not
+            gated on the client `ready` flag because `role` is a server prop. */}
+        {canManage && (
+          <section aria-label="Staff" className="flex flex-col gap-3">
+            <h2 className="text-xs font-bold uppercase tracking-wide">Staff</h2>
+            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
+              <StaffRow
+                icon={ClipboardList}
+                label="Manage"
+                description="Live order board"
+                href="/manage?from=profile"
+              />
+              {canViewDashboard && (
+                <StaffRow
+                  icon={LayoutDashboard}
+                  label="Admin Dashboard"
+                  description="Reports and store performance"
+                  href="/admin"
+                />
+              )}
+              {isAdminRole && (
+                <StaffRow
+                  icon={Coffee}
+                  label="Custom Order"
+                  description="Build a one-off order"
+                />
+              )}
+            </div>
+          </section>
         )}
 
         {/* Account menu rows — members only. Edit Profile / Settings need an

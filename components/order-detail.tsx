@@ -8,6 +8,7 @@ import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
+import { paymentMethodLabel } from "@/data/payment-methods";
 import {
   cancelOrderAction,
   markReadyAndNotify,
@@ -238,7 +239,7 @@ export function OrderDetail({
         </div>
         <div className="rounded-2xl bg-neutral-100 px-4 py-3">
           <dt className="text-xs font-medium text-muted-foreground">Payment</dt>
-          <dd className="mt-0.5 text-sm font-bold">{order.paymentMethod}</dd>
+          <dd className="mt-0.5 text-sm font-bold">{paymentMethodLabel(order.paymentMethod)}</dd>
         </div>
       </dl>
 
@@ -286,7 +287,7 @@ export function OrderDetail({
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="text-sm font-semibold">Tap to view receipt</span>
               <span className="truncate text-xs text-muted-foreground">
-                {order.paymentMethod}
+                {paymentMethodLabel(order.paymentMethod)}
               </span>
             </span>
             <ChevronRight

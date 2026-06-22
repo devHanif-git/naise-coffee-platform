@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronRight, Loader2, PackageX } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Loader2, PackageX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   orderFilters,
@@ -12,6 +13,8 @@ import { OrderCard } from "@/components/order-card";
 import type { Order } from "@/types/order";
 
 type Props = {
+  backHref: string;
+  backLabel: string;
   orders: Order[];
   counts: OrderGroupCounts;
   filter: OrderFilter;
@@ -25,6 +28,8 @@ type Props = {
 };
 
 export function ManageOrdersScreen({
+  backHref,
+  backLabel,
   orders,
   counts,
   filter,
@@ -39,6 +44,12 @@ export function ManageOrdersScreen({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
       <header className="flex flex-col gap-1">
+        <Link
+          href={backHref}
+          className="mb-2 flex w-fit items-center gap-1 rounded-sm text-sm font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <ChevronLeft className="size-4" aria-hidden /> {backLabel}
+        </Link>
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           NAISE Coffee
         </span>

@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { statusDisplay, timeAgo } from "@/lib/orders/status";
+import { paymentMethodLabel } from "@/data/payment-methods";
 import type { Order } from "@/types/order";
 
 // A read-only order summary in the customer's order history. Tapping opens the
@@ -52,7 +53,7 @@ export function CustomerOrderCard({
             <span className="tabular-nums" suppressHydrationWarning>
               {timeAgo(order.createdAt)}
             </span>
-            <span className="font-medium">{order.paymentMethod}</span>
+            <span className="font-medium">{paymentMethodLabel(order.paymentMethod)}</span>
           </div>
         </header>
 

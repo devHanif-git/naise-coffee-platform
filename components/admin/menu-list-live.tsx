@@ -208,11 +208,6 @@ export function MenuListLive({
                       active={p.isNew}
                       onClick={() => onFlag(p, "new", !p.isNew)}
                     />
-                    <FlagChip
-                      label="Featured"
-                      active={p.isFeatured}
-                      onClick={() => onFlag(p, "featured", !p.isFeatured)}
-                    />
                     <button
                       onClick={() => onArchiveToggle(p)}
                       className="ml-auto rounded-sm text-xs font-semibold text-muted-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"

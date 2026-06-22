@@ -13,6 +13,7 @@ import {
   Users,
   BarChart3,
   Settings,
+  Store,
 } from "lucide-react";
 import {
   Sheet,
@@ -78,6 +79,22 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+// Always-present escape hatch out of the CMS back into the customer app.
+// Pinned below the nav in both the sidebar and the mobile sheet so staff can
+// jump to their profile (where the staff tools live) from any admin page.
+function ExitToApp({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <Link
+      href="/profile"
+      onClick={onNavigate}
+      className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <Store className="size-5 shrink-0" aria-hidden />
+      Back to app
+    </Link>
+  );
+}
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
 
@@ -90,6 +107,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex-1 overflow-y-auto">
           <NavLinks />
+        </div>
+        <div className="border-t border-sidebar-border p-3">
+          <ExitToApp />
         </div>
       </aside>
 
@@ -104,12 +124,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </SheetTrigger>
           <SheetContent
             side="left"
-            className="w-72 bg-sidebar p-0 text-sidebar-foreground"
+            className="flex w-72 flex-col bg-sidebar p-0 text-sidebar-foreground"
           >
             <SheetTitle className="flex h-14 items-center border-b border-sidebar-border px-5">
               <Wordmark />
             </SheetTitle>
-            <NavLinks onNavigate={() => setOpen(false)} />
+            <div className="flex-1 overflow-y-auto">
+              <NavLinks onNavigate={() => setOpen(false)} />
+            </div>
+            <div className="border-t border-sidebar-border p-3">
+              <ExitToApp onNavigate={() => setOpen(false)} />
+            </div>
           </SheetContent>
         </Sheet>
         <Wordmark />

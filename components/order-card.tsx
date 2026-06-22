@@ -5,6 +5,7 @@ import { ChevronRight, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { statusDisplay, timeAgo } from "@/lib/orders/status";
+import { paymentMethodLabel } from "@/data/payment-methods";
 import type { Order } from "@/types/order";
 
 // A summary card in the /manage order list. Read-only — tapping opens the
@@ -38,7 +39,7 @@ export function OrderCard({ order, delay = 0 }: { order: Order; delay?: number }
             <span className="tabular-nums" suppressHydrationWarning>
               {timeAgo(order.createdAt)}
             </span>
-            <span className="font-medium">{order.paymentMethod}</span>
+            <span className="font-medium">{paymentMethodLabel(order.paymentMethod)}</span>
           </div>
         </header>
 
