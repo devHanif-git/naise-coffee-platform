@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { MANAGE_ROLES, type Role } from "@/types/auth";
+import { inStoreMode } from "@/lib/auth/store-mode";
 
 // Reads the signed-in user's role from `profiles` (RLS-backed). Returns null
 // for guests. Replaces the old `naise_role` cookie placeholder — staff/admin
@@ -32,7 +33,8 @@ export async function isAdmin(): Promise<boolean> {
   return (await getSessionRole()) === "admin";
 }
 
-// Whether the current session is the shared in-store kiosk account.
+// Whether this device is in kiosk/store mode (signed naise_store cookie). No
+// longer tied to a Supabase role — store mode layers on the user's own session.
 export async function isStoreMode(): Promise<boolean> {
-  return (await getSessionRole()) === "store";
+  return inStoreMode();
 }
