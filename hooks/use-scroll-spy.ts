@@ -10,6 +10,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useScrollSpy(ids: string[], offset: number) {
   const [activeId, setActiveId] = useState<string>(ids[0] ?? "");
   const visible = useRef<Set<string>>(new Set());
+  // While a tap-scroll is in flight we lock the active id to the tapped section.
+  // Otherwise tapping a near-bottom section (which can't scroll all the way to
+  // the top) would let the observer immediately re-report the following section.
+  const locked = useRef(false);
 
   useEffect(() => {
     if (ids.length === 0) return;
@@ -21,6 +25,7 @@ export function useScrollSpy(ids: string[], offset: number) {
           if (entry.isIntersecting) visible.current.add(entry.target.id);
           else visible.current.delete(entry.target.id);
         }
+        if (locked.current) return;
         const topmost = ids.find((id) => visible.current.has(id));
         if (topmost) setActiveId(topmost);
       },
@@ -40,6 +45,18 @@ export function useScrollSpy(ids: string[], offset: number) {
     const el = document.getElementById(id);
     if (!el) return;
     setActiveId(id);
+
+    // Hold the selection until the smooth scroll settles. `scrollend` releases
+    // it precisely where supported; the timeout is the fallback for browsers
+    // that don't fire it (and removes the listener so it can't leak).
+    locked.current = true;
+    const release = () => {
+      locked.current = false;
+      window.removeEventListener("scrollend", release);
+    };
+    window.addEventListener("scrollend", release, { once: true });
+    setTimeout(release, 1000);
+
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Search, ChevronLeft, ChevronDown } from "lucide-react";
 import type { Category, CategoryType, Product } from "@/types/menu";
@@ -41,6 +41,12 @@ export function MenuBrowser({
 
   const q = query.trim().toLowerCase();
   const searching = q !== "";
+
+  // When searching, keep the result list anchored at the top so the user reads
+  // matches from the start rather than from wherever they had scrolled to.
+  useEffect(() => {
+    if (searching) window.scrollTo({ top: 0 });
+  }, [q, searching]);
 
   // Category sections that actually have products, each internally ordered.
   const sections = useMemo(
@@ -139,10 +145,10 @@ export function MenuBrowser({
           last drink isn't hidden behind it. */}
       <div className="pb-28">
         {!searching && bestSellers.length > 0 && (
-          <section aria-labelledby="best-seller-heading" className="px-5 pt-4">
+          <section aria-labelledby="best-seller-heading" className="px-5 pt-5">
             <h2
               id="best-seller-heading"
-              className="mb-1 text-xs font-bold uppercase tracking-wide"
+              className="mb-2 font-heading text-2xl font-extrabold tracking-tight"
             >
               Best Seller
             </h2>
@@ -196,11 +202,11 @@ export function MenuBrowser({
               id={sectionId(section.category.type)}
               style={{ scrollMarginTop: stickyH }}
               aria-labelledby={`${sectionId(section.category.type)}-heading`}
-              className="px-5 pt-5"
+              className="px-5 pt-6"
             >
               <h2
                 id={`${sectionId(section.category.type)}-heading`}
-                className="mb-1 text-xs font-bold uppercase tracking-wide"
+                className="mb-2 font-heading text-2xl font-extrabold tracking-tight"
               >
                 {section.category.name}
               </h2>
