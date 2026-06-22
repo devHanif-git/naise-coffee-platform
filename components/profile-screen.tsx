@@ -283,6 +283,7 @@ export function ProfileScreen({
                   icon={Coffee}
                   label="Custom Order"
                   description="Build a one-off order"
+                  href="/custom-order"
                 />
               )}
             </div>

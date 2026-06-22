@@ -109,13 +109,20 @@ export function DrinkRow({
         </span>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <span
-            className={cn(
-              "truncate font-heading text-sm font-bold tracking-tight",
-              status === "done" && "line-through",
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span
+              className={cn(
+                "truncate font-heading text-sm font-bold tracking-tight",
+                status === "done" && "line-through",
+              )}
+            >
+              {item.name}
+            </span>
+            {item.isCustom && (
+              <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                Custom
+              </span>
             )}
-          >
-            {item.name}
           </span>
           {subtitle && (
             <span className="truncate text-xs text-muted-foreground">

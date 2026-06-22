@@ -32,6 +32,8 @@ export function buildOrderMessage(
 
   if (order.source === "store") {
     parts.push("Source: Store Kiosk");
+  } else if (order.source === "custom") {
+    parts.push("Source: Custom Order");
   }
 
   if (order.contactPhone) {

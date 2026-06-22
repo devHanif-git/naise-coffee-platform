@@ -66,11 +66,12 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   if (monthCompletedIds.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
-      .select("name, quantity, order_id")
+      .select("name, quantity, is_custom, order_id")
       .in("order_id", monthCompletedIds);
     if (itemsErr) throw new Error(`getDashboardMetrics failed: ${itemsErr.message}`);
     const byName = new Map<string, number>();
     for (const it of items ?? []) {
+      if (it.is_custom) continue; // best-sellers is for featurable menu items only
       byName.set(it.name, (byName.get(it.name) ?? 0) + it.quantity);
     }
     topSellers = [...byName.entries()]
