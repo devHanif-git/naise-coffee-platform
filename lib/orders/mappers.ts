@@ -15,6 +15,7 @@ export function rowToOrderLine(item: OrderItemRow): OrderLine {
     unitPrice: item.unit_price,
     lineTotal: item.line_total,
     status: item.status,
+    isCustom: item.is_custom,
   };
 }
 

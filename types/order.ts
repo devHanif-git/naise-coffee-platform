@@ -27,6 +27,10 @@ export type OrderLine = {
   // free; `rewardCost` is the Bean price, settled server-side at placement.
   isReward?: boolean;
   rewardCost?: number;
+  // True when this line is an admin-entered custom drink (no menu product).
+  // Maps to order_items.is_custom; drives the "Custom" badge and custom-drink
+  // analytics.
+  isCustom?: boolean;
 };
 
 export type Order = {
@@ -65,7 +69,7 @@ export type Order = {
   completedAt?: string;
   // Channel the order came from. Defaults to "online" for the storefront; the
   // in-store kiosk sets "store". Maps to orders.source.
-  source?: "online" | "store";
+  source?: "online" | "store" | "custom";
 };
 
 // The fields a caller supplies when placing an order. The store fills in the

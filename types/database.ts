@@ -148,6 +148,39 @@ export type Database = {
           },
         ]
       }
+      custom_drinks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          last_price: number
+          last_used_at: string | null
+          name: string
+          times_used: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_price: number
+          last_used_at?: string | null
+          name: string
+          times_used?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_price?: number
+          last_used_at?: string | null
+          name?: string
+          times_used?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       loyalty_settings: {
         Row: {
           beans_per_ringgit: number
@@ -179,6 +212,7 @@ export type Database = {
         Row: {
           addon_names: string[]
           id: string
+          is_custom: boolean
           is_reward: boolean
           line_total: number
           name: string
@@ -193,6 +227,7 @@ export type Database = {
         Insert: {
           addon_names?: string[]
           id?: string
+          is_custom?: boolean
           is_reward?: boolean
           line_total: number
           name: string
@@ -207,6 +242,7 @@ export type Database = {
         Update: {
           addon_names?: string[]
           id?: string
+          is_custom?: boolean
           is_reward?: boolean
           line_total?: number
           name?: string
@@ -886,6 +922,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      record_custom_drinks: { Args: { p_drinks: Json }; Returns: undefined }
       reverse_order_rewards: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: {
@@ -896,7 +933,7 @@ export type Database = {
         | "referral"
         | "adjustment"
       item_status: "pending" | "preparing" | "done"
-      order_source: "online" | "store"
+      order_source: "online" | "store" | "custom"
       order_status:
         | "pending"
         | "preparing"
@@ -1039,7 +1076,7 @@ export const Constants = {
         "adjustment",
       ],
       item_status: ["pending", "preparing", "done"],
-      order_source: ["online", "store"],
+      order_source: ["online", "store", "custom"],
       order_status: ["pending", "preparing", "ready", "completed", "cancelled"],
       user_role: ["admin", "manager", "staff", "customer", "store"],
     },
