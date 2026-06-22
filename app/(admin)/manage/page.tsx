@@ -14,8 +14,16 @@ export const metadata: Metadata = {
 const DEFAULT_FILTER = "pending" as const;
 const DEFAULT_RANGE = "all" as const;
 
-export default async function ManageOrdersPage() {
+export default async function ManageOrdersPage(props: PageProps<"/manage">) {
   if (!(await canManageOrders())) redirect("/");
+
+  // Back link follows where the staffer came from: the customer profile passes
+  // ?from=profile; everything else (dashboard button, admin sidebar) returns to
+  // the dashboard, which is also the sensible default.
+  const { from } = await props.searchParams;
+  const fromProfile = from === "profile";
+  const backHref = fromProfile ? "/profile" : "/admin";
+  const backLabel = fromProfile ? "Profile" : "Dashboard";
 
   const [{ orders, hasMore }, counts] = await Promise.all([
     listOrdersPage({ filter: DEFAULT_FILTER, range: DEFAULT_RANGE, offset: 0 }),
@@ -29,6 +37,8 @@ export default async function ManageOrdersPage() {
       initialCounts={counts}
       initialFilter={DEFAULT_FILTER}
       initialRange={DEFAULT_RANGE}
+      backHref={backHref}
+      backLabel={backLabel}
     />
   );
 }
