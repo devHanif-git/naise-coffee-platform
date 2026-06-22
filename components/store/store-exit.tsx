@@ -2,13 +2,12 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { STORE_ACCOUNT_EMAIL } from "@/constants/store";
+import { exitStoreMode } from "@/app/(store)/store/actions";
 
-// Discreet staff escape hatch for the kiosk: press-and-hold the top-right
-// corner for ~1.2s to open the exit prompt, then enter the store passcode to
-// sign the tablet out. Invisible so a customer never trips it, and gated by the
-// passcode so they can't sign it out even if they find it.
+// Discreet staff escape hatch for the kiosk: press-and-hold the top-right corner
+// for ~1.2s to open the exit prompt, then enter the store passcode to drop store
+// mode. Clearing the naise_store cookie returns the device to whatever session
+// it already had (staff/admin) or to guest — it NEVER signs anyone out.
 export function StoreExit() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -33,20 +32,13 @@ export function StoreExit() {
   async function exit() {
     setPending(true);
     setError(null);
-    const supabase = createClient();
-    // Verify the passcode by re-authenticating the store account; harmless when
-    // correct (same session), and the only way to confirm the code client-side.
-    const { error: authErr } = await supabase.auth.signInWithPassword({
-      email: STORE_ACCOUNT_EMAIL,
-      password: passcode,
-    });
-    if (authErr) {
-      setError("Incorrect passcode.");
+    const res = await exitStoreMode(passcode);
+    if (!res.ok) {
+      setError(res.error);
       setPending(false);
       return;
     }
-    await supabase.auth.signOut();
-    router.push("/store/login");
+    router.push("/");
     router.refresh();
   }
 
@@ -66,7 +58,7 @@ export function StoreExit() {
           <div className="flex w-full max-w-xs flex-col gap-4 rounded-2xl bg-white p-5 text-center">
             <h2 className="font-heading text-base font-semibold">Exit store mode?</h2>
             <p className="text-xs text-muted-foreground">
-              Enter the store passcode to sign this tablet out of the kiosk.
+              Enter the store passcode to leave the kiosk on this device.
             </p>
             <input
               type="password"
