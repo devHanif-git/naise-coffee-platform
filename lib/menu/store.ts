@@ -1,19 +1,27 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { mapCategory, buildProducts } from "@/lib/menu/mappers";
 import { listActivePromotions } from "@/lib/promotions/store";
 import { resolveActiveDiscount } from "@/lib/promotions/pricing";
 import type { Category, Product } from "@/types/menu";
 
+// Tag that buckets every cached catalog read (products, variants, add-ons,
+// categories, promotions). Admin mutations call revalidateTag(CATALOG_TAG) to
+// drop these entries the moment the menu changes — see the admin actions.
+export const CATALOG_TAG = "catalog";
+
 // Public catalog reads. RLS returns only non-archived rows to non-admins, so the
 // storefront automatically hides archived items. Available + unavailable both
 // return; the UI greys unavailable ones. Ordered by sort_order then name.
 //
-// Wrapped in React's request-scoped cache() so a single request that calls this
-// more than once (e.g. generateMetadata + page render on /menu/[slug]) only hits
-// the database once.
-const fetchCatalog = cache(async (): Promise<Product[]> => {
-  const db = await createClient();
+// Uses the cookie-free public client so the read can live in the Next Data Cache
+// (cookies() is forbidden inside unstable_cache). The result is cached across
+// requests under CATALOG_TAG and refreshed at most every 60s as a backstop for
+// time-activated promotions; admin edits invalidate it instantly via the tag.
+const buildCatalog = async (): Promise<Product[]> => {
+  const db = createPublicClient();
   const [products, variants, addons, categories, categoryAddons, productAddons] = await Promise.all([
     db.from("products").select("*").order("sort_order").order("name"),
     db.from("product_variants").select("*"),
@@ -43,18 +51,42 @@ const fetchCatalog = cache(async (): Promise<Product[]> => {
 
   // Attach the active promotion (best percent) to each product so the pure
   // pricing helpers can stay synchronous in client components.
-  const promotions = await listActivePromotions();
+  const promotions = await listActivePromotions(db);
   if (promotions.length === 0) return built;
   return built.map((p) => {
     const discount = resolveActiveDiscount(p, promotions);
     return discount ? { ...p, discount } : p;
   });
-});
+};
+
+// Cross-request Data Cache wrapper. React's request-scoped cache() sits on top so
+// a single request that calls this more than once (e.g. generateMetadata + page
+// render on /menu/[slug]) reuses one result.
+const fetchCatalog = cache(
+  unstable_cache(buildCatalog, ["catalog"], {
+    tags: [CATALOG_TAG],
+    revalidate: 60,
+  }),
+);
+
+const fetchCategories = cache(
+  unstable_cache(
+    async (): Promise<Category[]> => {
+      const db = createPublicClient();
+      const { data } = await db
+        .from("categories")
+        .select("*")
+        .order("sort_order")
+        .order("name");
+      return (data ?? []).map(mapCategory);
+    },
+    ["categories"],
+    { tags: [CATALOG_TAG], revalidate: 60 },
+  ),
+);
 
 export async function listCategories(): Promise<Category[]> {
-  const db = await createClient();
-  const { data } = await db.from("categories").select("*").order("sort_order").order("name");
-  return (data ?? []).map(mapCategory);
+  return fetchCategories();
 }
 
 export async function listProducts(): Promise<Product[]> {

@@ -1,26 +1,7 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { CartScreen } from "@/components/cart-screen";
-import { getAvailableProductIds } from "@/lib/menu/store";
-import { getStoreSettings } from "@/lib/settings/store";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Cart",
-};
-
-export const dynamic = "force-dynamic";
-
-export default async function CartPage() {
-  const [availableProductIds, settings] = await Promise.all([
-    getAvailableProductIds(),
-    getStoreSettings(),
-  ]);
-  return (
-    <Suspense fallback={null}>
-      <CartScreen
-        availableProductIds={availableProductIds}
-        closedMessage={settings.isOpen ? null : settings.closedMessage}
-      />
-    </Suspense>
-  );
+// /cart is retired — the cart now lives in the floating sheet on /menu.
+// Redirect any direct hits (old links, bookmarks) to /menu.
+export default function CartPage() {
+  redirect("/menu");
 }

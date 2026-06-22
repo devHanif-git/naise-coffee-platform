@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/store/cart";
-import { StoreCartBar } from "@/components/store/store-cart-bar";
+import { CartFab } from "@/components/cart-fab";
 import { StoreExit } from "@/components/store/store-exit";
 import { STORE_IDLE_TIMEOUT_MS } from "@/constants/store";
 
@@ -39,7 +39,7 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <StoreCartBar />
+      <CartFab />
       {!onLogin && <StoreExit />}
     </>
   );

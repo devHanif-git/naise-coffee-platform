@@ -94,7 +94,9 @@ export function MenuBrowser({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 px-5 py-4">
+      {/* pb clears the floating cart bar (which sits above the tab bar) so the
+          last drink isn't hidden behind it. */}
+      <div className="flex flex-col gap-3 px-5 pt-4 pb-28">
         <div className="flex items-center justify-between">
           <span className="text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground">
             Sort by

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default async function RewardsActivityPage() {
   const store = await getStoreSettings();
-  if (!store.rewardsEnabled) redirect("/home");
+  if (!store.rewardsEnabled) redirect("/menu"); // no home for now redirect to menu
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">

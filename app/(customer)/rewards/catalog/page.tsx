@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RewardsCatalogPage() {
   const store = await getStoreSettings();
-  if (!store.rewardsEnabled) redirect("/home");
+  if (!store.rewardsEnabled) redirect("/menu"); // no home for now redirect to menu
   const rewards = await listRewardCatalog();
   return (
     <div className="flex flex-col">

@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RewardsPage() {
   const store = await getStoreSettings();
-  if (!store.rewardsEnabled) redirect("/home");
+  if (!store.rewardsEnabled) redirect("/menu"); // no home for now redirect to menu
   const [settings, tiers, milestones, catalog] = await Promise.all([
     getLoyaltySettings(),
     listTiers(),

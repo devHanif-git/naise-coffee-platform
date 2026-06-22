@@ -1,5 +1,13 @@
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { DEFAULT_STORE_SETTINGS, type StoreSettings } from "@/lib/settings/types";
+
+// Shared store settings (open/closed, feature toggles), identical for every
+// user. The DISPLAY read is cached under this tag and busted by the settings
+// admin action; the CHECKOUT read is deliberately NOT cached — see below.
+export const STORE_SETTINGS_TAG = "store-settings";
 
 type Row = {
   is_open: boolean;
@@ -22,16 +30,24 @@ function map(row: Row): StoreSettings {
 }
 
 // Display path: degrades to DEFAULT_STORE_SETTINGS (open, all features on) so a
-// transient read failure never hard-fails the storefront UI.
-export async function getStoreSettings(): Promise<StoreSettings> {
-  const db = await createClient();
-  const { data } = await db.from("store_settings").select(COLUMNS).limit(1).maybeSingle();
-  return data ? map(data) : DEFAULT_STORE_SETTINGS;
-}
+// transient read failure never hard-fails the storefront UI. Cached (cookie-free
+// public client, anon-readable via RLS) since it runs in the customer/kiosk
+// layout on every entry; busted instantly when an admin saves settings.
+export const getStoreSettings = cache(
+  unstable_cache(
+    async (): Promise<StoreSettings> => {
+      const db = createPublicClient();
+      const { data } = await db.from("store_settings").select(COLUMNS).limit(1).maybeSingle();
+      return data ? map(data) : DEFAULT_STORE_SETTINGS;
+    },
+    ["store-settings"],
+    { tags: [STORE_SETTINGS_TAG], revalidate: 60 },
+  ),
+);
 
-// Checkout path: FAIL-CLOSED. Any read error or missing row is treated as
-// closed, so a transient read/RLS failure can never bypass an intentional
-// store closure when placing an order. (The display path above stays fail-open.)
+// Checkout path: FAIL-CLOSED, and intentionally UNCACHED. It gates order
+// placement on an intentional store closure, so it must read live every time —
+// a cached/stale "open" must never let an order through after the store closes.
 export async function getStoreSettingsForCheckout(): Promise<StoreSettings> {
   const db = await createClient();
   const { data, error } = await db.from("store_settings").select(COLUMNS).limit(1).maybeSingle();

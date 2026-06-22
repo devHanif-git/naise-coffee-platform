@@ -1,7 +1,7 @@
-import { StoreCart } from "@/components/store/store-cart";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// /store/cart is retired — the kiosk cart now lives in the floating sheet on the
+// menu (/store). Redirect any direct hits to the menu.
 export default function StoreCartPage() {
-  return <StoreCart />;
+  redirect("/store");
 }

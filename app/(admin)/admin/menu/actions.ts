@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/auth/session";
+import { CATALOG_TAG } from "@/lib/menu/store";
 import type { ProductFormData } from "@/lib/menu/types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -25,6 +26,7 @@ function revalidateStorefront() {
   revalidatePath("/menu");
   revalidatePath("/menu/[slug]", "page");
   revalidatePath("/home");
+  revalidateTag(CATALOG_TAG, "max");
 }
 
 export async function setAvailability(

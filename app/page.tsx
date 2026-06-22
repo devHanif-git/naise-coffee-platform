@@ -10,7 +10,8 @@ export default function HomePage() {
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      router.push("/home");
+      // Home screen is hidden for now — land straight on the menu.
+      router.push("/menu");
     }, 1500);
 
     return () => clearTimeout(timeout);
