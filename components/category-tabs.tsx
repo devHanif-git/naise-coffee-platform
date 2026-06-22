@@ -3,36 +3,32 @@
 import { cn } from "@/lib/utils";
 import type { Category, CategoryType } from "@/types/menu";
 
-type Filter = CategoryType | "all";
-
+// Category pills that act as scroll-spy anchors: `activeType` is highlighted as
+// the user scrolls; tapping one calls `onSelect` to scroll to that section.
+// No "All" tab — every pill maps to a real category section.
 export function CategoryTabs({
   categories,
-  value,
-  onChange,
+  activeType,
+  onSelect,
 }: {
   categories: Category[];
-  value: Filter;
-  onChange: (value: Filter) => void;
+  activeType: CategoryType;
+  onSelect: (type: CategoryType) => void;
 }) {
-  const tabs: { type: Filter; name: string }[] = [
-    { type: "all", name: "All" },
-    ...categories.map((c) => ({ type: c.type, name: c.name })),
-  ];
-
   return (
     <div
       role="tablist"
       aria-label="Menu categories"
       className="-mx-5 flex gap-2 overflow-x-auto border-b border-border px-5 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      {tabs.map((tab) => {
-        const active = tab.type === value;
+      {categories.map((category) => {
+        const active = category.type === activeType;
         return (
           <button
-            key={tab.type}
+            key={category.type}
             role="tab"
             aria-selected={active}
-            onClick={() => onChange(tab.type)}
+            onClick={() => onSelect(category.type)}
             className={cn(
               "shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               active
@@ -40,12 +36,10 @@ export function CategoryTabs({
                 : "border-border bg-white text-foreground hover:bg-muted",
             )}
           >
-            {tab.name}
+            {category.name}
           </button>
         );
       })}
     </div>
   );
 }
-
-export type { Filter };
