@@ -1,12 +1,19 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
 import type { Discount } from "@/types/menu";
 
 // Currently-active promotions mapped to the storefront Discount shape: is_active
 // AND within the optional [starts_at, ends_at) window at now(). productIds hold
-// product UUIDs; categories hold category slugs. Callers must run on a dynamic
-// route (the menu pages set `export const dynamic = "force-dynamic"`).
-export async function listActivePromotions(): Promise<Discount[]> {
-  const db = await createClient();
+// product UUIDs; categories hold category slugs.
+//
+// Pass a client to control caching: the cached catalog path passes the
+// cookie-free public client (so it can run inside unstable_cache); other callers
+// get the default cookie-bound server client.
+export async function listActivePromotions(
+  client?: SupabaseClient<Database>,
+): Promise<Discount[]> {
+  const db = client ?? (await createClient());
   const nowIso = new Date().toISOString();
   const { data: promos, error } = await db
     .from("promotions")

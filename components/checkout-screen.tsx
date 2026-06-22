@@ -103,7 +103,7 @@ export function CheckoutScreen({
   // Skipped after a successful order — the cart is intentionally cleared then
   // and the confirmation view takes over.
   useEffect(() => {
-    if (hydrated && !hasItems && !placedNumber) router.replace("/cart");
+    if (hydrated && !hasItems && !placedNumber) router.replace("/menu");  // no cart for now redirect to menu
   }, [hydrated, hasItems, placedNumber, router]);
 
   // A guest can't keep a members-only method (Cash) selected. Once the auth
@@ -316,7 +316,7 @@ export function CheckoutScreen({
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
         <button
           type="button"
-          onClick={() => router.push("/cart")}
+          onClick={() => router.push("/menu")} // no home for now redirect to menu
           aria-label="Go back to cart"
           className="flex size-9 items-center justify-center justify-self-start rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >

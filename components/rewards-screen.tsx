@@ -86,11 +86,11 @@ export function RewardsScreen({
 
   return (
     <div className="flex flex-col">
-      {/* Header — light, matching the design. Back returns to Home; "?" opens
+      {/* Header — light, matching the design. Back returns to the menu; "?" opens
           the program explainer. */}
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
         <Link
-          href="/home"
+          href="/menu"
           aria-label="Go back"
           className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
         >

@@ -14,6 +14,11 @@ const tabs = [
   { href: "/profile", label: "Profile", icon: User },
 ] as const;
 
+// Temporarily hidden from the tab bar. Home is hidden for now (root lands on
+// /menu), and Cart moved to a floating button (CartFab). Remove entries here to
+// restore them.
+const hiddenTabs: ReadonlySet<string> = new Set(["/home", "/cart"]);
+
 export function TabBar({ showRewards = true }: { showRewards?: boolean }) {
   const pathname = usePathname();
   const { totalItems: cartCount } = useCart();
@@ -21,10 +26,11 @@ export function TabBar({ showRewards = true }: { showRewards?: boolean }) {
   return (
     <nav
       aria-label="Primary"
-      className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]"
+      className="fixed bottom-0 left-1/2 z-[55] w-full max-w-md -translate-x-1/2 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]"
     >
       <ul className="flex h-16 items-stretch justify-around px-2">
         {tabs
+          .filter((tab) => !hiddenTabs.has(tab.href))
           .filter((tab) => showRewards || tab.href !== "/rewards")
           .map((tab) => {
           const active =

@@ -196,6 +196,111 @@
   animation: naise-fade 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* Cart bar reveal: a rounded pill pinned to the right edge stretches open
+   leftward (right → left) into the full bar. The corner radius stays at 1rem the
+   whole time (only the width animates) so the border is consistent throughout —
+   morphing the radius from a circle would over-round the right end mid-sweep. */
+@keyframes naise-sweep {
+  from {
+    clip-path: inset(0 0 0 calc(100% - 3.5rem) round 1rem);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 1rem);
+  }
+}
+
+.naise-sweep {
+  animation: naise-sweep 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Close: slide the whole bar off past the right screen edge. Used instead of a
+   reverse clip so the bar leaves the screen rather than shrinking into the
+   circle (whose logo art/size differs from the bar's). */
+@keyframes naise-slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100vw);
+    opacity: 1;
+  }
+}
+
+.naise-slide-out-right {
+  animation: naise-slide-out-right 0.5s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Cart logo glide: travels from the bar's right edge (where the empty FAB sat)
+   to its resting slot on the left. Only `left` animates so the element keeps its
+   -translate-y-1/2 vertical centering. 3rem logo + 0.25rem resting inset. */
+@keyframes naise-glide {
+  from {
+    left: calc(100% - 3.25rem);
+  }
+  to {
+    left: 0.25rem;
+  }
+}
+
+.naise-glide {
+  animation: naise-glide 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .naise-glide {
+    animation: none;
+  }
+}
+
+/* Floating cart: the panel rises from the bottom (bottom → top) and drops back
+   down on close; the backdrop fades alongside it. */
+@keyframes naise-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes naise-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.naise-sheet-in {
+  animation: naise-sheet-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.naise-sheet-out {
+  animation: naise-sheet-out 0.32s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.naise-backdrop-in {
+  opacity: 0;
+  animation: naise-fade 0.32s ease-out forwards;
+}
+
+.naise-backdrop-out {
+  animation: naise-fade 0.28s ease-in reverse forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .naise-sheet-in,
+  .naise-sheet-out,
+  .naise-backdrop-in,
+  .naise-backdrop-out {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(20px);
@@ -214,10 +319,13 @@
   .naise-rise,
   .naise-pop,
   .naise-logo-splash,
-  .naise-fade {
+  .naise-fade,
+  .naise-sweep,
+  .naise-slide-out-right {
     animation: none;
     opacity: 1;
     transform: none;
+    clip-path: none;
   }
   .reveal {
     opacity: 1;

@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/auth/session";
+import { REWARDS_CONFIG_TAG } from "@/lib/rewards/config-store";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -17,6 +18,7 @@ function revalidateAll() {
   revalidatePath("/rewards/catalog");
   revalidatePath("/profile");
   revalidatePath("/menu/[slug]", "page");
+  revalidateTag(REWARDS_CONFIG_TAG, "max");
 }
 
 export async function updateLoyaltySettings(input: {

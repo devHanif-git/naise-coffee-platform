@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { TabBar } from "@/components/tab-bar";
+import { CartFab } from "@/components/cart-fab";
 import { AuthProvider } from "@/store/auth";
 import { CartProvider } from "@/store/cart";
 import { BeansProvider } from "@/store/beans";
@@ -26,6 +27,7 @@ export default async function CustomerLayout({
           <CartProvider>
             <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background pb-[calc(4rem+env(safe-area-inset-bottom))]">
               {children}
+              <CartFab />
               <TabBar showRewards={rewardsEnabled} />
             </div>
             <WelcomeModal />

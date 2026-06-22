@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdmin } from "@/lib/auth/session";
+import { STORE_SETTINGS_TAG } from "@/lib/settings/store";
 import type { StoreSettings } from "@/lib/settings/types";
 import type { PaymentSettings } from "@/lib/settings/payments";
 
@@ -38,6 +39,7 @@ export async function updateStoreSettings(input: StoreSettings): Promise<ActionR
   revalidatePath("/cart");
   revalidatePath("/checkout");
   revalidatePath("/rewards");
+  revalidateTag(STORE_SETTINGS_TAG, "max");
   return { ok: true };
 }
 

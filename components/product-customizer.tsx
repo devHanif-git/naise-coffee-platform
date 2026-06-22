@@ -139,12 +139,11 @@ export function ProductCustomizer({
     };
 
     if (isEditing && editKey) {
-      const merged = updateItem(editKey, input);
-      router.push(
-        merged
-          ? `${routes.cart}?merged=${encodeURIComponent(product.name)}`
-          : routes.cart,
-      );
+      updateItem(editKey, input);
+      // Both surfaces return to the menu, where the floating cart sheet lives
+      // (it stays open across the edit). Neither reads ?merged=, so a silent
+      // merge just shows the combined line when the sheet reopens.
+      router.push(routes.editReturn);
       return;
     }
 

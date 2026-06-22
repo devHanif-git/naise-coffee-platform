@@ -8,10 +8,10 @@ import { claimDeviceOrders } from "@/lib/orders/claim";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const rawNext = searchParams.get("next") ?? "/home";
+  const rawNext = searchParams.get("next") ?? "/menu";  // no home for now redirect to menu, but keep it general for future use
   // Only allow same-site relative redirects.
   const next =
-    rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/home";
+    rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/menu"; // Default to /menu if the provided next is invalid.
 
   // Behind App Service + Cloudflare, request.url's host is the internal
   // container (e.g. http://<id>:8080), so we can't build the public redirect

@@ -27,14 +27,20 @@ export function useOrderMode(): OrderMode {
 }
 
 // Navigation targets for the active mode. The kiosk lives under /store with the
-// menu at /store and products at /store/<slug>; the storefront uses /menu.
+// menu at /store and products at /store/<slug>; the storefront uses /menu. Both
+// surfaces now use the floating cart sheet (which lives on the menu screen), so
+// `cart` and `editReturn` point at the menu — there's no standalone cart page in
+// the flow anymore. `editReturn` is where the product page lands after editing a
+// cart line; the sheet stays open across the round-trip.
 export function useOrderRoutes() {
   const mode = useOrderMode();
   const isStore = mode === "store";
   return {
     mode,
     menu: isStore ? "/store" : "/menu",
-    cart: isStore ? "/store/cart" : "/cart",
+    cart: isStore ? "/store" : "/menu",
+    editReturn: isStore ? "/store" : "/menu",
+    checkout: isStore ? "/store/checkout" : "/checkout",
     product: (slug: string) => (isStore ? `/store/${slug}` : `/menu/${slug}`),
   };
 }

@@ -19,10 +19,6 @@ export default async function StoreMenuPage() {
     );
   }
 
-  // Bottom padding leaves room for the floating "View cart" bar (StoreCartBar).
-  return (
-    <div className="pb-28">
-      <MenuBrowser categories={categories} products={products} />
-    </div>
-  );
+  // MenuBrowser carries its own bottom padding to clear the floating cart bar.
+  return <MenuBrowser categories={categories} products={products} />;
 }

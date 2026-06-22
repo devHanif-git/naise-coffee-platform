@@ -46,11 +46,11 @@ export function AuthScreen() {
   // Where to land after sign-in. Defaults to Home; the profile/checkout entry
   // points pass ?redirect=… so the customer returns to where they were (with
   // their cart intact — it lives in localStorage, untouched by auth).
-  const rawRedirect = params.get("redirect") || "/home";
+  const rawRedirect = params.get("redirect") || "/menu"; // no home for now redirect to menu, but keep it general for future use
   const redirect =
     rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
       ? rawRedirect
-      : "/home";
+      : "/menu";
 
   const [pending, setPending] = useState<"google" | null>(null);
 
