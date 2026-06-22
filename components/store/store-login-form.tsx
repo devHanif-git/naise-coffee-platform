@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { STORE_ACCOUNT_EMAIL } from "@/constants/store";
@@ -38,6 +40,13 @@ export function StoreLoginForm({ disabled }: { disabled: boolean }) {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-6 p-8">
+      <Link
+        href="/"
+        className="absolute left-5 top-5 inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <ChevronLeft className="size-4" aria-hidden />
+        Back to app
+      </Link>
       <h1 className="font-heading text-2xl font-bold uppercase tracking-[0.2em]">
         Naise Store
       </h1>
