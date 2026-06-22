@@ -89,11 +89,13 @@ export async function markReadyAndNotify(
   const completed = await completeOrder(token);
   if (!completed) return { ok: false, error: "Could not complete the order." };
 
-  // If we have the customer's number, staff send the ready notice over WhatsApp
-  // by hand (the wa.me button on the completed order). Only fall back to the
-  // Telegram notice when there is no number to message. The order is already
-  // completed above regardless.
-  if (!completed.contactPhone) {
+  // In-store/kiosk orders are handed to the customer at the counter, so there's
+  // nobody to notify — never fire a ready notice for them. For online orders: if
+  // we have the customer's number, staff send the ready notice over WhatsApp by
+  // hand (the wa.me button on the completed order); only fall back to the Telegram
+  // notice when there is no number to message. The order is already completed
+  // above regardless.
+  if (completed.source !== "store" && !completed.contactPhone) {
     try {
       await sendTelegramMessage(buildOrderReadyMessage(completed));
     } catch (err) {
