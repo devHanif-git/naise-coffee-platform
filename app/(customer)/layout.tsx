@@ -9,6 +9,7 @@ import { WelcomeModal } from "@/components/welcome-modal";
 import { getLoyaltySettings } from "@/lib/rewards/config-store";
 import { getStoreSettings } from "@/lib/settings/store";
 import { getSessionRole } from "@/lib/auth/session";
+import { StoreEnter } from "@/components/store/store-enter";
 
 export default async function CustomerLayout({
   children,
@@ -27,6 +28,7 @@ export default async function CustomerLayout({
           <CartProvider>
             <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background pb-[calc(4rem+env(safe-area-inset-bottom))]">
               {children}
+              <StoreEnter />
               <CartFab />
               <TabBar showRewards={rewardsEnabled} />
             </div>
