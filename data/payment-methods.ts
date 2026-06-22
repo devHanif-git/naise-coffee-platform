@@ -74,3 +74,30 @@ export const paymentMethods: PaymentMethod[] = [
 // The method selected by default when none of the enabled methods dictates
 // otherwise. Checkout falls back to the first enabled method at runtime.
 export const defaultPaymentMethodId: PaymentMethod["id"] = "cash";
+
+// Orders historically stored their payment method inconsistently: the online
+// checkout saved the display name ("DuitNow QR") while the in-store kiosk saved
+// the method id ("duitnow-qr"). That split the same method into separate rows in
+// reports. Both surfaces now store the id; these helpers canonicalize any value
+// (id, display name, or casing variant) so reads group and label consistently.
+const methodById = new Map<string, PaymentMethod>(
+  paymentMethods.map((m) => [m.id, m]),
+);
+const idByName = new Map<string, string>(
+  paymentMethods.map((m) => [m.name.toLowerCase(), m.id]),
+);
+
+// Canonical method id for any stored payment_method value. Unknown values pass
+// through unchanged so nothing is silently dropped.
+export function normalizePaymentMethod(value: string): string {
+  if (methodById.has(value)) return value;
+  return idByName.get(value.trim().toLowerCase()) ?? value;
+}
+
+// Human-readable label for a stored payment_method value. Falls back to a
+// prettified form for any value not in the catalogue (legacy/removed methods).
+export function paymentMethodLabel(value: string): string {
+  const method = methodById.get(normalizePaymentMethod(value));
+  if (method) return method.name;
+  return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}

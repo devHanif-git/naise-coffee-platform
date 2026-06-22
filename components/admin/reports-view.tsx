@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { TrendingUp, TrendingDown, Gift } from "lucide-react";
 import type { ReportData, ReportRange } from "@/lib/analytics/types";
+import { paymentMethodLabel } from "@/data/payment-methods";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { RevenueArea } from "@/components/admin/dashboard-charts";
@@ -26,12 +27,6 @@ const PREV_LABEL: Record<ReportRange, string> = {
   "30d": "prev 30 days",
   month: "prior period",
 };
-
-function prettyMethod(method: string): string {
-  return method
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 // Percentage change vs the prior period. null when there's no baseline.
 function delta(current: number, previous: number): number | null {
@@ -251,7 +246,7 @@ export function ReportsView({
                   return (
                     <li key={p.method} className="flex flex-col gap-1.5">
                       <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate font-medium">{prettyMethod(p.method)}</span>
+                        <span className="truncate font-medium">{paymentMethodLabel(p.method)}</span>
                         <span className="shrink-0 text-muted-foreground">
                           <span className="font-mono tabular-nums">{p.orders}</span> orders
                           <span className="px-1.5 text-border">·</span>

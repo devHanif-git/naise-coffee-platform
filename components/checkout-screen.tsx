@@ -224,7 +224,9 @@ export function CheckoutScreen({
           isReward: item.isReward,
           rewardCost: item.rewardCost,
         })),
-        paymentMethod: method.name,
+        // Store the stable method id (e.g. "duitnow-qr") — not the display name
+        // — so it matches what the in-store kiosk stores and reports group as one.
+        paymentMethod: method.id,
         notes,
         subtotal: totalOriginal,
         total: totalPrice,

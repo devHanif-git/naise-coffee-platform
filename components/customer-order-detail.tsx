@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { statusDisplay } from "@/lib/orders/status";
 import { ReceiptModal } from "@/components/receipt-modal";
+import { paymentMethodLabel } from "@/data/payment-methods";
 import type { Order } from "@/types/order";
 
 // Read-only customer view of a single past order — a receipt, not the staff
@@ -101,7 +102,7 @@ export function CustomerOrderDetail({
         <dl className="mt-4 grid grid-cols-2 gap-3 naise-rise [animation-delay:140ms]">
           <div className="rounded-2xl bg-neutral-100 px-4 py-3">
             <dt className="text-xs font-medium text-muted-foreground">Payment</dt>
-            <dd className="mt-0.5 text-sm font-bold">{order.paymentMethod}</dd>
+            <dd className="mt-0.5 text-sm font-bold">{paymentMethodLabel(order.paymentMethod)}</dd>
           </div>
           <div className="rounded-2xl bg-neutral-100 px-4 py-3">
             <dt className="text-xs font-medium text-muted-foreground">Status</dt>
@@ -132,7 +133,7 @@ export function CustomerOrderDetail({
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="text-sm font-semibold">Tap to view receipt</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {order.paymentMethod}
+                  {paymentMethodLabel(order.paymentMethod)}
                 </span>
               </span>
               <ChevronRight

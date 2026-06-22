@@ -1,5 +1,6 @@
 import { formatPrice } from "@/lib/format";
 import { toWaMeDigits } from "@/lib/phone";
+import { paymentMethodLabel } from "@/data/payment-methods";
 import type { Order } from "@/types/order";
 
 // Builds the plain-text message posted to the team's Telegram group. Kept
@@ -26,7 +27,7 @@ export function buildOrderMessage(
     "NEW ORDER!",
     "",
     `Order: ${order.orderNumber}`,
-    `Payment: ${order.paymentMethod}`,
+    `Payment: ${paymentMethodLabel(order.paymentMethod)}`,
   ];
 
   if (order.source === "store") {
