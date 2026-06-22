@@ -58,7 +58,9 @@ export function ProductForm({
   );
   const [isBestSeller, setIsBestSeller] = useState(product?.isBestSeller ?? false);
   const [isNew, setIsNew] = useState(product?.isNew ?? false);
-  const [isFeatured, setIsFeatured] = useState(product?.isFeatured ?? false);
+  // Featured has no storefront surface yet; preserve the saved value on edit
+  // without exposing a control. Re-add a ToggleRow when the section ships.
+  const [isFeatured] = useState(product?.isFeatured ?? false);
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
@@ -322,11 +324,6 @@ export function ProductForm({
                 onChange={setIsBestSeller}
               />
               <ToggleRow label="New" checked={isNew} onChange={setIsNew} />
-              <ToggleRow
-                label="Featured"
-                checked={isFeatured}
-                onChange={setIsFeatured}
-              />
             </div>
           </Panel>
         </div>
