@@ -28,7 +28,7 @@ export function CategoryTabs({
     <div
       role="tablist"
       aria-label="Menu categories"
-      className="-mx-5 flex gap-2 overflow-x-auto border-b border-border px-5 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="-mx-5 flex gap-2 overflow-x-auto border-b border-border px-5 pb-3 pt-1.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {tabs.map((tab) => {
         const active = tab.id === activeId;
@@ -42,7 +42,7 @@ export function CategoryTabs({
               onClick={() => onSelect(tab.id)}
               className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-gradient-to-r from-amber-400 to-amber-600 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_2px_8px_rgba(245,158,11,0.45)] transition-all outline-none focus-visible:ring-3 focus-visible:ring-amber-300",
-                active && "ring-2 ring-amber-300 ring-offset-1",
+                active && "ring-2 ring-amber-300",
               )}
             >
               <Star className="size-3.5 fill-current" strokeWidth={0} />
