@@ -2,17 +2,18 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, ChevronLeft, ChevronDown } from "lucide-react";
+import { Search, ChevronLeft, ChevronDown, Star } from "lucide-react";
 import type { Category, CategoryType, Product } from "@/types/menu";
 import { Input } from "@/components/ui/input";
 import { MenuCard } from "@/components/menu-card";
 import { Reveal } from "@/components/reveal";
-import { CategoryTabs } from "@/components/category-tabs";
+import { CategoryTabs, type MenuTab } from "@/components/category-tabs";
 import { sortProducts, type SortKey } from "@/lib/menu/sorting";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useOrderRoutes } from "@/store/order-mode";
 
 const sectionId = (type: CategoryType) => `section-${type}`;
+const BEST_SELLER_ID = "section-best-seller";
 
 export function MenuBrowser({
   categories,
@@ -80,20 +81,22 @@ export function MenuBrowser({
     );
   }, [products, q, searching, sort]);
 
-  const tabCategories = useMemo(
-    () => sections.map((s) => s.category),
-    [sections],
-  );
-  const ids = useMemo(
-    () => sections.map((s) => sectionId(s.category.type)),
-    [sections],
-  );
+  const hasBestSellers = bestSellers.length > 0;
+
+  // The Best Seller tab is a virtual first tab (not a real category) that
+  // scroll-spies and jumps to the best-seller section at the top.
+  const tabs = useMemo<MenuTab[]>(() => {
+    const sectionTabs = sections.map((s) => ({
+      id: sectionId(s.category.type),
+      name: s.category.name,
+    }));
+    return hasBestSellers
+      ? [{ id: BEST_SELLER_ID, name: "Best Seller", highlight: true }, ...sectionTabs]
+      : sectionTabs;
+  }, [sections, hasBestSellers]);
+
+  const ids = useMemo(() => tabs.map((t) => t.id), [tabs]);
   const { activeId, scrollTo } = useScrollSpy(ids, stickyH);
-  const activeType =
-    sections.find((s) => sectionId(s.category.type) === activeId)?.category
-      .type ??
-    sections[0]?.category.type ??
-    "";
 
   return (
     <div className="flex flex-col">
@@ -130,13 +133,9 @@ export function MenuBrowser({
           </div>
         </header>
 
-        {!searching && tabCategories.length > 0 && (
+        {!searching && tabs.length > 0 && (
           <div className="bg-white px-5 pt-3">
-            <CategoryTabs
-              categories={tabCategories}
-              activeType={activeType}
-              onSelect={(type) => scrollTo(sectionId(type))}
-            />
+            <CategoryTabs tabs={tabs} activeId={activeId} onSelect={scrollTo} />
           </div>
         )}
       </div>
@@ -145,12 +144,23 @@ export function MenuBrowser({
           last drink isn't hidden behind it. */}
       <div className="pb-28">
         {!searching && bestSellers.length > 0 && (
-          <section aria-labelledby="best-seller-heading" className="px-5 pt-5">
+          <section
+            id={BEST_SELLER_ID}
+            style={{ scrollMarginTop: stickyH }}
+            aria-labelledby="best-seller-heading"
+            className="px-5 pt-5"
+          >
             <h2
               id="best-seller-heading"
-              className="mb-2 font-heading text-2xl font-extrabold tracking-tight"
+              className="mb-2 flex items-center gap-2 font-heading text-2xl font-extrabold tracking-tight"
             >
-              Best Seller
+              <Star
+                className="size-6 fill-amber-400 text-amber-400"
+                strokeWidth={0}
+              />
+              <span className="bg-gradient-to-r from-amber-500 to-amber-700 bg-clip-text text-transparent">
+                Best Seller
+              </span>
             </h2>
             <div className="flex flex-col divide-y divide-border">
               {bestSellers.map((product, i) => (
