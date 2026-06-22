@@ -50,12 +50,16 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
     (o) => klDate(o.created_at) >= start && o.status === "completed",
   );
 
-  // Online vs in-store split (completed orders in range).
-  const bySource = (src: "online" | "store") => {
+  // Online vs in-store vs custom split (completed orders in range).
+  const bySource = (src: "online" | "store" | "custom") => {
     const rows = completed.filter((o) => (o.source ?? "online") === src);
     return { orders: rows.length, revenue: rows.reduce((s, o) => s + o.total, 0) };
   };
-  const totalsBySource = { online: bySource("online"), store: bySource("store") };
+  const totalsBySource = {
+    online: bySource("online"),
+    store: bySource("store"),
+    custom: bySource("custom"),
+  };
 
   // Prior-period completed totals (revenue + order count) for delta arrows.
   let prevRevenue = 0;
@@ -96,27 +100,37 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
 
   const ids = completed.map((o) => o.id);
   let topItems: { name: string; quantity: number; revenue: number }[] = [];
+  let topCustomItems: { name: string; quantity: number; revenue: number }[] = [];
   let redemptionBeans = 0;
   let rewardLines = 0;
   let itemsSold = 0;
   if (ids.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
-      .select("name, quantity, line_total, is_reward, reward_cost, order_id")
+      .select("name, quantity, line_total, is_reward, reward_cost, is_custom, order_id")
       .in("order_id", ids);
     if (itemsErr) throw new Error(`getReportData failed: ${itemsErr.message}`);
     const map = new Map<string, { quantity: number; revenue: number }>();
+    const customMap = new Map<string, { quantity: number; revenue: number }>();
     for (const it of items ?? []) {
       const cur = map.get(it.name) ?? { quantity: 0, revenue: 0 };
       cur.quantity += it.quantity; cur.revenue += it.line_total;
       map.set(it.name, cur);
       itemsSold += it.quantity;
       if (it.is_reward) { rewardLines += 1; redemptionBeans += it.reward_cost; }
+      if (it.is_custom) {
+        const c = customMap.get(it.name) ?? { quantity: 0, revenue: 0 };
+        c.quantity += it.quantity; c.revenue += it.line_total;
+        customMap.set(it.name, c);
+      }
     }
-    topItems = [...map.entries()]
-      .map(([name, v]) => ({ name, quantity: v.quantity, revenue: v.revenue }))
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 10);
+    const rank = (m: Map<string, { quantity: number; revenue: number }>) =>
+      [...m.entries()]
+        .map(([name, v]) => ({ name, quantity: v.quantity, revenue: v.revenue }))
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 10);
+    topItems = rank(map);
+    topCustomItems = rank(customMap);
   }
 
   return {
@@ -126,6 +140,7 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
     previous: { orders: prevOrders, revenue: prevRevenue },
     trend,
     topItems,
+    topCustomItems,
     paymentBreakdown,
   };
 }

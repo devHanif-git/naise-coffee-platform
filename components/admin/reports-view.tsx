@@ -173,25 +173,22 @@ export function ReportsView({
           />
         </div>
 
-        {/* Online vs in-store split. */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Online vs in-store vs custom split. */}
+        <div className="grid grid-cols-3 gap-4">
           <StatTile
             label="Online orders"
             value={String(data.totalsBySource.online.orders)}
-            foot={
-              <span className="text-xs text-muted-foreground">
-                {formatPrice(data.totalsBySource.online.revenue)}
-              </span>
-            }
+            foot={<span className="text-xs text-muted-foreground">{formatPrice(data.totalsBySource.online.revenue)}</span>}
           />
           <StatTile
             label="In-store orders"
             value={String(data.totalsBySource.store.orders)}
-            foot={
-              <span className="text-xs text-muted-foreground">
-                {formatPrice(data.totalsBySource.store.revenue)}
-              </span>
-            }
+            foot={<span className="text-xs text-muted-foreground">{formatPrice(data.totalsBySource.store.revenue)}</span>}
+          />
+          <StatTile
+            label="Custom orders"
+            value={String(data.totalsBySource.custom.orders)}
+            foot={<span className="text-xs text-muted-foreground">{formatPrice(data.totalsBySource.custom.revenue)}</span>}
           />
         </div>
 
@@ -273,6 +270,27 @@ export function ReportsView({
             )}
           </section>
         </div>
+
+        {/* Top custom drinks — off-menu drinks ranked by quantity. A trending
+            one here is a candidate to promote to the real menu. */}
+        {data.topCustomItems.length > 0 && (
+          <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-baseline justify-between">
+              <h2 className="font-heading text-base font-semibold">Top custom drinks</h2>
+              <Eyebrow>Off-menu, by quantity</Eyebrow>
+            </div>
+            <ul className="flex flex-col gap-3">
+              {data.topCustomItems.map((it, i) => (
+                <li key={it.name} className="flex items-center gap-3 text-sm">
+                  <span className="w-4 shrink-0 font-mono text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{it.name}</span>
+                  <span className="w-8 shrink-0 text-right font-mono tabular-nums">{it.quantity}</span>
+                  <span className="w-20 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground">{formatPrice(it.revenue)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Reward cost — what loyalty is giving away this period. */}
         <section className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
