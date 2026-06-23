@@ -151,7 +151,7 @@ export function DrinkRow({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setShowRecipe(true); }}
                 aria-label={`Recipe for ${item.name}`}
-                className="flex size-7 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <Info className="size-3.5" strokeWidth={2.5} />
               </button>
