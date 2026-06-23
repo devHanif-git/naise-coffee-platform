@@ -49,6 +49,38 @@ export function MenuBrowser({
     if (searching) window.scrollTo({ top: 0 });
   }, [q, searching]);
 
+  // Remember the browse position so returning from a product (after add-to-cart
+  // or the back button) lands the user where they left off instead of at the
+  // top. The page remounts on every visit and Next scrolls it to the top in a
+  // parent's mount lifecycle; this passive effect runs after that, so the
+  // restore wins. Keyed per mode so /menu and /store don't clobber each other.
+  // Remember the browse position so returning from a product (after add-to-cart
+  // or the back button) lands the user where they left off instead of at the
+  // top. Keyed per mode so /menu and /store don't clobber each other.
+  //
+  // We capture on the way out (a tap anywhere on the list, in the capture phase)
+  // rather than via a scroll listener: navigating scrolls the window to the top
+  // while this page is briefly still mounted, so a scroll listener would save
+  // that 0 and wipe the real position.
+  const scrollKey = `menu-scroll:${routes.mode}`;
+  const saveScroll = () => {
+    sessionStorage.setItem(scrollKey, String(window.scrollY));
+  };
+  useEffect(() => {
+    const saved = Number(sessionStorage.getItem(scrollKey));
+    if (saved <= 0) return;
+    // The list is fully rendered on mount, but re-assert for a couple of frames
+    // in case the navigation's own scroll settles just after us.
+    let frames = 0;
+    const restore = () => {
+      window.scrollTo(0, saved);
+      if (++frames < 3 && Math.abs(window.scrollY - saved) > 2) {
+        requestAnimationFrame(restore);
+      }
+    };
+    requestAnimationFrame(restore);
+  }, [scrollKey]);
+
   // Category sections that actually have products, each internally ordered.
   const sections = useMemo(
     () =>
@@ -99,7 +131,7 @@ export function MenuBrowser({
   const { activeId, scrollTo } = useScrollSpy(ids, stickyH);
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" onClickCapture={saveScroll}>
       <div ref={stickyRef} className="sticky top-0 z-20 bg-black">
         <header className="px-5 pb-4 pt-3 text-white">
           <div className="flex items-center justify-between">
