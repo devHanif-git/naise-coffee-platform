@@ -113,7 +113,7 @@ export function ProductCustomizer({
     });
   }
 
-  function addToCart() {
+  function submit(target: "menu" | "checkout") {
     if (soldOut) return;
     const selectedAddons = product.addons.filter((a) =>
       addonIds.includes(a.id),
@@ -148,10 +148,16 @@ export function ProductCustomizer({
     }
 
     addItem(input);
-    // A redeemed reward returns to Rewards (where the redemption started); a
-    // normal add returns to the menu to keep browsing. Reward mode never engages
-    // in the kiosk (empty catalog), so it always lands on the menu there.
-    router.push(isReward ? "/rewards" : routes.menu);
+    // A redeemed reward returns to Rewards (where the redemption started).
+    // Otherwise route by the button pressed: Checkout goes straight to the
+    // checkout screen (settling the whole cart); Add to Cart returns to the
+    // menu to keep browsing. Reward mode never engages in the kiosk (empty
+    // catalog), so it always lands on Rewards there.
+    if (isReward) {
+      router.push("/rewards");
+      return;
+    }
+    router.push(target === "checkout" ? routes.checkout : routes.menu);
   }
 
   return (
@@ -275,15 +281,32 @@ export function ProductCustomizer({
       <div
         className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 py-3 naise-fade [animation-delay:360ms]"
       >
-        <div className="flex items-center gap-3">
-          {!isReward && (
-            <div className="flex h-12 items-center gap-1 rounded-full bg-neutral-100 p-1">
+        {/* Top row: price (left) + quantity stepper (right). Reward and sold-out
+            modes have no editable quantity/price line, so the row is omitted. */}
+        {!isReward && !soldOut && (
+          <div className="mb-3 flex items-center justify-between">
+            {onSale ? (
+              <span className="flex items-baseline gap-2">
+                <span className="text-lg font-bold tabular-nums text-rose-600">
+                  {formatPrice(total)}
+                </span>
+                <span className="text-sm text-muted-foreground line-through tabular-nums">
+                  {formatPrice(totalOriginal)}
+                </span>
+              </span>
+            ) : (
+              <span className="text-lg font-bold tabular-nums">
+                {formatPrice(total)}
+              </span>
+            )}
+
+            <div className="flex h-11 items-center gap-1 rounded-full bg-neutral-100 p-1">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 disabled={quantity <= 1}
                 aria-label="Decrease quantity"
-                className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <Minus className="size-4" strokeWidth={2.5} aria-hidden />
               </button>
@@ -297,55 +320,76 @@ export function ProductCustomizer({
                 type="button"
                 onClick={() => setQuantity((q) => q + 1)}
                 aria-label="Increase quantity"
-                className="flex size-10 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <Plus className="size-4" strokeWidth={2.5} aria-hidden />
               </button>
             </div>
-          )}
+          </div>
+        )}
 
+        {/* Button row. Sold-out and reward render a single button; edit renders a
+            single full-width Update Cart; normal renders Checkout + Add to Cart. */}
+        {soldOut ? (
           <button
             type="button"
-            onClick={addToCart}
-            disabled={soldOut}
-            className="flex h-12 flex-1 flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:hover:scale-100"
+            disabled
+            className="flex h-12 w-full items-center justify-center rounded-2xl bg-neutral-300 px-4 text-white"
           >
-            {soldOut ? (
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Sold Out
-              </span>
-            ) : (
-            <>
             <span className="text-xs font-bold uppercase tracking-wider">
-              {isReward ? "Redeem Reward" : isEditing ? "Update Cart" : "Add to Cart"}
+              Sold Out
             </span>
-            {isReward ? (
-              <span className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-white">
-                  {addonsTotal > 0 ? formatPrice(total) : "Free Drink"}
-                </span>
-                <span className="text-xs text-neutral-400">
-                  · {activeRewardCost.toLocaleString()} Beans
-                </span>
-              </span>
-            ) : onSale ? (
-              <span className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-white">
-                  {formatPrice(total)}
-                </span>
-                <span className="text-xs text-neutral-400 line-through">
-                  {formatPrice(totalOriginal)}
-                </span>
-              </span>
-            ) : (
-              <span className="text-xs font-medium text-neutral-300">
-                {formatPrice(total)}
-              </span>
-            )}
-            </>
-            )}
           </button>
-        </div>
+        ) : isReward ? (
+          <button
+            type="button"
+            onClick={() => submit("menu")}
+            className="flex h-12 w-full flex-col items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="text-xs font-bold uppercase tracking-wider">
+              Redeem Reward
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-white">
+                {addonsTotal > 0 ? formatPrice(total) : "Free Drink"}
+              </span>
+              <span className="text-xs text-neutral-400">
+                · {activeRewardCost.toLocaleString()} Beans
+              </span>
+            </span>
+          </button>
+        ) : isEditing ? (
+          <button
+            type="button"
+            onClick={() => submit("menu")}
+            className="flex h-12 w-full items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <span className="text-xs font-bold uppercase tracking-wider">
+              Update Cart
+            </span>
+          </button>
+        ) : (
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => submit("checkout")}
+              className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-neutral-100 px-4 text-foreground transition-colors outline-none hover:bg-neutral-200 active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Checkout
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => submit("menu")}
+              className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-black px-4 text-white transition-transform outline-none hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Add to Cart
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     </>
   );
