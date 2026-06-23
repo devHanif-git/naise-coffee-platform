@@ -72,13 +72,16 @@ export function AuthScreen() {
 
   return (
     <main className="flex flex-1 flex-col">
-      {/* Header — back closes the auth flow and returns to where they came
-          from (or Home). Mirrors the in-app screen headers. */}
+      {/* Header — back exits the auth flow to the public menu, NOT the
+          `redirect` target: that target is often the gated page that bounced
+          the visitor here (e.g. a product), so returning to it would just
+          re-trigger the login wall in a loop. `redirect` is only for landing
+          AFTER a successful sign-in. */}
       <header className="flex items-center px-5 pb-2 pt-4">
         <button
           type="button"
-          onClick={() => router.push(redirect)}
-          aria-label="Go back"
+          onClick={() => router.push("/menu")}
+          aria-label="Go back to menu"
           className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <ChevronLeft className="size-6" aria-hidden />
