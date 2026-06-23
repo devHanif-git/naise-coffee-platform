@@ -102,10 +102,13 @@ export async function placeOrder(
   }
 
   // Sign the receipt server-side (staff-only read policy). Constrain to the
-  // caller's own folder so a client can't sign someone else's receipt path.
+  // caller's own folder using the SERVER-derived user id — never the client
+  // ownerId — so a client can't sign someone else's receipt path. (The receipts
+  // bucket's insert policy allows any authenticated user to write any path, so
+  // this prefix check is the only thing scoping the signed URL to the caller.)
   let proofOfPaymentUrl: string | undefined;
   if (input.proofOfPaymentPath) {
-    if (!input.proofOfPaymentPath.startsWith(`${input.ownerId}/`)) {
+    if (!input.proofOfPaymentPath.startsWith(`${userId}/`)) {
       return { ok: false, error: "Invalid receipt reference." };
     }
     try {
