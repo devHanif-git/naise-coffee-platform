@@ -261,7 +261,10 @@ export function ProfileScreen({
             above the account rows so it's the first thing staff reach. Not
             gated on the client `ready` flag because `role` is a server prop. */}
         {canManage && (
-          <section aria-label="Staff" className="flex flex-col gap-3">
+          <section
+            aria-label="Staff"
+            className="flex flex-col gap-3 naise-rise [animation-delay:110ms]"
+          >
             <h2 className="text-xs font-bold uppercase tracking-wide">Staff</h2>
             <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
               <StaffRow
