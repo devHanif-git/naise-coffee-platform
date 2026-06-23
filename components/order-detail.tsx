@@ -30,11 +30,13 @@ export function OrderDetail({
   order,
   persist = true,
   backHref = "/manage",
+  recipeMap,
 }: {
   order: Order;
   persist?: boolean;
   // Where the back control returns to — the staff board by default.
   backHref?: string;
+  recipeMap?: Map<string, string[]>;
 }) {
   // Per-drink status, keyed by line index, seeded from the order's own lines.
   // Held locally for optimistic updates; the server action persists in parallel.
@@ -257,6 +259,7 @@ export function OrderDetail({
               item={item}
               status={statuses[i]}
               onAdvance={() => advanceDrink(i)}
+              recipeSteps={item.productId ? recipeMap?.get(item.productId) ?? null : null}
             />
           ))}
         </ul>

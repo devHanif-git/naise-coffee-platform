@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import {
-  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Coffee,
   LayoutDashboard,
+  Loader2,
   LogIn,
   LogOut,
   type LucideIcon,
@@ -53,6 +53,29 @@ const menuRows = [
   },
 ] as const;
 
+// Trailing chevron for a navigation row that swaps to a spinner while the row's
+// Link is mid-navigation. useLinkStatus reads the enclosing Link's pending state
+// (App Router), so the tapped row gives feedback instantly — even when the
+// destination's layout runs a server-side auth check before its page can paint
+// (Manage, Admin Dashboard). Used outside a Link (the inert Custom Order row) it
+// harmlessly stays a static chevron.
+function RowChevron() {
+  const { pending } = useLinkStatus();
+  return pending ? (
+    <Loader2
+      className="size-4 shrink-0 animate-spin text-muted-foreground"
+      strokeWidth={2.5}
+      aria-hidden
+    />
+  ) : (
+    <ChevronRight
+      className="size-4 shrink-0 text-muted-foreground"
+      strokeWidth={2.5}
+      aria-hidden
+    />
+  );
+}
+
 // A single row inside the staff tools card. Renders a Link when `href` is set,
 // otherwise an inert button (used by the not-yet-built Custom Order entry).
 // Styling matches the account menu rows so the two cards read as one family.
@@ -80,11 +103,7 @@ function StaffRow({
           {description}
         </span>
       </span>
-      <ChevronRight
-        className="size-4 shrink-0 text-muted-foreground"
-        strokeWidth={2.5}
-        aria-hidden
-      />
+      <RowChevron />
     </>
   );
   if (href) {
@@ -155,13 +174,7 @@ export function ProfileScreen({
       {/* Header — back returns to Home; title matches the other screens'
           spaced uppercase wordmark. Right spacer keeps the title centred. */}
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
-        <Link
-          href="/menu" // no home for now redirect to menu
-          aria-label="Go back"
-          className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <ChevronLeft className="size-6" aria-hidden />
-        </Link>
+        <div className="size-9" aria-hidden />
         <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
           Profile
         </h1>
@@ -318,11 +331,7 @@ export function ProfileScreen({
                       {row.description}
                     </span>
                   </span>
-                  <ChevronRight
-                    className="size-4 shrink-0 text-muted-foreground"
-                    strokeWidth={2.5}
-                    aria-hidden
-                  />
+                  <RowChevron />
                 </Link>
               );
             })}

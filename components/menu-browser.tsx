@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { Search, ChevronLeft, ChevronDown, Star } from "lucide-react";
+import { Search, ChevronDown, Star } from "lucide-react";
 import type { Category, CategoryType, Product } from "@/types/menu";
 import { Input } from "@/components/ui/input";
 import { MenuCard } from "@/components/menu-card";
@@ -157,17 +156,7 @@ export function MenuBrowser({
       <div ref={stickyRef} className="sticky top-0 z-20 bg-black">
         <header className="px-5 pb-4 pt-3 text-white">
           <div className="flex items-center justify-between">
-            {routes.mode === "customer" ? (
-              <Link
-                href="/"
-                aria-label="Go back"
-                className="flex size-9 items-center justify-center rounded-full outline-none focus-visible:ring-3 focus-visible:ring-white/40"
-              >
-                <ChevronLeft className="size-6" />
-              </Link>
-            ) : (
-              <div className="size-9" aria-hidden />
-            )}
+            <div className="size-9" aria-hidden />
             <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
               MENU
             </h1>

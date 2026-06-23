@@ -134,6 +134,7 @@ export async function placeOrder(
     status: "pending",
     isReward: item.isReward,
     rewardCost: item.rewardCost,
+    productId: item.productId,
   }));
 
   let order;

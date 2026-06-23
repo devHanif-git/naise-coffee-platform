@@ -301,6 +301,48 @@
   }
 }
 
+/* Floating action bar (e.g. the Rewards CMS save bar): rises in from below with
+   a touch of fade, drops back down on dismiss. Lighter travel than the cart
+   sheet since it sits just above its resting spot rather than off-screen. */
+@keyframes naise-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(140%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes naise-bar-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(140%);
+  }
+}
+
+.naise-bar-in {
+  animation: naise-bar-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.naise-bar-out {
+  animation: naise-bar-out 0.3s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .naise-bar-in,
+  .naise-bar-out {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
+
 .reveal {
   opacity: 0;
   transform: translateY(20px);

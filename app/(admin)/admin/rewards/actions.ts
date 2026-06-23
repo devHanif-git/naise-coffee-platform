@@ -21,176 +21,167 @@ function revalidateAll() {
   revalidateTag(REWARDS_CONFIG_TAG, "max");
 }
 
-export async function updateLoyaltySettings(input: {
-  beansPerRinggit: number;
-  referralBeans: number;
-  referralVoucherLabel: string;
-}): Promise<ActionResult> {
+// One desired-state payload for the whole Rewards CMS page. The client holds a
+// working copy of every section and commits it here in a single Save, so the
+// page needs exactly one floating action bar instead of a button per row.
+export type RewardsConfigInput = {
+  settings: {
+    beansPerRinggit: number;
+    referralBeans: number;
+    referralVoucherLabel: string;
+  };
+  tiers: {
+    id?: string;
+    name: string;
+    threshold: number;
+    perk: string;
+    isArchived: boolean;
+  }[];
+  milestones: {
+    id?: string;
+    label: string;
+    displayLabel: string;
+    beans: number;
+    triggerDay: number;
+    repeatEveryDays: number | null;
+    isActive: boolean;
+    deleted?: boolean;
+  }[];
+  rewards: {
+    id?: string;
+    name: string;
+    cost: number;
+    productId: string;
+    imageUrl: string | null;
+    isActive: boolean;
+    isArchived: boolean;
+  }[];
+};
+
+export async function saveRewardsConfig(input: RewardsConfigInput): Promise<ActionResult> {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  if (!Number.isInteger(input.beansPerRinggit) || input.beansPerRinggit < 1) {
+
+  // Validate everything up front so a bad row never leaves a half-applied page.
+  const s = input.settings;
+  if (!Number.isInteger(s.beansPerRinggit) || s.beansPerRinggit < 1) {
     return { ok: false, error: "Beans per RM must be a whole number of at least 1." };
   }
-  if (!Number.isInteger(input.referralBeans) || input.referralBeans < 0) {
+  if (!Number.isInteger(s.referralBeans) || s.referralBeans < 0) {
     return { ok: false, error: "Referral beans must be a whole number of 0 or more." };
   }
-  if (!input.referralVoucherLabel.trim()) return { ok: false, error: "Voucher label is required." };
+  if (!s.referralVoucherLabel.trim()) return { ok: false, error: "Voucher label is required." };
+
+  for (const t of input.tiers) {
+    const label = t.name.trim() || "Untitled tier";
+    if (!t.name.trim()) return { ok: false, error: "Every tier needs a name." };
+    if (!Number.isInteger(t.threshold) || t.threshold < 0) {
+      return { ok: false, error: `Tier "${label}": threshold must be a whole number of 0 or more.` };
+    }
+  }
+
+  for (const m of input.milestones) {
+    if (m.deleted) continue;
+    const label = m.label.trim() || "Untitled milestone";
+    if (!m.label.trim()) return { ok: false, error: "Every milestone needs a ledger label." };
+    if (!m.displayLabel.trim()) return { ok: false, error: `Milestone "${label}": card label is required.` };
+    if (!Number.isInteger(m.beans) || m.beans < 1) {
+      return { ok: false, error: `Milestone "${label}": beans must be a whole number of at least 1.` };
+    }
+    if (!Number.isInteger(m.triggerDay) || m.triggerDay < 1) {
+      return { ok: false, error: `Milestone "${label}": trigger day must be a whole number of at least 1.` };
+    }
+    if (m.repeatEveryDays !== null && (!Number.isInteger(m.repeatEveryDays) || m.repeatEveryDays < 1)) {
+      return { ok: false, error: `Milestone "${label}": repeat must be empty or a whole number of at least 1.` };
+    }
+  }
+
+  for (const r of input.rewards) {
+    const label = r.name.trim() || "Untitled reward";
+    if (!r.name.trim()) return { ok: false, error: "Every reward needs a name." };
+    if (!Number.isInteger(r.cost) || r.cost < 1) {
+      return { ok: false, error: `Reward "${label}": cost must be a whole number of at least 1 Bean.` };
+    }
+    if (!r.productId) return { ok: false, error: `Reward "${label}": pick the free drink it grants.` };
+  }
+
   const db = await createClient();
-  // upsert (not update) so a missing settings row is created rather than the
+
+  // Settings — upsert (not update) so a missing row is created rather than the
   // write silently no-op'ing on zero matched rows.
-  const { error } = await db
-    .from("loyalty_settings")
-    .upsert({
+  {
+    const { error } = await db.from("loyalty_settings").upsert({
       id: true,
-      beans_per_ringgit: input.beansPerRinggit,
-      referral_beans: input.referralBeans,
-      referral_voucher_label: input.referralVoucherLabel.trim(),
+      beans_per_ringgit: s.beansPerRinggit,
+      referral_beans: s.referralBeans,
+      referral_voucher_label: s.referralVoucherLabel.trim(),
     });
-  if (error) return { ok: false, error: error.message };
-  revalidateAll();
-  return { ok: true };
-}
-
-export async function saveTier(input: {
-  id?: string;
-  name: string;
-  threshold: number;
-  perk: string;
-}): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const name = input.name.trim();
-  if (!name) return { ok: false, error: "Name is required." };
-  if (!Number.isInteger(input.threshold) || input.threshold < 0) {
-    return { ok: false, error: "Threshold must be a whole number of 0 or more." };
-  }
-  const db = await createClient();
-  if (input.id) {
-    const { error } = await db
-      .from("reward_tiers")
-      .update({ name, threshold: input.threshold, perk: input.perk.trim() })
-      .eq("id", input.id);
-    if (error) return { ok: false, error: error.message };
-  } else {
-    const { error } = await db.from("reward_tiers").insert({
-      slug: slugify(name), name, threshold: input.threshold, perk: input.perk.trim(),
-      sort_order: input.threshold,
-    });
-    if (error) return { ok: false, error: error.code === "23505" ? "That tier already exists." : error.message };
-  }
-  revalidateAll();
-  return { ok: true };
-}
-
-export async function setTierArchived(id: string, value: boolean): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const db = await createClient();
-  const { error } = await db.from("reward_tiers").update({ is_archived: value }).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  revalidateAll();
-  return { ok: true };
-}
-
-export async function saveMilestone(input: {
-  id?: string;
-  label: string;
-  displayLabel: string;
-  beans: number;
-  triggerDay: number;
-  repeatEveryDays: number | null;
-}): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  if (!input.label.trim()) return { ok: false, error: "Ledger label is required." };
-  if (!input.displayLabel.trim()) return { ok: false, error: "Card label is required." };
-  if (!Number.isInteger(input.beans) || input.beans < 1) {
-    return { ok: false, error: "Beans must be a whole number of at least 1." };
-  }
-  if (!Number.isInteger(input.triggerDay) || input.triggerDay < 1) {
-    return { ok: false, error: "Trigger day must be a whole number of at least 1." };
-  }
-  if (input.repeatEveryDays !== null && (!Number.isInteger(input.repeatEveryDays) || input.repeatEveryDays < 1)) {
-    return { ok: false, error: "Repeat must be empty or a whole number of at least 1." };
-  }
-  const db = await createClient();
-  const payload = {
-    label: input.label.trim(),
-    display_label: input.displayLabel.trim(),
-    beans: input.beans,
-    trigger_day: input.triggerDay,
-    repeat_every_days: input.repeatEveryDays,
-  };
-  if (input.id) {
-    const { error } = await db.from("streak_milestones").update(payload).eq("id", input.id);
-    if (error) return { ok: false, error: error.message };
-  } else {
-    const { error } = await db.from("streak_milestones").insert({ ...payload, sort_order: input.triggerDay });
     if (error) return { ok: false, error: error.message };
   }
-  revalidateAll();
-  return { ok: true };
-}
 
-export async function setMilestoneActive(id: string, value: boolean): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const db = await createClient();
-  const { error } = await db.from("streak_milestones").update({ is_active: value }).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  revalidateAll();
-  return { ok: true };
-}
-
-// Milestones carry no FK from history (bonuses snapshot the label into
-// bean_transactions), so a hard delete is safe.
-export async function deleteMilestone(id: string): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const db = await createClient();
-  const { error } = await db.from("streak_milestones").delete().eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  revalidateAll();
-  return { ok: true };
-}
-
-export async function saveRewardItem(input: {
-  id?: string;
-  name: string;
-  cost: number;
-  productId: string;
-  imageUrl: string | null;
-}): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const name = input.name.trim();
-  if (!name) return { ok: false, error: "Name is required." };
-  if (!Number.isInteger(input.cost) || input.cost < 1) {
-    return { ok: false, error: "Cost must be a whole number of at least 1 Bean." };
+  // Tiers — archive-only model (no hard delete).
+  for (const t of input.tiers) {
+    const name = t.name.trim();
+    if (t.id) {
+      const { error } = await db
+        .from("reward_tiers")
+        .update({ name, threshold: t.threshold, perk: t.perk.trim(), is_archived: t.isArchived })
+        .eq("id", t.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await db.from("reward_tiers").insert({
+        slug: slugify(name), name, threshold: t.threshold, perk: t.perk.trim(),
+        sort_order: t.threshold, is_archived: t.isArchived,
+      });
+      if (error) {
+        return { ok: false, error: error.code === "23505" ? `That tier ("${name}") already exists.` : error.message };
+      }
+    }
   }
-  if (!input.productId) return { ok: false, error: "Pick the free drink this reward grants." };
-  const db = await createClient();
-  const payload = {
-    name, cost: input.cost, product_id: input.productId, image_url: input.imageUrl,
-  };
-  if (input.id) {
-    const { error } = await db.from("reward_catalog").update(payload).eq("id", input.id);
-    if (error) return { ok: false, error: error.message };
-  } else {
-    const { error } = await db.from("reward_catalog").insert({ ...payload, slug: slugify(name) });
-    if (error) return { ok: false, error: error.code === "23505" ? "That reward slug is already used." : error.message };
+
+  // Milestones — support hard delete (history snapshots the label, so it is safe).
+  for (const m of input.milestones) {
+    if (m.deleted) {
+      if (m.id) {
+        const { error } = await db.from("streak_milestones").delete().eq("id", m.id);
+        if (error) return { ok: false, error: error.message };
+      }
+      continue;
+    }
+    const payload = {
+      label: m.label.trim(),
+      display_label: m.displayLabel.trim(),
+      beans: m.beans,
+      trigger_day: m.triggerDay,
+      repeat_every_days: m.repeatEveryDays,
+      is_active: m.isActive,
+    };
+    if (m.id) {
+      const { error } = await db.from("streak_milestones").update(payload).eq("id", m.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await db.from("streak_milestones").insert({ ...payload, sort_order: m.triggerDay });
+      if (error) return { ok: false, error: error.message };
+    }
   }
-  revalidateAll();
-  return { ok: true };
-}
 
-export async function setRewardActive(id: string, value: boolean): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const db = await createClient();
-  const { error } = await db.from("reward_catalog").update({ is_active: value }).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  revalidateAll();
-  return { ok: true };
-}
+  // Reward catalog — archive-only model (no hard delete).
+  for (const r of input.rewards) {
+    const name = r.name.trim();
+    const payload = {
+      name, cost: r.cost, product_id: r.productId, image_url: r.imageUrl,
+      is_active: r.isActive, is_archived: r.isArchived,
+    };
+    if (r.id) {
+      const { error } = await db.from("reward_catalog").update(payload).eq("id", r.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await db.from("reward_catalog").insert({ ...payload, slug: slugify(name) });
+      if (error) {
+        return { ok: false, error: error.code === "23505" ? `That reward slug ("${name}") is already used.` : error.message };
+      }
+    }
+  }
 
-export async function setRewardArchived(id: string, value: boolean): Promise<ActionResult> {
-  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const db = await createClient();
-  const { error } = await db.from("reward_catalog").update({ is_archived: value }).eq("id", id);
-  if (error) return { ok: false, error: error.message };
   revalidateAll();
   return { ok: true };
 }

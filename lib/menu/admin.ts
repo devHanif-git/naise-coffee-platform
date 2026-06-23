@@ -72,6 +72,7 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
       isAvailable: p.is_available,
       isArchived: p.is_archived,
       sortOrder: p.sort_order,
+      recipeSteps: p.recipe_steps,
     };
   });
 }
@@ -111,6 +112,7 @@ export async function getAdminProduct(
     isAvailable: p.is_available,
     isArchived: p.is_archived,
     sortOrder: p.sort_order,
+    recipeSteps: p.recipe_steps,
     description: p.description,
     basePrice: p.base_price,
     maxAddons: p.max_addons,

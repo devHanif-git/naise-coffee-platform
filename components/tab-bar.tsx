@@ -23,6 +23,13 @@ export function TabBar({ showRewards = true }: { showRewards?: boolean }) {
   const pathname = usePathname();
   const { totalItems: cartCount } = useCart();
 
+  // Product detail pages (/menu/<slug>) host their own full-width action bar at
+  // the bottom edge. Step the tab bar aside there so that bar can sit flush at
+  // the bottom of the screen instead of floating above the tabs.
+  const isProductDetail =
+    pathname.startsWith("/menu/") && pathname !== "/menu";
+  if (isProductDetail) return null;
+
   // Tapping the tab you're already on (exact route, not a sub-page) scrolls the
   // screen back to the top instead of being a no-op navigation — the standard
   // mobile tab-bar gesture. Sub-routes (e.g. /menu/<slug>) still navigate up to

@@ -4,6 +4,7 @@ import { PackageX } from "lucide-react";
 import { OrderDetail } from "@/components/order-detail";
 import { canManageOrders } from "@/lib/auth/session";
 import { getOrderByToken } from "@/lib/orders/store";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Management view is internal — keep it out of search results.
 export const metadata: Metadata = {
@@ -39,5 +40,27 @@ export default async function ManageOrderPage({
     );
   }
 
-  return <OrderDetail order={order} />;
+  // Collect unique product IDs from order items (non-custom drinks only)
+  const productIds = [...new Set(
+    order.items
+      .filter((item) => item.productId)
+      .map((item) => item.productId!),
+  )];
+
+  // Fetch recipe_steps for those products
+  const recipeMap = new Map<string, string[]>();
+  if (productIds.length > 0) {
+    const db = createAdminClient();
+    const { data: prods } = await db
+      .from("products")
+      .select("id, recipe_steps")
+      .in("id", productIds);
+    for (const p of prods ?? []) {
+      if (p.recipe_steps?.length) {
+        recipeMap.set(p.id, p.recipe_steps);
+      }
+    }
+  }
+
+  return <OrderDetail order={order} recipeMap={recipeMap} />;
 }

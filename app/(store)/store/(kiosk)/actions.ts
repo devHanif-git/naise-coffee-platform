@@ -78,6 +78,7 @@ export async function placeStoreOrder(
     unitPrice: item.unitPrice,
     lineTotal: item.unitPrice * item.quantity,
     status: "pending",
+    productId: item.productId,
   }));
 
   let order;

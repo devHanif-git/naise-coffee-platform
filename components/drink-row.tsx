@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { OrderLine } from "@/types/order";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 // Per-drink fulfilment status. Lives client-side until the store/Supabase
 // tracks status per line.
@@ -28,13 +29,16 @@ export function DrinkRow({
   item,
   status,
   onAdvance,
+  recipeSteps,
 }: {
   item: OrderLine;
   status: DrinkStatus;
   onAdvance: () => void;
+  recipeSteps?: string[] | null;
 }) {
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [showRecipe, setShowRecipe] = useState(false);
   const startX = useRef<number | null>(null);
 
   const subtitle = [item.sizeName, ...item.addonNames].filter(Boolean).join(", ");
@@ -141,6 +145,41 @@ export function DrinkRow({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {recipeSteps && recipeSteps.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowRecipe(true); }}
+                aria-label={`Recipe for ${item.name}`}
+                className="flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <Info className="size-3.5" strokeWidth={2.5} />
+              </button>
+              <Sheet open={showRecipe} onOpenChange={setShowRecipe}>
+                <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[55vh] overflow-y-auto rounded-t-2xl px-4 pb-6 pt-4">
+                  <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
+                  <div className="mb-2 flex items-center gap-2">
+                    <SheetTitle className="font-heading text-base font-bold tracking-tight">
+                      {item.name}
+                    </SheetTitle>
+                    <span className="rounded-full bg-black px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-white">
+                      Recipe
+                    </span>
+                  </div>
+                  <ol className="flex flex-col gap-2">
+                    {recipeSteps.map((step, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm leading-snug">
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-black text-[0.625rem] font-bold tabular-nums text-white">
+                          {i + 1}
+                        </span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </SheetContent>
+              </Sheet>
+            </>
+          )}
           {canAdvance ? (
             <button
               type="button"
