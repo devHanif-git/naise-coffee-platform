@@ -23,6 +23,17 @@ export function TabBar({ showRewards = true }: { showRewards?: boolean }) {
   const pathname = usePathname();
   const { totalItems: cartCount } = useCart();
 
+  // Tapping the tab you're already on (exact route, not a sub-page) scrolls the
+  // screen back to the top instead of being a no-op navigation — the standard
+  // mobile tab-bar gesture. Sub-routes (e.g. /menu/<slug>) still navigate up to
+  // the list.
+  const handleTabClick = (e: React.MouseEvent, href: string) => {
+    if (pathname === href) {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   return (
     <nav
       aria-label="Primary"
@@ -41,6 +52,7 @@ export function TabBar({ showRewards = true }: { showRewards?: boolean }) {
             <li key={tab.href} className="flex-1">
               <Link
                 href={tab.href}
+                onClick={(e) => handleTabClick(e, tab.href)}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex h-full flex-col items-center justify-center gap-1 text-[0.6875rem] font-medium transition-colors",
