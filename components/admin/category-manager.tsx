@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ export function CategoryManager({
   addons: AdminAddon[];
 }) {
   const [cats, setCats] = useState(initial);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -85,9 +86,9 @@ export function CategoryManager({
               placeholder="e.g. Pastries"
             />
           </div>
-          <Button onClick={add} className="rounded-full">
-            Add category
-          </Button>
+          <PendingButton pending={pending} onClick={add} className="rounded-full">
+            {pending ? "Adding…" : "Add category"}
+          </PendingButton>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </section>
@@ -116,6 +117,7 @@ export function CategoryManager({
                 isFirst={i === 0}
                 isLast={i === cats.length - 1}
                 onChanged={refreshFromServer}
+                reordering={pending}
               />
             ))}
           </div>
@@ -134,6 +136,7 @@ function CategoryRow({
   isFirst,
   isLast,
   onChanged,
+  reordering,
 }: {
   index: number;
   category: AdminCategory;
@@ -143,13 +146,14 @@ function CategoryRow({
   isFirst: boolean;
   isLast: boolean;
   onChanged: () => void;
+  reordering: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(category.name);
   const [maxAddons, setMaxAddons] = useState(String(category.maxAddons));
   const [picked, setPicked] = useState<Set<string>>(new Set(category.addonIds));
   const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   function save() {
     setError(null);
@@ -195,7 +199,7 @@ function CategoryRow({
             variant="ghost"
             size="icon-sm"
             onClick={onUp}
-            disabled={isFirst}
+            disabled={isFirst || reordering}
             aria-label="Move up"
           >
             <ChevronUp className="size-4 text-muted-foreground" />
@@ -204,7 +208,7 @@ function CategoryRow({
             variant="ghost"
             size="icon-sm"
             onClick={onDown}
-            disabled={isLast}
+            disabled={isLast || reordering}
             aria-label="Move down"
           >
             <ChevronDown className="size-4 text-muted-foreground" />
@@ -291,7 +295,8 @@ function CategoryRow({
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-2">
-            <Button
+            <PendingButton
+              pending={pending}
               variant="outline"
               className="rounded-full"
               onClick={() => {
@@ -311,10 +316,10 @@ function CategoryRow({
               }}
             >
               {category.isArchived ? "Restore" : "Archive"}
-            </Button>
-            <Button onClick={save} className="flex-1 rounded-full">
-              Save
-            </Button>
+            </PendingButton>
+            <PendingButton pending={pending} onClick={save} className="flex-1 rounded-full">
+              {pending ? "Saving…" : "Save"}
+            </PendingButton>
           </div>
         </div>
       )}
