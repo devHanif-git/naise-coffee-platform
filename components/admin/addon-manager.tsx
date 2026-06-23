@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -17,7 +17,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   function reload() {
     startTransition(() => window.location.reload());
@@ -69,9 +69,13 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
               className="font-mono tabular-nums"
             />
           </div>
-          <Button onClick={add} className="w-full rounded-full sm:w-auto">
-            Add add-on
-          </Button>
+          <PendingButton
+            pending={pending}
+            onClick={add}
+            className="w-full rounded-full sm:w-auto"
+          >
+            {pending ? "Adding…" : "Add add-on"}
+          </PendingButton>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
       </section>
@@ -109,7 +113,7 @@ function AddonRow({
   const [name, setName] = useState(addon.name);
   const [price, setPrice] = useState(toRm(addon.price));
   const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   return (
     <div
@@ -142,7 +146,8 @@ function AddonRow({
             Archived
           </span>
         )}
-        <Button
+        <PendingButton
+          pending={pending}
           size="sm"
           className="rounded-full"
           onClick={() => {
@@ -162,9 +167,10 @@ function AddonRow({
             });
           }}
         >
-          Save
-        </Button>
-        <Button
+          {pending ? "Saving…" : "Save"}
+        </PendingButton>
+        <PendingButton
+          pending={pending}
           variant="ghost"
           size="sm"
           className="rounded-full"
@@ -182,7 +188,7 @@ function AddonRow({
           }}
         >
           {addon.isArchived ? "Restore" : "Archive"}
-        </Button>
+        </PendingButton>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
