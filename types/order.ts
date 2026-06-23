@@ -31,6 +31,9 @@ export type OrderLine = {
   // Maps to order_items.is_custom; drives the "Custom" badge and custom-drink
   // analytics.
   isCustom?: boolean;
+  // Links order item back to menu product for live recipe lookup on the manage
+  // page. null for custom drinks (no product).
+  productId?: string | null;
 };
 
 export type Order = {

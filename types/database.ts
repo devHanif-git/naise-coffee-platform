@@ -218,6 +218,7 @@ export type Database = {
           name: string
           order_id: string
           position: number
+          product_id: string | null
           quantity: number
           reward_cost: number
           size_name: string | null
@@ -233,6 +234,7 @@ export type Database = {
           name: string
           order_id: string
           position: number
+          product_id?: string | null
           quantity: number
           reward_cost?: number
           size_name?: string | null
@@ -248,6 +250,7 @@ export type Database = {
           name?: string
           order_id?: string
           position?: number
+          product_id?: string | null
           quantity?: number
           reward_cost?: number
           size_name?: string | null
@@ -260,6 +263,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
