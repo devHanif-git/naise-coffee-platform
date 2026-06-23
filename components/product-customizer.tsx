@@ -279,39 +279,39 @@ export function ProductCustomizer({
       </div>
 
       <div
-        className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 py-3 naise-fade [animation-delay:360ms]"
+        className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 border-t border-border bg-background px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] naise-fade [animation-delay:360ms]"
       >
         {/* Top row: price (left) + quantity stepper (right). Reward and sold-out
             modes have no editable quantity/price line, so the row is omitted. */}
         {!isReward && !soldOut && (
           <div className="mb-3 flex items-center justify-between">
             {onSale ? (
-              <span className="flex items-baseline gap-2">
-                <span className="text-lg font-bold tabular-nums text-rose-600">
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-base font-bold tabular-nums text-rose-600">
                   {formatPrice(total)}
                 </span>
-                <span className="text-sm text-muted-foreground line-through tabular-nums">
+                <span className="text-xs text-muted-foreground line-through tabular-nums">
                   {formatPrice(totalOriginal)}
                 </span>
               </span>
             ) : (
-              <span className="text-lg font-bold tabular-nums">
+              <span className="text-base font-bold tabular-nums">
                 {formatPrice(total)}
               </span>
             )}
 
-            <div className="flex h-11 items-center gap-1 rounded-full bg-neutral-100 p-1">
+            <div className="flex h-9 items-center gap-1 rounded-full bg-neutral-100 p-1">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 disabled={quantity <= 1}
                 aria-label="Decrease quantity"
-                className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white disabled:opacity-40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <Minus className="size-4" strokeWidth={2.5} aria-hidden />
+                <Minus className="size-3.5" strokeWidth={2.5} aria-hidden />
               </button>
               <span
-                className="w-6 text-center text-base font-bold tabular-nums"
+                className="w-5 text-center text-sm font-bold tabular-nums"
                 aria-live="polite"
               >
                 {quantity}
@@ -320,9 +320,9 @@ export function ProductCustomizer({
                 type="button"
                 onClick={() => setQuantity((q) => q + 1)}
                 aria-label="Increase quantity"
-                className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-white outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                <Plus className="size-4" strokeWidth={2.5} aria-hidden />
+                <Plus className="size-3.5" strokeWidth={2.5} aria-hidden />
               </button>
             </div>
           </div>
