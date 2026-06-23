@@ -62,6 +62,9 @@ export function ProductForm({
   // without exposing a control. Re-add a ToggleRow when the section ships.
   const [isFeatured] = useState(product?.isFeatured ?? false);
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
+  const [recipeSteps, setRecipeSteps] = useState<string[]>(
+    product?.recipeSteps ?? [],
+  );
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const [overrides, setOverrides] = useState<Map<string, "add" | "remove">>(
@@ -114,7 +117,7 @@ export function ProductForm({
         addonId,
         mode,
       })),
-      recipeSteps: [],
+      recipeSteps,
     };
     startTransition(async () => {
       try {
@@ -253,6 +256,51 @@ export function ProductForm({
                 </button>
               </div>
             )}
+          </Panel>
+
+          <Panel title="Recipe" hint={`${recipeSteps.length} step${recipeSteps.length === 1 ? "" : "s"}`}>
+            {recipeSteps.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No steps yet. Add preparation instructions for staff.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {recipeSteps.map((step, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground tabular-nums">
+                      {i + 1}
+                    </span>
+                    <Input
+                      value={step}
+                      onChange={(e) =>
+                        setRecipeSteps((prev) =>
+                          prev.map((s, j) => (j === i ? e.target.value : s)),
+                        )
+                      }
+                      placeholder={`Step ${i + 1}`}
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRecipeSteps((prev) => prev.filter((_, j) => j !== i))
+                      }
+                      aria-label={`Remove step ${i + 1}`}
+                      className="rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setRecipeSteps((prev) => [...prev, ""])}
+              className="flex w-fit items-center gap-1 rounded-sm text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Plus className="size-4" /> Add step
+            </button>
           </Panel>
 
           <Panel
