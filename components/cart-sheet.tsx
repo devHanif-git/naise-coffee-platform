@@ -135,7 +135,7 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
   if (typeof document === "undefined") return null;
   const content = (
     <div
-      className="fixed inset-0 pointer-events-none"
+      className="fixed inset-0 z-50 pointer-events-none"
       role="dialog"
       aria-modal="true"
       aria-label="Your cart"
