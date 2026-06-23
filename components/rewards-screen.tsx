@@ -5,7 +5,6 @@ import Image from "next/image";
 import { SmartImage } from "@/components/ui/smart-image";
 import Link from "next/link";
 import {
-  ChevronLeft,
   HelpCircle,
   Gift,
   Flame,
@@ -89,13 +88,7 @@ export function RewardsScreen({
       {/* Header — light, matching the design. Back returns to the menu; "?" opens
           the program explainer. */}
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
-        <Link
-          href="/menu"
-          aria-label="Go back"
-          className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <ChevronLeft className="size-6" aria-hidden />
-        </Link>
+        <div className="size-9" aria-hidden />
         <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
           Rewards
         </h1>

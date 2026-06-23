@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import {
-  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Coffee,
@@ -175,13 +174,7 @@ export function ProfileScreen({
       {/* Header — back returns to Home; title matches the other screens'
           spaced uppercase wordmark. Right spacer keeps the title centred. */}
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
-        <Link
-          href="/menu" // no home for now redirect to menu
-          aria-label="Go back"
-          className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <ChevronLeft className="size-6" aria-hidden />
-        </Link>
+        <div className="size-9" aria-hidden />
         <h1 className="font-heading text-base font-semibold uppercase tracking-[0.25em]">
           Profile
         </h1>
