@@ -116,6 +116,9 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
     is_new: data.isNew,
     is_featured: data.isFeatured,
     is_available: data.isAvailable,
+    recipe_steps: data.recipeSteps?.filter(s => s.trim()).length
+      ? data.recipeSteps.filter(s => s.trim())
+      : null,
   };
 
   let productId = data.id;
