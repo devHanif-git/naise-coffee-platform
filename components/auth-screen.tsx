@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Coffee, Flame, Loader2, Star } from "lucide-react";
 import { images } from "@/constants/images";
@@ -73,13 +72,16 @@ export function AuthScreen() {
 
   return (
     <main className="flex flex-1 flex-col">
-      {/* Header — back closes the auth flow and returns to where they came
-          from (or Home). Mirrors the in-app screen headers. */}
+      {/* Header — back exits the auth flow to the public menu, NOT the
+          `redirect` target: that target is often the gated page that bounced
+          the visitor here (e.g. a product), so returning to it would just
+          re-trigger the login wall in a loop. `redirect` is only for landing
+          AFTER a successful sign-in. */}
       <header className="flex items-center px-5 pb-2 pt-4">
         <button
           type="button"
-          onClick={() => router.push(redirect)}
-          aria-label="Go back"
+          onClick={() => router.push("/menu")}
+          aria-label="Go back to menu"
           className="flex size-9 items-center justify-center rounded-full text-foreground outline-none transition-colors hover:bg-neutral-100 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <ChevronLeft className="size-6" aria-hidden />
@@ -145,13 +147,6 @@ export function AuthScreen() {
           By continuing you agree to our Terms and acknowledge our Privacy
           Policy.
         </p>
-
-        <Link
-          href={redirect}
-          className="mt-1 text-center text-xs font-semibold text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-        >
-          Continue as guest
-        </Link>
       </div>
     </main>
   );

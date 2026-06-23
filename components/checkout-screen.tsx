@@ -14,7 +14,6 @@ import {
   Flame,
   Landmark,
   Loader2,
-  Lock,
   QrCode,
   ShieldCheck,
   Smartphone,
@@ -33,12 +32,10 @@ import { useBeans } from "@/store/beans";
 import type { StreakAward } from "@/types/reward";
 import type { PaymentMethod, PaymentMethodId } from "@/types/payment";
 import type { BankDetails } from "@/lib/settings/payments";
-import { GuestSignInModal } from "@/components/guest-signin-modal";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { StoreClosedBanner } from "@/components/store-closed-banner";
 import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
-import { getOrCreateOwnerId } from "@/lib/auth/owner-id";
 import { uploadReceipt } from "@/lib/orders/receipt";
 import { useProfile } from "@/store/profile";
 
@@ -71,8 +68,8 @@ export function CheckoutScreen({
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
-  const { isAuthenticated, hydrated: authHydrated } = useAuth();
-  const { canAfford, earnRate } = useBeans();
+  const { user } = useAuth();
+  const { canAfford } = useBeans();
   const { profile, updateProfile } = useProfile();
   // Default to the first enabled method; null when none are enabled.
   const [selected, setSelected] = useState<PaymentMethodId | null>(
@@ -86,9 +83,6 @@ export function CheckoutScreen({
   const [placedNumber, setPlacedNumber] = useState<string | null>(null);
   // Streak bonuses earned by placing this order, shown on the confirmation.
   const [streakAwards, setStreakAwards] = useState<StreakAward[]>([]);
-  // Guest nudge shown at Place Order (or when a guest taps a members-only
-  // method like Cash). Dismissed by signing in or choosing to continue.
-  const [showGuestModal, setShowGuestModal] = useState(false);
   // The number to stamp on this order: a value entered in the prompt this
   // attempt, else the member's saved profile number. Guests have no profile, so
   // theirs only ever comes from the prompt.
@@ -106,19 +100,6 @@ export function CheckoutScreen({
     if (hydrated && !hasItems && !placedNumber) router.replace("/menu");  // no cart for now redirect to menu
   }, [hydrated, hasItems, placedNumber, router]);
 
-  // A guest can't keep a members-only method (Cash) selected. Once the auth
-  // state has loaded, move them to the first non-gated enabled method so the
-  // selector never sits on a locked option.
-  useEffect(() => {
-    if (!authHydrated || isAuthenticated) return;
-    const current = methods.find((m) => m.id === selected);
-    if (current?.requiresAuth) {
-      const fallback = methods.find((m) => !m.requiresAuth);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reconcile selection once auth state is known
-      setSelected(fallback ? fallback.id : null);
-    }
-  }, [authHydrated, isAuthenticated, selected, methods]);
-
   // Avoid a flash of the empty/redirecting state before localStorage loads.
   if (!placedNumber && (!hydrated || !hasItems)) return null;
 
@@ -128,18 +109,10 @@ export function CheckoutScreen({
   const featured = methods.filter((m) => m.featured);
   const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
-  // Beans this order would earn if the customer were signed in — drives the
-  // guest nudge's headline. Mirrors the store's earn rule (floor of RM × rate).
-  const beansAtStake = Math.floor((totalPrice / 100) * earnRate);
 
-  // Selecting a members-only method (Cash) as a guest opens the sign-in nudge
-  // instead of switching to it; otherwise it's a normal selection.
+  // Every checkout visitor is signed in (the route is gated), so any enabled
+  // method — including members-only ones like Cash — is selectable.
   function selectMethod(id: PaymentMethodId) {
-    const method = methods.find((m) => m.id === id);
-    if (!isAuthenticated && method?.requiresAuth) {
-      setShowGuestModal(true);
-      return;
-    }
     setSelected(id);
   }
 
@@ -149,19 +122,13 @@ export function CheckoutScreen({
     return enteredPhone ?? profile.phone ?? undefined;
   }
 
-  // Place Order entry point. Guests see the sign-in nudge first; members with no
-  // number on file get the phone prompt; everyone else places straight.
   function onPlaceOrder() {
     if (submitting) return;
     if (!selected) {
       setError("No payment method is available right now.");
       return;
     }
-    if (!isAuthenticated) {
-      setShowGuestModal(true);
-      return;
-    }
-    // Member with no number on file (and none entered yet): nudge first.
+    // No number on file (and none entered yet): nudge first.
     if (!resolveContactPhone()) {
       setShowPhonePrompt(true);
       return;
@@ -178,14 +145,10 @@ export function CheckoutScreen({
 
   async function placeOrder(phoneOverride?: string) {
     if (submitting) return;
-    // Cash is members-only (pay-at-counter); a guest should never reach here
-    // with it selected, but guard server-side intent anyway.
     const method = methods.find((m) => m.id === selected);
     if (!method) return;
-    if (method.requiresAuth && !isAuthenticated) {
-      setShowGuestModal(true);
-      return;
-    }
+    // The route is gated, so a user is always present; guard for types.
+    if (!user) return;
 
     // Re-validate Beans cover the redeemed rewards. The balance could have
     // changed since the reward was added to the cart (another order, another
@@ -205,9 +168,10 @@ export function CheckoutScreen({
     setError(null);
     setSubmitting(true);
     try {
-      // Mint/read the owner id once so the receipt's path prefix matches the
-      // ownerId sent to the action (the server validates they agree).
-      const ownerId = getOrCreateOwnerId();
+      // Scope the order and receipt path to the signed-in user's id (a UUID,
+      // satisfying orders.owner_id). The server validates the receipt path
+      // prefix matches this id.
+      const ownerId = user.id;
       let proofOfPaymentPath: string | undefined;
       if (method.requiresReceipt && receiptFile) {
         proofOfPaymentPath = await uploadReceipt(receiptFile, ownerId);
@@ -230,9 +194,7 @@ export function CheckoutScreen({
         notes,
         subtotal: totalOriginal,
         total: totalPrice,
-        // Per-browser stable id; minted on first call and reused thereafter.
-        // Same id is adopted by the auth store on sign-in, so guest orders
-        // automatically belong to the registered account afterwards.
+        // The signed-in user's id — scopes the order to their account.
         ownerId,
         proofOfPaymentPath,
         contactPhone: phoneOverride ?? resolveContactPhone(),
@@ -349,7 +311,6 @@ export function CheckoutScreen({
           {featured.map((method) => {
             const Icon = methodIcons[method.id];
             const active = selected === method.id;
-            const locked = method.requiresAuth && !isAuthenticated;
             return (
               <button
                 key={method.id}
@@ -360,9 +321,7 @@ export function CheckoutScreen({
                   "relative flex flex-col items-start gap-2 rounded-2xl p-3 text-left transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                   active
                     ? "bg-black text-white"
-                    : locked
-                      ? "bg-neutral-100 text-muted-foreground hover:bg-neutral-200"
-                      : "bg-neutral-100 text-foreground hover:bg-neutral-200",
+                    : "bg-neutral-100 text-foreground hover:bg-neutral-200",
                 )}
               >
                 {active && (
@@ -372,11 +331,6 @@ export function CheckoutScreen({
                       strokeWidth={3}
                       aria-hidden
                     />
-                  </span>
-                )}
-                {locked && !active && (
-                  <span className="absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-white text-muted-foreground">
-                    <Lock className="size-3" strokeWidth={2.5} aria-hidden />
                   </span>
                 )}
                 <span
@@ -660,24 +614,6 @@ export function CheckoutScreen({
         )}
       </button>
 
-      {showGuestModal && (
-        <GuestSignInModal
-          beansAtStake={beansAtStake}
-          redirect="/checkout"
-          onClose={() => setShowGuestModal(false)}
-          onContinueAsGuest={() => {
-            setShowGuestModal(false);
-            // Ask the guest for a number first (order-only), unless one was
-            // already entered this attempt.
-            if (!resolveContactPhone()) {
-              setShowPhonePrompt(true);
-              return;
-            }
-            void placeOrder();
-          }}
-        />
-      )}
-
       {showPhonePrompt && (
         <PhonePromptSheet
           busy={submitting}
@@ -689,9 +625,8 @@ export function CheckoutScreen({
           onSubmit={(phone) => {
             setEnteredPhone(phone);
             setShowPhonePrompt(false);
-            // Members: also save to their profile for next time. Guests have no
-            // profile, so updateProfile no-ops (it early-returns for guests).
-            if (isAuthenticated) void updateProfile({ phone });
+            // Save to the member's profile for next time.
+            void updateProfile({ phone });
             // Pass the number explicitly — setEnteredPhone hasn't re-rendered yet.
             void placeOrder(phone);
           }}
