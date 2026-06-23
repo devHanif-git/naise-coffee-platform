@@ -63,7 +63,24 @@ export function MenuBrowser({
   const saveScroll = () => {
     sessionStorage.setItem(scrollKey, String(window.scrollY));
   };
+
+  // Only restore when the user actually came back from a product page. The route
+  // tracker sets this flag while the user is on the product page; arriving fresh
+  // from another tab — e.g. tapping Menu after signing in — leaves it unset, so
+  // the menu lands at the top instead of dropping the user mid-list. Captured at
+  // mount (lazy init) so it survives the consume below under Strict Mode's
+  // double-invoked effects.
+  const [cameFromProduct] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("menu:from-product") === "1",
+  );
+
   useEffect(() => {
+    // Consume the flag so it restores only the round-trip it was set for and
+    // doesn't linger to a later visit (e.g. a reload of the menu).
+    sessionStorage.removeItem("menu:from-product");
+    if (!cameFromProduct) return;
     const saved = Number(sessionStorage.getItem(scrollKey));
     if (saved <= 0) return;
     // The list is fully rendered on mount, but re-assert for a couple of frames
@@ -84,7 +101,7 @@ export function MenuBrowser({
       cancelled = true;
       cancelAnimationFrame(rafId);
     };
-  }, [scrollKey]);
+  }, [scrollKey, cameFromProduct]);
 
   // Category sections that actually have products, each internally ordered.
   const sections = useMemo(

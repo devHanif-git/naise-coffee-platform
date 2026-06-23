@@ -6,6 +6,7 @@ import { CartProvider } from "@/store/cart";
 import { BeansProvider } from "@/store/beans";
 import { ProfileProvider } from "@/store/profile";
 import { WelcomeModal } from "@/components/welcome-modal";
+import { RouteTracker } from "@/components/route-tracker";
 import { getLoyaltySettings } from "@/lib/rewards/config-store";
 import { getStoreSettings } from "@/lib/settings/store";
 import { inStoreMode } from "@/lib/auth/store-mode";
@@ -29,6 +30,7 @@ export default async function CustomerLayout({
         <BeansProvider earnRate={beansPerRinggit}>
           <CartProvider>
             <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background pb-[calc(4rem+env(safe-area-inset-bottom))]">
+              <RouteTracker menuBase="/menu" />
               {children}
               <StoreEnter />
               <CartFab />
