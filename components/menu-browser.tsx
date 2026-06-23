@@ -54,9 +54,6 @@ export function MenuBrowser({
   // top. The page remounts on every visit and Next scrolls it to the top in a
   // parent's mount lifecycle; this passive effect runs after that, so the
   // restore wins. Keyed per mode so /menu and /store don't clobber each other.
-  // Remember the browse position so returning from a product (after add-to-cart
-  // or the back button) lands the user where they left off instead of at the
-  // top. Keyed per mode so /menu and /store don't clobber each other.
   //
   // We capture on the way out (a tap anywhere on the list, in the capture phase)
   // rather than via a scroll listener: navigating scrolls the window to the top
@@ -70,15 +67,23 @@ export function MenuBrowser({
     const saved = Number(sessionStorage.getItem(scrollKey));
     if (saved <= 0) return;
     // The list is fully rendered on mount, but re-assert for a couple of frames
-    // in case the navigation's own scroll settles just after us.
+    // in case the navigation's own scroll settles just after us. Cancel any
+    // pending frame on unmount so a queued restore can't nudge the next route.
     let frames = 0;
+    let rafId = 0;
+    let cancelled = false;
     const restore = () => {
+      if (cancelled) return;
       window.scrollTo(0, saved);
       if (++frames < 3 && Math.abs(window.scrollY - saved) > 2) {
-        requestAnimationFrame(restore);
+        rafId = requestAnimationFrame(restore);
       }
     };
-    requestAnimationFrame(restore);
+    rafId = requestAnimationFrame(restore);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+    };
   }, [scrollKey]);
 
   // Category sections that actually have products, each internally ordered.
