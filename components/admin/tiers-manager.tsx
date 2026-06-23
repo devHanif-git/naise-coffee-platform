@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PendingButton } from "@/components/ui/pending-button";
 import { cn } from "@/lib/utils";
 import type { AdminTier } from "@/lib/rewards/types";
 import { saveTier, setTierArchived } from "@/app/(admin)/admin/rewards/actions";
@@ -13,7 +13,7 @@ export function TiersManager({ initial }: { initial: AdminTier[] }) {
   const [threshold, setThreshold] = useState("");
   const [perk, setPerk] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   function reload() { startTransition(() => window.location.reload()); }
   function add() {
@@ -50,7 +50,9 @@ export function TiersManager({ initial }: { initial: AdminTier[] }) {
           <Input inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="Beans" className="w-24 font-mono tabular-nums" />
         </div>
         <Input value={perk} onChange={(e) => setPerk(e.target.value)} placeholder="Perk description" />
-        <Button onClick={add} className="self-start rounded-full">Add tier</Button>
+        <PendingButton pending={pending} onClick={add} className="self-start rounded-full">
+          {pending ? "Adding…" : "Add tier"}
+        </PendingButton>
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
     </section>
@@ -61,7 +63,7 @@ function TierRow({ tier, onChanged }: { tier: AdminTier; onChanged: () => void }
   const [name, setName] = useState(tier.name);
   const [threshold, setThreshold] = useState(String(tier.threshold));
   const [perk, setPerk] = useState(tier.perk);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
 
   return (
     <div className={cn("flex flex-col gap-2 rounded-2xl border border-border bg-card p-3", tier.isArchived && "opacity-60")}>
@@ -74,12 +76,23 @@ function TierRow({ tier, onChanged }: { tier: AdminTier; onChanged: () => void }
       </div>
       <Input value={perk} onChange={(e) => setPerk(e.target.value)} />
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" className="rounded-full" onClick={() => startTransition(async () => { await setTierArchived(tier.id, !tier.isArchived); onChanged(); })}>
+        <PendingButton
+          pending={pending}
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={() => startTransition(async () => { await setTierArchived(tier.id, !tier.isArchived); onChanged(); })}
+        >
           {tier.isArchived ? "Restore" : "Archive"}
-        </Button>
-        <Button size="sm" className="flex-1 rounded-full" onClick={() => startTransition(async () => { await saveTier({ id: tier.id, name, threshold: Number(threshold || "0"), perk }); onChanged(); })}>
-          Save
-        </Button>
+        </PendingButton>
+        <PendingButton
+          pending={pending}
+          size="sm"
+          className="flex-1 rounded-full"
+          onClick={() => startTransition(async () => { await saveTier({ id: tier.id, name, threshold: Number(threshold || "0"), perk }); onChanged(); })}
+        >
+          {pending ? "Saving…" : "Save"}
+        </PendingButton>
       </div>
     </div>
   );
