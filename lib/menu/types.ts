@@ -31,6 +31,7 @@ export type AdminProduct = {
   isAvailable: boolean;
   isArchived: boolean;
   sortOrder: number;
+  recipeSteps: string[] | null;
 };
 
 export type AdminVariant = { id: string; name: string; price: number };
@@ -42,6 +43,7 @@ export type AdminProductDetail = AdminProduct & {
   variants: AdminVariant[];
   // Per-product override rows keyed by addon id.
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
+  recipeSteps: string[] | null;
 };
 
 // Payload the item form submits (server action parses this).
@@ -61,4 +63,5 @@ export type ProductFormData = {
   isFeatured: boolean;
   isAvailable: boolean;
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
+  recipeSteps: string[];
 };

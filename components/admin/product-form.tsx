@@ -114,6 +114,7 @@ export function ProductForm({
         addonId,
         mode,
       })),
+      recipeSteps: [],
     };
     startTransition(async () => {
       try {

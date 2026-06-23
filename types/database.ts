@@ -482,6 +482,7 @@ export type Database = {
           is_new: boolean
           max_addons: number | null
           name: string
+          recipe_steps: string[] | null
           slug: string
           sort_order: number
           updated_at: string
@@ -500,6 +501,7 @@ export type Database = {
           is_new?: boolean
           max_addons?: number | null
           name: string
+          recipe_steps?: string[] | null
           slug: string
           sort_order?: number
           updated_at?: string
@@ -518,6 +520,7 @@ export type Database = {
           is_new?: boolean
           max_addons?: number | null
           name?: string
+          recipe_steps?: string[] | null
           slug?: string
           sort_order?: number
           updated_at?: string
