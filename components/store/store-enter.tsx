@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { StorePasscodePrompt } from "@/components/store/store-passcode-prompt";
 
 // Discreet staff entry to the kiosk from the customer app: press-and-hold the
-// top-RIGHT corner for ~1.2s to open the passcode prompt. Kept off the top-left
-// so it never covers the back chevron customer screens place there; mirrors the
-// store EXIT gesture, which also lives top-right. Invisible so a customer never
-// trips it, and passcode-gated either way.
+// top-RIGHT area for ~1.2s to open the passcode prompt. Positioned just below
+// the sticky header (top-14) so it never covers header buttons like the back
+// chevron (left) or help icon (right). Mirrors the store EXIT gesture, which
+// also lives top-right. Invisible so a customer never trips it, and
+// passcode-gated either way.
 export function StoreEnter() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -31,7 +32,7 @@ export function StoreEnter() {
         onPointerUp={cancel}
         onPointerLeave={cancel}
         onContextMenu={(e) => e.preventDefault()}
-        className="fixed right-0 top-0 z-50 size-12 opacity-0"
+        className="fixed right-0 top-14 z-50 size-12 opacity-0"
       />
       {open && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-6">
