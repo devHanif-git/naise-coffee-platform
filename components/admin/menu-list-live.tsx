@@ -28,6 +28,26 @@ export function MenuListLive({
   const [showArchived, setShowArchived] = useState(false);
   const [, startTransition] = useTransition();
 
+  // Per-control in-flight lock. Keys are `${productId}:${field}` so each toggle
+  // on each row settles independently — flipping availability never freezes the
+  // Best Seller chip, and two different items stay independently operable.
+  const [busyKeys, setBusyKeys] = useState<Set<string>>(new Set());
+  const isBusy = (id: string, field: string) => busyKeys.has(`${id}:${field}`);
+  function withBusy(key: string, run: () => Promise<void>) {
+    setBusyKeys((prev) => new Set(prev).add(key));
+    startTransition(async () => {
+      try {
+        await run();
+      } finally {
+        setBusyKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      }
+    });
+  }
+
   const visible = rows.filter((p) => {
     if (!showArchived && p.isArchived) return false;
     const q = query.trim().toLowerCase();
@@ -40,7 +60,7 @@ export function MenuListLive({
 
   function onAvailability(p: AdminProduct, value: boolean) {
     patch(p.id, { isAvailable: value });
-    startTransition(async () => {
+    withBusy(`${p.id}:availability`, async () => {
       try {
         const res = await setAvailability(p.id, value);
         if (!res.ok) patch(p.id, { isAvailable: !value });
@@ -62,7 +82,7 @@ export function MenuListLive({
           ? "isNew"
           : "isFeatured";
     patch(p.id, { [key]: value } as Partial<AdminProduct>);
-    startTransition(async () => {
+    withBusy(`${p.id}:${flag}`, async () => {
       try {
         const res = await setFlag(p.id, flag, value);
         if (!res.ok) patch(p.id, { [key]: !value } as Partial<AdminProduct>);
@@ -75,7 +95,7 @@ export function MenuListLive({
   function onArchiveToggle(p: AdminProduct) {
     const value = !p.isArchived;
     patch(p.id, { isArchived: value });
-    startTransition(async () => {
+    withBusy(`${p.id}:archive`, async () => {
       try {
         const res = await setArchived(p.id, value);
         if (!res.ok) patch(p.id, { isArchived: !value });
@@ -178,6 +198,7 @@ export function MenuListLive({
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <Switch
                         checked={p.isAvailable}
+                        disabled={isBusy(p.id, "availability")}
                         onCheckedChange={(v) => onAvailability(p, v)}
                         aria-label={`${p.name} available`}
                       />
@@ -201,16 +222,19 @@ export function MenuListLive({
                     <FlagChip
                       label="Best Seller"
                       active={p.isBestSeller}
+                      disabled={isBusy(p.id, "best_seller")}
                       onClick={() => onFlag(p, "best_seller", !p.isBestSeller)}
                     />
                     <FlagChip
                       label="New"
                       active={p.isNew}
+                      disabled={isBusy(p.id, "new")}
                       onClick={() => onFlag(p, "new", !p.isNew)}
                     />
                     <button
                       onClick={() => onArchiveToggle(p)}
-                      className="ml-auto rounded-sm text-xs font-semibold text-muted-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                      disabled={isBusy(p.id, "archive")}
+                      className="ml-auto rounded-sm text-xs font-semibold text-muted-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 disabled:no-underline"
                     >
                       {p.isArchived ? "Restore" : "Archive"}
                     </button>
@@ -260,17 +284,20 @@ function FlagChip({
   label,
   active,
   onClick,
+  disabled = false,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-xs font-semibold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+        "rounded-full border px-2.5 py-1 text-xs font-semibold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-background text-muted-foreground hover:bg-muted",
