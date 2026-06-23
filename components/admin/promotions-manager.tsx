@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -84,7 +85,7 @@ function PromotionRow({
   promo, products, categories, onChanged,
 }: { promo: AdminPromotion; products: AdminProduct[]; categories: AdminCategory[]; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
-  const [, startTransition] = useTransition();
+  const [pending, startTransition] = useTransition();
   const status = promotionStatus(promo, new Date());
   const window = promo.startsAt || promo.endsAt
     ? `${promo.startsAt ? new Date(promo.startsAt).toLocaleDateString() : "Any"} to ${promo.endsAt ? new Date(promo.endsAt).toLocaleDateString() : "Any"}`
@@ -104,6 +105,7 @@ function PromotionRow({
         <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide", STATUS_STYLE[status])}>{status}</span>
         <Switch
           checked={promo.isActive}
+          disabled={pending}
           aria-label={`${promo.label} active`}
           onCheckedChange={(v) => startTransition(async () => { await setPromotionActive(promo.id, v); onChanged(); })}
         />
@@ -112,14 +114,15 @@ function PromotionRow({
       {open && (
         <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3">
           <PromotionEditor promo={promo} products={products} categories={categories} onDone={onChanged} />
-          <Button
+          <PendingButton
+            pending={pending}
             variant="destructive"
             size="sm"
             onClick={() => startTransition(async () => { await deletePromotion(promo.id); onChanged(); })}
             className="self-start rounded-full"
           >
-            <Trash2 className="size-3.5" /> Delete promotion
-          </Button>
+            {pending ? "Deleting…" : <><Trash2 className="size-3.5" /> Delete promotion</>}
+          </PendingButton>
         </div>
       )}
     </div>
