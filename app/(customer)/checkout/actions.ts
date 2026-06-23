@@ -65,17 +65,10 @@ export async function placeOrder(
   } = await supabase.auth.getUser();
   const userId = user?.id ?? null;
 
-  // A reward line is a member entitlement, settled against their Bean balance.
-  // The cart lives in per-browser localStorage and can outlive the member who
-  // redeemed it (sign-out, or a different person on the same device), leaving a
-  // stale RM0.00 reward line a guest could otherwise check out for free — no
-  // Beans charged, no redemption recorded. Block it. The client also strips
-  // these on any identity change, but this is the authoritative guard.
-  if (!userId && input.items.some((i) => i.isReward)) {
-    return {
-      ok: false,
-      error: "Please sign in to redeem a reward, or remove it from your cart.",
-    };
+  // Login is required to order. The checkout route is gated, but enforce it
+  // here too so the action can never create an unowned order.
+  if (!userId) {
+    return { ok: false, error: "Please sign in to place your order." };
   }
 
   // Re-validate availability against the live catalogue: the cart is client
@@ -144,7 +137,10 @@ export async function placeOrder(
   try {
     order = await createOrder(
       {
-        ownerId: input.ownerId,
+        // Scope the order to the authenticated user (a UUID, satisfying the
+        // orders.owner_id NOT NULL + uuid-format constraint). user_id below is
+        // the source of truth; owner_id mirrors it for legacy compatibility.
+        ownerId: userId,
         paymentMethod: input.paymentMethod,
         items: lines,
         subtotal: input.subtotal,
@@ -160,12 +156,11 @@ export async function placeOrder(
     return { ok: false, error: `Couldn't save your order: ${reason}` };
   }
 
-  // Settle rewards for members (earn + redeem + streak). Guests earn nothing.
-  // If it fails (e.g. a redemption the live balance can't cover after a race),
-  // roll the order back so we never keep an unsettled free-drink order, and
-  // bail before notifying the store.
+  // Settle rewards (earn + redeem + streak). If it fails (e.g. a redemption the
+  // live balance can't cover after a race), roll the order back so we never keep
+  // an unsettled free-drink order, and bail before notifying the store.
   let rewards: OrderRewardsResult | undefined;
-  if (userId) {
+  {
     const applied = await applyOrderRewards(order.token);
     if (!applied.ok) {
       // The reward RPC raises before inserting any ledger rows, so nothing to
