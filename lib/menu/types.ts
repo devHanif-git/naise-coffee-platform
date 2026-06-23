@@ -43,7 +43,6 @@ export type AdminProductDetail = AdminProduct & {
   variants: AdminVariant[];
   // Per-product override rows keyed by addon id.
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
-  recipeSteps: string[] | null;
 };
 
 // Payload the item form submits (server action parses this).
