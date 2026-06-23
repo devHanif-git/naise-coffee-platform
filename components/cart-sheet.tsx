@@ -13,7 +13,18 @@ import type { CartItem } from "@/types/cart";
 // Single row inside the cart sheet. Unlike CartItemCard (which is a full-page
 // edit link), this is display-only with a quantity stepper and a dedicated "Edit"
 // text link that navigates to the product page to re-customize.
-function SheetRow({ item }: { item: CartItem }) {
+// `isOnlyLine` is true when this is the sole line in the cart, so removing it
+// would empty the cart — in that case we defer to the clear-cart confirmation
+// (via `onRequestClear`) instead of silently wiping everything.
+function SheetRow({
+  item,
+  isOnlyLine,
+  onRequestClear,
+}: {
+  item: CartItem;
+  isOnlyLine: boolean;
+  onRequestClear: () => void;
+}) {
   const { incrementItem, decrementItem } = useCart();
   const routes = useOrderRoutes();
 
@@ -22,6 +33,16 @@ function SheetRow({ item }: { item: CartItem }) {
     .join(", ");
   const lineTotal = item.unitPrice * item.quantity;
   const lastOne = item.quantity <= 1;
+
+  // Removing the last unit of the only line empties the cart — confirm first.
+  const removeReward = () => {
+    if (isOnlyLine) onRequestClear();
+    else decrementItem(item.key);
+  };
+  const decrement = () => {
+    if (lastOne && isOnlyLine) onRequestClear();
+    else decrementItem(item.key);
+  };
 
   return (
     <li className="flex items-center gap-3 py-4">
@@ -60,7 +81,7 @@ function SheetRow({ item }: { item: CartItem }) {
       {item.isReward ? (
         <button
           type="button"
-          onClick={() => decrementItem(item.key)}
+          onClick={removeReward}
           aria-label={`Remove ${item.name}`}
           className="flex size-8 shrink-0 items-center justify-center self-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-neutral-100 hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
@@ -70,7 +91,7 @@ function SheetRow({ item }: { item: CartItem }) {
         <div className="flex shrink-0 items-center gap-0.5 self-center rounded-full border border-border p-0.5">
           <button
             type="button"
-            onClick={() => decrementItem(item.key)}
+            onClick={decrement}
             aria-label={lastOne ? `Remove ${item.name}` : "Decrease quantity"}
             className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
@@ -194,7 +215,12 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
         >
           <ul className="flex flex-col divide-y divide-border">
             {items.map((item) => (
-              <SheetRow key={item.key} item={item} />
+              <SheetRow
+                key={item.key}
+                item={item}
+                isOnlyLine={items.length === 1}
+                onRequestClear={() => setConfirmingClear(true)}
+              />
             ))}
           </ul>
         </div>
