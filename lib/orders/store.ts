@@ -67,6 +67,7 @@ export async function createOrder(
     is_reward: item.isReward ?? false,
     reward_cost: item.rewardCost ?? 0,
     is_custom: item.isCustom ?? false,
+    product_id: item.productId ?? null,
   }));
 
   const { data: itemRows, error: itemsErr } = await db
