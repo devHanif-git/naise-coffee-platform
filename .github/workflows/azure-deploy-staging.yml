@@ -1,0 +1,64 @@
+name: Deploy to Azure (Staging)
+
+# Staging mirror of azure-deploy.yml. Fires on every push to `development`
+# (i.e. when a fix/feat PR is merged in), building with the STAGING Supabase
+# project + staging site URL and deploying to the staging Web App that lives in
+# the separate Azure for Students subscription.
+#
+# Gated by the STAGING_ENABLED repo variable so it stays inert until the Azure
+# app + secrets exist — flip the variable to "true" once setup is done, and no
+# failed runs appear in the meantime.
+#
+# Required GitHub secrets (Settings > Secrets and variables > Actions):
+#   AZURE_WEBAPP_PUBLISH_PROFILE_STAGING   publish profile of the staging Web App
+#   NEXT_PUBLIC_SUPABASE_URL_STAGING       staging Supabase project URL
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_STAGING
+#   NEXT_PUBLIC_SITE_URL_STAGING           staging site URL (the *.azurewebsites.net)
+#   NEXT_PUBLIC_WHATSAPP_NUMBER_STAGING
+# Required GitHub variable:
+#   STAGING_ENABLED = true
+# Server-only env (SUPABASE_SERVICE_ROLE_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+# is set on the staging Web App's Configuration, not here.
+
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    if: vars.STAGING_ENABLED == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (NEXT_PUBLIC_* inlined here)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL_STAGING }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY_STAGING }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL_STAGING }}
+          NEXT_PUBLIC_WHATSAPP_NUMBER: ${{ secrets.NEXT_PUBLIC_WHATSAPP_NUMBER_STAGING }}
+        run: npm run build
+
+      - name: Assemble standalone bundle
+        run: |
+          cp -r public .next/standalone/
+          cp -r .next/static .next/standalone/.next/
+
+      - name: Deploy to Azure Web App (staging)
+        uses: azure/webapps-deploy@v3
+        with:
+          # Rename this if you name your staging app something other than
+          # naise-coffee-dev when you create it in the student subscription.
+          app-name: naise-coffee-dev
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_STAGING }}
+          package: .next/standalone
