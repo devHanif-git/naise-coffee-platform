@@ -9,6 +9,7 @@ import { getProductPricing } from "@/lib/promotions/pricing";
 import { ProductCustomizer } from "@/components/product-customizer";
 import { ProductBackButton } from "@/components/product-back-button";
 import { PriceTag } from "@/components/price-tag";
+import { requireUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,13 @@ export async function generateMetadata(
 
 export default async function ProductPage(props: PageProps<"/menu/[slug]">) {
   const { slug } = await props.params;
+  // Auth gate lives here (not in the segment's layout) so the product skeleton
+  // in loading.tsx can cover the wait. A layout's runtime data access isn't
+  // wrapped by its own loading.tsx, so gating there made navigation fall back
+  // to the parent menu skeleton instead. Members only — guests are redirected
+  // to login with a return path.
+  await requireUser();
+
   const [product, catalog] = await Promise.all([
     getProductBySlug(slug),
     // A rewards-read hiccup must not take down the product page; degrade to an
