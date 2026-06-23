@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Coffee, Flame, Loader2, Star } from "lucide-react";
 import { images } from "@/constants/images";
@@ -145,13 +144,6 @@ export function AuthScreen() {
           By continuing you agree to our Terms and acknowledge our Privacy
           Policy.
         </p>
-
-        <Link
-          href={redirect}
-          className="mt-1 text-center text-xs font-semibold text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-        >
-          Continue as guest
-        </Link>
       </div>
     </main>
   );
