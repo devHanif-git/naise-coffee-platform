@@ -6,9 +6,13 @@ Two long-lived branches, two deployed environments.
 fix/*  feat/*  ──PR──►  development  ──PR──►  master
                           │                     │
                     Staging site            Production site
-                 (wife's student sub)      (naise-coffee app)
+                 (naise-coffee-dev)        (naise-coffee app)
                  separate Supabase         production Supabase
 ```
+
+Both apps live in the same Azure subscription and can share one App Service
+Plan, so staging adds no extra compute cost. Only the Supabase project and the
+build-time env differ between them.
 
 ## The flow
 
@@ -30,10 +34,13 @@ one by one never touches the live site.
 
 ## One-time staging setup
 
-### 1. Azure (in the student subscription)
+### 1. Azure (same subscription as production)
 
 - Create a Linux Web App, Node 22 runtime. Name it `naise-coffee-dev`
   (or edit `app-name` in the staging workflow to match).
+- To avoid extra cost, put it in the **same App Service Plan** as
+  `naise-coffee` (one plan can host multiple apps). Use a separate plan only if
+  you want staging fully isolated from production resources.
 - Get its publish profile: Web App → **Download publish profile**.
 - Set its runtime env: Web App → **Settings → Configuration → Application settings**, add:
   - `SUPABASE_SERVICE_ROLE_KEY` (from the staging Supabase project)

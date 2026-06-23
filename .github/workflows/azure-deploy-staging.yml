@@ -2,8 +2,9 @@ name: Deploy to Azure (Staging)
 
 # Staging mirror of azure-deploy.yml. Fires on every push to `development`
 # (i.e. when a fix/feat PR is merged in), building with the STAGING Supabase
-# project + staging site URL and deploying to the staging Web App that lives in
-# the separate Azure for Students subscription.
+# project + staging site URL and deploying to the staging Web App
+# (naise-coffee-dev) in the same Azure subscription as production. It can share
+# the production App Service Plan, so it adds no extra compute cost.
 #
 # Gated by the STAGING_ENABLED repo variable so it stays inert until the Azure
 # app + secrets exist — flip the variable to "true" once setup is done, and no
