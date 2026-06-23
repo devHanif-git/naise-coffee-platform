@@ -150,18 +150,20 @@ export function MenuBrowser({
             aria-labelledby="best-seller-heading"
             className="px-5 pt-5"
           >
-            <h2
-              id="best-seller-heading"
-              className="mb-2 flex items-center gap-2 font-heading text-2xl font-extrabold tracking-tight"
-            >
-              <Star
-                className="size-6 fill-amber-400 text-amber-400"
-                strokeWidth={0}
-              />
-              <span className="bg-gradient-to-r from-amber-500 to-amber-700 bg-clip-text text-transparent">
-                Best Seller
-              </span>
-            </h2>
+            <Reveal>
+              <h2
+                id="best-seller-heading"
+                className="mb-2 flex items-center gap-2 font-heading text-2xl font-extrabold tracking-tight"
+              >
+                <Star
+                  className="size-6 fill-amber-400 text-amber-400"
+                  strokeWidth={0}
+                />
+                <span className="bg-gradient-to-r from-amber-500 to-amber-700 bg-clip-text text-transparent">
+                  Best Seller
+                </span>
+              </h2>
+            </Reveal>
             <div className="flex flex-col divide-y divide-border">
               {bestSellers.map((product, i) => (
                 <Reveal key={product.id} delay={Math.min(i, 5) * 70}>
@@ -214,12 +216,14 @@ export function MenuBrowser({
               aria-labelledby={`${sectionId(section.category.type)}-heading`}
               className="px-5 pt-6"
             >
-              <h2
-                id={`${sectionId(section.category.type)}-heading`}
-                className="mb-2 font-heading text-2xl font-extrabold tracking-tight"
-              >
-                {section.category.name}
-              </h2>
+              <Reveal>
+                <h2
+                  id={`${sectionId(section.category.type)}-heading`}
+                  className="mb-2 font-heading text-2xl font-extrabold tracking-tight"
+                >
+                  {section.category.name}
+                </h2>
+              </Reveal>
               <div className="flex flex-col divide-y divide-border">
                 {section.items.map((product, i) => (
                   <Reveal key={product.id} delay={Math.min(i, 5) * 70}>
