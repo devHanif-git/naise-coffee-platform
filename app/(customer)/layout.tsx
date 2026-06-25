@@ -10,7 +10,6 @@ import { RouteTracker } from "@/components/route-tracker";
 import { getLoyaltySettings } from "@/lib/rewards/config-store";
 import { getStoreSettings } from "@/lib/settings/store";
 import { inStoreMode } from "@/lib/auth/store-mode";
-import { StoreEnter } from "@/components/store/store-enter";
 
 export default async function CustomerLayout({
   children,
@@ -32,7 +31,6 @@ export default async function CustomerLayout({
             <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background pb-[calc(4rem+env(safe-area-inset-bottom))]">
               <RouteTracker menuBase="/menu" />
               {children}
-              <StoreEnter />
               <CartFab />
               <TabBar showRewards={rewardsEnabled} />
             </div>

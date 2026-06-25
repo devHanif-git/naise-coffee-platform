@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { listCategories, listProducts } from "@/lib/menu/store";
 import { MenuBrowser } from "@/components/menu-browser";
+import { StoreEnter } from "@/components/store/store-enter";
 
 export const dynamic = "force-dynamic";
 
@@ -18,5 +19,12 @@ export const metadata: Metadata = {
 
 export default async function MenuPage() {
   const [categories, products] = await Promise.all([listCategories(), listProducts()]);
-  return <MenuBrowser categories={categories} products={products} />;
+  return (
+    <>
+      {/* Staff entry to the kiosk lives on the menu screen only — kept off the
+          search bar's clear button (top-right) by sitting top-left. */}
+      <StoreEnter />
+      <MenuBrowser categories={categories} products={products} />
+    </>
+  );
 }
