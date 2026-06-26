@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { SmartImage } from "@/components/ui/smart-image";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { images } from "@/constants/images";
@@ -132,16 +131,14 @@ export function MenuListLive({
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search items..."
-            aria-label="Search items"
-            className="h-10 rounded-full pl-10"
-          />
-        </div>
+        <SearchInput
+          value={query}
+          onValueChange={setQuery}
+          placeholder="Search items..."
+          aria-label="Search items"
+          containerClassName="w-full sm:max-w-xs"
+          className="h-10 rounded-full"
+        />
         <label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Switch checked={showArchived} onCheckedChange={setShowArchived} /> Show
           archived

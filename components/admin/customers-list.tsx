@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { CustomerSummary } from "@/lib/customers/types";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 
 const ROLE_STYLE: Record<string, string> = {
@@ -69,12 +69,13 @@ export function CustomersList({ initial }: { initial: CustomerSummary[] }) {
         <Stat value={String(teamCount)} label="team" />
       </div>
 
-      <Input
+      <SearchInput
         value={term}
-        onChange={(e) => setTerm(e.target.value)}
+        onValueChange={setTerm}
         placeholder="Search name or phone"
         aria-label="Search customers by name or phone"
-        className="h-10 max-w-sm rounded-full"
+        containerClassName="max-w-sm"
+        className="h-10 rounded-full"
       />
 
       {rows.length === 0 ? (

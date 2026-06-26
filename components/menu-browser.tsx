@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Search, ChevronDown, Star } from "lucide-react";
+import { ChevronDown, Star } from "lucide-react";
 import type { Category, CategoryType, Product } from "@/types/menu";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { MenuCard } from "@/components/menu-card";
 import { Reveal } from "@/components/reveal";
 import { CategoryTabs, type MenuTab } from "@/components/category-tabs";
@@ -163,17 +163,16 @@ export function MenuBrowser({
             <div className="size-9" aria-hidden />
           </div>
 
-          <div className="relative mt-3">
-            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
-            <Input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search drinks..."
-              aria-label="Search drinks"
-              className="h-11 rounded-2xl border-0 bg-neutral-800 pl-11 text-sm text-white placeholder:text-neutral-400 focus-visible:ring-3 focus-visible:ring-white/30"
-            />
-          </div>
+          <SearchInput
+            value={query}
+            onValueChange={setQuery}
+            placeholder="Search drinks..."
+            aria-label="Search drinks"
+            containerClassName="mt-3"
+            iconClassName="left-4 text-neutral-400"
+            clearClassName="text-neutral-400 hover:bg-neutral-700 hover:text-white"
+            className="h-11 rounded-2xl border-0 bg-neutral-800 pl-11 text-sm text-white placeholder:text-neutral-400 focus-visible:ring-3 focus-visible:ring-white/30"
+          />
         </header>
 
         {!searching && tabs.length > 0 && (

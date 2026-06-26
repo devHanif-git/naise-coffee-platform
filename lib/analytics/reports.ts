@@ -107,21 +107,24 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
   if (ids.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
-      .select("name, quantity, line_total, is_reward, reward_cost, is_custom, order_id")
+      .select("name, quantity, line_total, is_reward, reward_cost, is_custom, order_id, products(name)")
       .in("order_id", ids);
     if (itemsErr) throw new Error(`getReportData failed: ${itemsErr.message}`);
     const map = new Map<string, { quantity: number; revenue: number }>();
     const customMap = new Map<string, { quantity: number; revenue: number }>();
     for (const it of items ?? []) {
-      const cur = map.get(it.name) ?? { quantity: 0, revenue: 0 };
+      // Prefer the current product name so renames flow through to reports;
+      // fall back to the snapshot name for custom drinks and unlinked legacy rows.
+      const displayName = it.products?.name ?? it.name;
+      const cur = map.get(displayName) ?? { quantity: 0, revenue: 0 };
       cur.quantity += it.quantity; cur.revenue += it.line_total;
-      map.set(it.name, cur);
+      map.set(displayName, cur);
       itemsSold += it.quantity;
       if (it.is_reward) { rewardLines += 1; redemptionBeans += it.reward_cost; }
       if (it.is_custom) {
-        const c = customMap.get(it.name) ?? { quantity: 0, revenue: 0 };
+        const c = customMap.get(displayName) ?? { quantity: 0, revenue: 0 };
         c.quantity += it.quantity; c.revenue += it.line_total;
-        customMap.set(it.name, c);
+        customMap.set(displayName, c);
       }
     }
     const rank = (m: Map<string, { quantity: number; revenue: number }>) =>
