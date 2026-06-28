@@ -31,12 +31,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-const withSerwist = withSerwistInit({
-  swSrc: "app/sw.ts",
-  swDest: "public/sw.js",
-  // A live SW fighting Next's dev HMR causes stale-asset confusion.
-  // Exercise the SW via the production build (`npm run build`) instead.
-  disable: process.env.NODE_ENV === "development",
-});
+// `withSerwistInit` injects a webpack config, which Next 16's default Turbopack
+// dev server rejects (and the plugin warns even when its `disable` option is
+// set, because `disable` only skips SW *generation*, not the injection). The
+// SW is only needed in the production build (run with `next build --webpack`),
+// so we only apply the plugin outside dev and let Turbopack run untouched.
+const isDev = process.env.NODE_ENV === "development";
 
-export default withSerwist(nextConfig);
+export default isDev
+  ? nextConfig
+  : withSerwistInit({ swSrc: "app/sw.ts", swDest: "public/sw.js" })(nextConfig);
