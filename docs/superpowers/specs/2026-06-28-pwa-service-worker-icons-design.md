@@ -1,7 +1,21 @@
 # PWA Readiness: Service Worker + Icons
 
 **Date:** 2026-06-28
-**Status:** Proposed
+**Status:** Implemented
+
+## Implementation deviations (recorded post-build)
+
+Two things surfaced during implementation that this spec did not anticipate:
+
+1. **Next 16 defaults to Turbopack; classic Serwist is webpack-only.**
+   `withSerwistInit` injects a webpack plugin to compile the SW, which Next 16
+   rejects under the default Turbopack build. Fix: the production build script
+   is `next build --webpack` (not plain `next build`). Configurator mode
+   (Turbopack-compatible) was rejected because it requires 3 additional dev
+   deps (`@serwist/cli`, `esbuild`, `concurrently`), against the "no extra
+   libraries" constraint.
+2. **The generated `public/sw.js` must also be excluded from ESLint**, not just
+   git and tsconfig. `eslint.config.mjs` `globalIgnores` now lists it.
 
 ## Problem
 

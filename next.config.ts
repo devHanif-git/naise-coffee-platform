@@ -35,7 +35,7 @@ const withSerwist = withSerwistInit({
   swSrc: "app/sw.ts",
   swDest: "public/sw.js",
   // A live SW fighting Next's dev HMR causes stale-asset confusion.
-  // Exercise the SW via `next build && next start` instead.
+  // Exercise the SW via the production build (`npm run build`) instead.
   disable: process.env.NODE_ENV === "development",
 });
 
