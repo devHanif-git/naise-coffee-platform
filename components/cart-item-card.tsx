@@ -6,6 +6,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
+import { images } from "@/constants/images";
 import type { CartItem } from "@/types/cart";
 
 // A single cart line, sized to match the menu list (same image + type scale)
@@ -54,7 +55,7 @@ export function CartItemCard({
           )}
         >
           <Image
-            src={item.image}
+            src={item.image ?? images.emptyCartNoBg}
             alt={item.name}
             fill
             sizes="80px"

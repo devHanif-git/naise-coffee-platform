@@ -2,10 +2,12 @@
 // same drink with different settings becomes a separate line.
 export type CartItem = {
   key: string;
-  productId: string;
-  slug: string;
+  // Menu lines carry a product; custom (off-menu) lines do not, so these are
+  // optional. A custom line has only a name + price.
+  productId?: string;
+  slug?: string;
   name: string;
-  image: string;
+  image?: string;
   sizeId?: string;
   sizeName?: string;
   addonIds: string[];
@@ -32,5 +34,9 @@ export type CartItem = {
   // reward belongs to the member who claimed it, never to whoever checks out
   // next. Only set on reward lines.
   redeemedBy?: string;
+  // True when this is a staff-entered off-menu drink (name + price). Maps to
+  // order_items.is_custom at checkout. Custom lines never carry a real product,
+  // so productId/slug/image are absent; the cart key is derived from name+price.
+  isCustom?: boolean;
   quantity: number;
 };

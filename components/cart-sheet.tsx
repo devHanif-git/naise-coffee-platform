@@ -8,6 +8,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import { useCart } from "@/store/cart";
 import { useOrderRoutes } from "@/store/order-mode";
+import { CustomLineBuilder } from "@/components/store/custom-line-builder";
 import type { CartItem } from "@/types/cart";
 
 // Single row inside the cart sheet. Unlike CartItemCard (which is a full-page
@@ -46,15 +47,22 @@ function SheetRow({
 
   return (
     <li className="flex items-center gap-3 py-4">
-      {/* Product image */}
+      {/* Product image — custom (off-menu) lines have no image, so show a
+          neutral placeholder block instead. */}
       <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-2xl bg-black p-2">
-        <Image
-          src={item.image}
-          alt={item.name}
-          fill
-          sizes="64px"
-          className="object-contain"
-        />
+        {item.image ? (
+          <Image
+            src={item.image}
+            alt={item.name}
+            fill
+            sizes="64px"
+            className="object-contain"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase tracking-wide text-white/70">
+            Custom
+          </span>
+        )}
       </div>
 
       {/* Name, options, price */}
@@ -62,19 +70,29 @@ function SheetRow({
         <h3 className="line-clamp-2 font-heading text-sm font-bold leading-snug tracking-tight">
           {item.name}
         </h3>
-        {subtitle && (
-          <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+        {item.isCustom ? (
+          <span className="w-fit rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+            Custom
+          </span>
+        ) : (
+          subtitle && (
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          )
         )}
         <span className="mt-0.5 text-sm font-bold tabular-nums">
           {formatPrice(lineTotal)}
         </span>
-        {/* Edit link — navigates to the product page to re-customize. */}
-        <Link
-          href={`${routes.product(item.slug)}?edit=${encodeURIComponent(item.key)}`}
-          className="mt-0.5 w-fit text-xs font-medium text-black underline underline-offset-2 transition-colors hover:text-neutral-600"
-        >
-          Edit
-        </Link>
+        {/* Edit link — navigates to the product page to re-customize. Custom
+            lines have no product page, so they aren't editable here (change via
+            quantity, or remove and re-add). */}
+        {!item.isCustom && item.slug && (
+          <Link
+            href={`${routes.product(item.slug)}?edit=${encodeURIComponent(item.key)}`}
+            className="mt-0.5 w-fit text-xs font-medium text-black underline underline-offset-2 transition-colors hover:text-neutral-600"
+          >
+            Edit
+          </Link>
+        )}
       </div>
 
       {/* Quantity stepper */}
@@ -200,7 +218,8 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
           <button
             type="button"
             onClick={() => setConfirmingClear(true)}
-            className="flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            disabled={totalItems === 0}
+            className="flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-0"
           >
             <Trash2 className="size-4" strokeWidth={2} aria-hidden />
             Clear Order
@@ -213,6 +232,13 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
           className="flex-1 overflow-y-auto px-5"
           style={{ paddingBottom: `calc(${barTop} + 1rem)` }}
         >
+          {/* Kiosk: an empty cart is a valid starting point for a custom-only
+              order, so guide staff to the builder below instead of looking empty. */}
+          {isStore && items.length === 0 && (
+            <p className="px-1 pt-2 text-sm text-muted-foreground">
+              No items yet. Add an off-menu drink below, or browse the menu.
+            </p>
+          )}
           <ul className="flex flex-col divide-y divide-border">
             {items.map((item) => (
               <SheetRow
@@ -223,6 +249,9 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
               />
             ))}
           </ul>
+          {/* Kiosk only: staff can add an off-menu drink into this same cart.
+              Hidden on the customer storefront (no free-form pricing there). */}
+          {isStore && <CustomLineBuilder />}
         </div>
       </div>
 
