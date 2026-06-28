@@ -28,6 +28,8 @@ export const metadata: Metadata = {
       "Order coffee from Naise Coffee — browse the menu, customize your drink, and check out over WhatsApp.",
     type: "website",
   },
+  appleWebApp: { capable: true, title: "Naise", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 export default function RootLayout({
