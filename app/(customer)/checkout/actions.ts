@@ -12,7 +12,9 @@ import { getStoreSettingsForCheckout } from "@/lib/settings/store";
 import { normalizeMyPhone } from "@/lib/phone";
 
 type PlaceOrderItem = {
-  productId: string;
+  // Always present for storefront orders (every line is a menu product); typed
+  // optional to match the shared CartItem shape.
+  productId?: string;
   name: string;
   quantity: number;
   sizeName?: string;
@@ -76,7 +78,11 @@ export async function placeOrder(
   // after it was added. RLS returns non-archived products only, so a missing
   // id means archived/hidden; is_available=false means sold out. Either way,
   // block the order with a clear message rather than persisting a bad line.
-  const productIds = [...new Set(input.items.map((i) => i.productId).filter(Boolean))];
+  const productIds = [
+    ...new Set(
+      input.items.map((i) => i.productId).filter((id): id is string => !!id),
+    ),
+  ];
   if (productIds.length > 0) {
     const { data: prods, error: prodErr } = await supabase
       .from("products")
@@ -89,7 +95,7 @@ export async function placeOrder(
     const blocked = [
       ...new Set(
         input.items
-          .filter((i) => availableById.get(i.productId) !== true)
+          .filter((i) => i.productId !== undefined && availableById.get(i.productId) !== true)
           .map((i) => i.name),
       ),
     ];

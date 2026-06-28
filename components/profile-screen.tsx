@@ -121,6 +121,47 @@ function StaffRow({
   );
 }
 
+// Skeleton row matching StaffRow's geometry (avatar circle, two text lines,
+// trailing chevron slot). Rendered while the client stores hydrate so the staff
+// card reveals in sync with the rest of the screen instead of popping in first.
+function StaffRowSkeleton() {
+  return (
+    <div className="flex items-center gap-3.5 px-4 py-3.5" aria-hidden>
+      <span className="size-9 shrink-0 animate-pulse rounded-full bg-neutral-100" />
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span className="h-3.5 w-28 animate-pulse rounded bg-neutral-100" />
+        <span className="h-3 w-36 animate-pulse rounded bg-neutral-100" />
+      </span>
+      <span className="size-4 shrink-0 animate-pulse rounded bg-neutral-100" />
+    </div>
+  );
+}
+
+// Skeleton stand-in for a recent-order card, sized to roughly match
+// CustomerOrderCard so the list doesn't jump when the real orders resolve.
+function OrderCardSkeleton() {
+  return (
+    <li
+      className="flex flex-col gap-4 rounded-3xl bg-white p-5 ring-1 ring-foreground/10"
+      aria-hidden
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="h-5 w-12 animate-pulse rounded bg-neutral-100" />
+        <span className="h-6 w-20 animate-pulse rounded-full bg-neutral-100" />
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="h-3 w-16 animate-pulse rounded bg-neutral-100" />
+        <span className="h-3 w-14 animate-pulse rounded bg-neutral-100" />
+      </div>
+      <div className="flex items-center gap-3 border-t border-border pt-3">
+        <span className="size-6 shrink-0 animate-pulse rounded-lg bg-neutral-100" />
+        <span className="h-4 flex-1 animate-pulse rounded bg-neutral-100" />
+        <span className="h-4 w-12 animate-pulse rounded bg-neutral-100" />
+      </div>
+    </li>
+  );
+}
+
 // The customer Profile screen. Client component because it reads the live
 // profile and Beans stores; `recentOrders` (already capped to 3) is passed in
 // from the server page so the list is server-rendered and crawlable. Mobile-
@@ -271,40 +312,56 @@ export function ProfileScreen({
         )}
 
         {/* Staff tools — only for accounts with a manage-capable role. Sits
-            above the account rows so it's the first thing staff reach. Not
-            gated on the client `ready` flag because `role` is a server prop. */}
-        {canManage && (
-          <section
-            aria-label="Staff"
-            className="flex flex-col gap-3 naise-rise [animation-delay:110ms]"
-          >
-            <h2 className="text-xs font-bold uppercase tracking-wide">Staff</h2>
-            <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
-              <StaffRow
-                icon={ClipboardList}
-                label="Manage"
-                description="Live order board"
-                href="/manage?from=profile"
-              />
-              {canViewDashboard && (
+            above the account rows so it's the first thing staff reach. `role` is
+            a server prop, so we know up front whether to reserve this card — but
+            we still gate the real rows on `ready` and show a skeleton until then,
+            so the staff card reveals together with the hero rather than painting
+            first while the identity above it is still a skeleton. */}
+        {canManage &&
+          (!ready ? (
+            <section
+              aria-hidden
+              className="flex flex-col gap-3"
+            >
+              <span className="h-3.5 w-12 animate-pulse rounded bg-neutral-100" />
+              <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
+                <StaffRowSkeleton />
+                {canViewDashboard && <StaffRowSkeleton />}
+                {isAdminRole && <StaffRowSkeleton />}
+              </div>
+            </section>
+          ) : (
+            <section
+              aria-label="Staff"
+              className="flex flex-col gap-3 naise-rise [animation-delay:110ms]"
+            >
+              <h2 className="text-xs font-bold uppercase tracking-wide">Staff</h2>
+              <div className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border">
                 <StaffRow
-                  icon={LayoutDashboard}
-                  label="Admin Dashboard"
-                  description="Reports and store performance"
-                  href="/admin"
+                  icon={ClipboardList}
+                  label="Manage"
+                  description="Live order board"
+                  href="/manage?from=profile"
                 />
-              )}
-              {isAdminRole && (
-                <StaffRow
-                  icon={Coffee}
-                  label="Custom Order"
-                  description="Build a one-off order"
-                  href="/custom-order"
-                />
-              )}
-            </div>
-          </section>
-        )}
+                {canViewDashboard && (
+                  <StaffRow
+                    icon={LayoutDashboard}
+                    label="Admin Dashboard"
+                    description="Reports and store performance"
+                    href="/admin"
+                  />
+                )}
+                {isAdminRole && (
+                  <StaffRow
+                    icon={Coffee}
+                    label="Custom Order"
+                    description="Build a one-off order"
+                    href="/custom-order"
+                  />
+                )}
+              </div>
+            </section>
+          ))}
 
         {/* Account menu rows — members only. Edit Profile / Settings need an
             account to act on; guests don't see them. Gated on `ready` so the
@@ -339,54 +396,77 @@ export function ProfileScreen({
         )}
 
         {/* Recent orders — capped at 3 for both members and guests. The
-            heading copy changes for guests so it's clear the orders are
-            tied to this device, not (yet) to an account. */}
-        <section
-          id="recent-orders"
-          aria-labelledby="recent-orders-heading"
-          className="scroll-mt-20 naise-rise [animation-delay:200ms]"
-        >
-          <div className="flex items-center justify-between">
-            <h2
-              id="recent-orders-heading"
-              className="text-xs font-bold uppercase tracking-wide"
-            >
-              {isAuthenticated ? "Recent Orders" : "Your orders on this device"}
-            </h2>
-            {recentOrders.length > 0 && (
-              <Link
-                href="/profile/orders"
-                className="flex items-center gap-0.5 text-[0.6875rem] font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:underline"
-              >
-                See all
-                <ChevronRight className="size-3.5" strokeWidth={2.5} aria-hidden />
-              </Link>
-            )}
-          </div>
-
-          {recentOrders.length === 0 ? (
-            <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border px-4 py-10 text-center">
-              <p className="text-sm text-muted-foreground">No orders yet.</p>
-              <Link
-                href="/menu"
-                className="text-xs font-semibold text-foreground underline-offset-2 hover:underline"
-              >
-                Browse the menu
-              </Link>
+            heading copy changes for guests ("Your orders on this device") vs
+            members ("Recent Orders"), and that choice depends on the client auth
+            store. Until it hydrates we render a skeleton instead of the guest
+            heading, otherwise the wrong copy flashes before auth resolves. The
+            order cards themselves are a server prop, but they wait for `ready`
+            too so the whole section reveals in one motion with the hero. */}
+        {!ready ? (
+          <section aria-hidden className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="h-3.5 w-32 animate-pulse rounded bg-neutral-100" />
+              {recentOrders.length > 0 && (
+                <span className="h-3 w-12 animate-pulse rounded bg-neutral-100" />
+              )}
             </div>
-          ) : (
-            <ul className="mt-3 flex flex-col gap-4">
-              {recentOrders.map((order, i) => (
-                <CustomerOrderCard
-                  key={order.token}
-                  order={order}
-                  delay={i * 60}
-                  from="profile"
-                />
-              ))}
-            </ul>
-          )}
-        </section>
+            {recentOrders.length > 0 && (
+              <ul className="flex flex-col gap-4">
+                {recentOrders.map((order) => (
+                  <OrderCardSkeleton key={order.token} />
+                ))}
+              </ul>
+            )}
+            <span className="sr-only">Loading orders…</span>
+          </section>
+        ) : (
+          <section
+            id="recent-orders"
+            aria-labelledby="recent-orders-heading"
+            className="scroll-mt-20 naise-rise [animation-delay:200ms]"
+          >
+            <div className="flex items-center justify-between">
+              <h2
+                id="recent-orders-heading"
+                className="text-xs font-bold uppercase tracking-wide"
+              >
+                {isAuthenticated ? "Recent Orders" : "Your orders on this device"}
+              </h2>
+              {recentOrders.length > 0 && (
+                <Link
+                  href="/profile/orders"
+                  className="flex items-center gap-0.5 text-[0.6875rem] font-semibold text-muted-foreground outline-none hover:text-foreground focus-visible:underline"
+                >
+                  See all
+                  <ChevronRight className="size-3.5" strokeWidth={2.5} aria-hidden />
+                </Link>
+              )}
+            </div>
+
+            {recentOrders.length === 0 ? (
+              <div className="mt-3 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border px-4 py-10 text-center">
+                <p className="text-sm text-muted-foreground">No orders yet.</p>
+                <Link
+                  href="/menu"
+                  className="text-xs font-semibold text-foreground underline-offset-2 hover:underline"
+                >
+                  Browse the menu
+                </Link>
+              </div>
+            ) : (
+              <ul className="mt-3 flex flex-col gap-4">
+                {recentOrders.map((order, i) => (
+                  <CustomerOrderCard
+                    key={order.token}
+                    order={order}
+                    delay={i * 60}
+                    from="profile"
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* Sign out for members; sign in for guests. Per spec, the two
             buttons just swap on toggle — no entry animation, no transition

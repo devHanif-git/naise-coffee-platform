@@ -43,7 +43,9 @@ export function CartScreen({
   // in it is flagged and blocks checkout until removed. (placeOrder re-checks
   // this server-side too, as the authoritative guard.)
   const availableSet = new Set(availableProductIds);
-  const hasUnavailable = items.some((item) => !availableSet.has(item.productId));
+  const hasUnavailable = items.some(
+    (item) => item.productId !== undefined && !availableSet.has(item.productId),
+  );
 
   // An edit that collapsed two lines into one arrives as ?merged=<name>. Show
   // the notice, then strip the param so a refresh doesn't repeat it.
@@ -167,7 +169,7 @@ export function CartScreen({
                 key={item.key}
                 item={item}
                 delay={Math.min(i, 6) * 60}
-                unavailable={!availableSet.has(item.productId)}
+                unavailable={item.productId !== undefined && !availableSet.has(item.productId)}
               />
             ))}
           </ul>

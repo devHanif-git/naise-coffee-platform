@@ -12,12 +12,15 @@ import type { OrderLine } from "@/types/order";
 import { STORE_OWNER_ID } from "@/constants/store";
 
 type StoreOrderItem = {
-  productId: string;
+  productId?: string;
   name: string;
   quantity: number;
   sizeName?: string;
   addonNames: string[];
   unitPrice: number;
+  // True for a staff-entered off-menu drink (no menu product). Maps to
+  // order_items.is_custom and skips the live-catalogue availability check.
+  isCustom?: boolean;
 };
 
 export type PlaceStoreOrderInput = {
@@ -53,9 +56,14 @@ export async function placeStoreOrder(
   if (input.paymentMethod === "duitnow-qr" && !qrOk)
     return { ok: false, error: "QR is not available." };
 
-  // Re-validate availability against the live catalogue.
+  // Re-validate availability against the live catalogue. Custom lines have no
+  // product, so only real menu lines are checked.
   const supabase = await createClient();
-  const productIds = [...new Set(input.items.map((i) => i.productId).filter(Boolean))];
+  const productIds = [
+    ...new Set(
+      input.items.map((i) => i.productId).filter((id): id is string => !!id),
+    ),
+  ];
   if (productIds.length > 0) {
     const { data: prods, error } = await supabase
       .from("products")
@@ -64,7 +72,13 @@ export async function placeStoreOrder(
     if (error) return { ok: false, error: "Couldn't verify availability. Try again." };
     const ok = new Map((prods ?? []).map((p) => [p.id, p.is_available]));
     const blocked = [
-      ...new Set(input.items.filter((i) => ok.get(i.productId) !== true).map((i) => i.name)),
+      ...new Set(
+        input.items
+          // Skip custom / product-less lines — they can't be "unavailable".
+          .filter((i) => !i.isCustom && i.productId)
+          .filter((i) => ok.get(i.productId!) !== true)
+          .map((i) => i.name),
+      ),
     ];
     if (blocked.length > 0)
       return { ok: false, error: `No longer available: ${blocked.join(", ")}.` };
@@ -78,7 +92,8 @@ export async function placeStoreOrder(
     unitPrice: item.unitPrice,
     lineTotal: item.unitPrice * item.quantity,
     status: "pending",
-    productId: item.productId,
+    isCustom: item.isCustom ?? false,
+    productId: item.isCustom ? null : item.productId,
   }));
 
   let order;

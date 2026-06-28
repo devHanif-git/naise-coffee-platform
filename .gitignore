@@ -68,3 +68,8 @@ next-env.d.ts
 
 # supabase CLI scratch
 /supabase/.temp/
+
+# Serwist-generated service worker (built from app/sw.ts)
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js

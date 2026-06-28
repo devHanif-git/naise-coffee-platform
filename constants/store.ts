@@ -14,5 +14,5 @@ export const STORE_CART_KEY = "naise-store-cart";
 export const STORE_CART_NOTES_KEY = "naise-store-cart-notes";
 
 // Self-serve reset timings.
-export const STORE_IDLE_TIMEOUT_MS = 90_000; // clear an abandoned cart after 90s idle
+export const STORE_IDLE_TIMEOUT_MS = 180_000; // clear an abandoned cart after 3 min idle
 export const STORE_CONFIRMATION_RESET_MS = 6_000; // confirmation → back to menu

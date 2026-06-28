@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import withSerwistInit from "@serwist/next";
 
 const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
@@ -30,4 +31,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// `withSerwistInit` injects a webpack config, which Next 16's default Turbopack
+// dev server rejects (and the plugin warns even when its `disable` option is
+// set, because `disable` only skips SW *generation*, not the injection). The
+// SW is only needed in the production build (run with `next build --webpack`),
+// so we only apply the plugin outside dev and let Turbopack run untouched.
+const isDev = process.env.NODE_ENV === "development";
+
+export default isDev
+  ? nextConfig
+  : withSerwistInit({ swSrc: "app/sw.ts", swDest: "public/sw.js" })(nextConfig);

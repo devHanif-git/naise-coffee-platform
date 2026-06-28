@@ -64,8 +64,10 @@ export function CartFab() {
   if (!isEmpty && preview !== "closed") {
     setPreview("closed");
   }
-  // An emptied cart can't show the sheet — snap it shut.
-  if (isEmpty && sheet !== "closed") {
+  // An emptied cart can't show the sheet — snap it shut. Exception: the kiosk
+  // keeps the sheet usable while empty so staff can place a custom-only order
+  // (the custom-drink builder lives inside the sheet).
+  if (isEmpty && sheet !== "closed" && !isStore) {
     setSheet("closed");
   }
 
@@ -83,14 +85,19 @@ export function CartFab() {
     sheetTimer.current = setTimeout(() => setSheet("closed"), SHEET_CLOSE_MS);
   };
 
-  // Empty + collapsed → circular FAB.
+  // Empty + collapsed → circular FAB. In the kiosk, tapping it opens the cart
+  // sheet straight away so staff can add a custom-only drink (the builder lives
+  // in the sheet); the circle stays put with the sheet rising over it. On the
+  // customer storefront an empty tap previews the zeroed bar instead (preview
+  // "open" falls through to the bar branch below).
   if (isEmpty && preview === "closed") {
     return (
       <div className={cn("pointer-events-none fixed inset-x-0 z-[60] mx-auto flex w-full justify-end px-4", widthClass, bottomClass)}>
         <button
           type="button"
-          onClick={() => setPreview("open")}
-          aria-label="Show cart"
+          onClick={() => (isStore ? toggleSheet() : setPreview("open"))}
+          aria-label={isStore ? "Open cart" : "Show cart"}
+          aria-haspopup={isStore ? "dialog" : undefined}
           className="naise-fade pointer-events-auto flex size-14 items-center justify-center overflow-hidden rounded-full bg-black shadow-lg outline-none transition-transform hover:scale-105 active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Image
@@ -102,6 +109,10 @@ export function CartFab() {
             aria-hidden
           />
         </button>
+        {/* Kiosk: the sheet can be open over an empty cart (custom-only flow). */}
+        {sheet !== "closed" && (
+          <CartSheet closing={sheet === "closing"} onClose={closeSheet} />
+        )}
       </div>
     );
   }

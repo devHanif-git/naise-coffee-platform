@@ -66,12 +66,15 @@ export function StoreCheckout({
     startTransition(async () => {
       const res = await placeStoreOrder({
         items: items.map((i) => ({
-          productId: i.productId,
+          // Custom lines carry a synthetic cart key in productId; never send it
+          // to the server — omit it so the availability check only sees real ids.
+          productId: i.isCustom ? undefined : i.productId,
           name: i.name,
           quantity: i.quantity,
           sizeName: i.sizeName,
           addonNames: i.addonNames,
           unitPrice: i.unitPrice,
+          isCustom: i.isCustom,
         })),
         paymentMethod: method,
         notes: notes || undefined,

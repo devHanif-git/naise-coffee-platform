@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Cloudflare/OpenNext build artifacts — generated, not source:
     ".open-next/**",
+    // Serwist-generated service worker — built from app/sw.ts, not source:
+    "public/sw.js",
+    "public/swe-worker-*.js",
   ]),
 ]);
 

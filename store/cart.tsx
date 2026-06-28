@@ -19,14 +19,20 @@ const DEFAULT_NOTES_STORAGE_KEY = "naise-cart-notes";
 // settings => different key => separate line. A reward line carries its
 // rewardId so it never merges with a paid line (or another reward) of the same
 // drink — each redemption is its own free line.
+//
+// Custom (off-menu) lines have no real product, so the builder passes a
+// synthetic `custom:<name>:<sen>` value in the productId slot. That keeps two
+// different custom drinks on separate lines while a repeat of the same
+// name+price still merges (quantities sum). The synthetic value is a cart-only
+// keying device and is never sent to the server (checkout omits it).
 export function buildKey(
-  productId: string,
+  productId: string | undefined,
   sizeId: string | undefined,
   addonIds: string[],
   rewardId?: string,
 ): string {
   return [
-    productId,
+    productId ?? "",
     sizeId ?? "",
     [...addonIds].sort().join(","),
     rewardId ?? "",
