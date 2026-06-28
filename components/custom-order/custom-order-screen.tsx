@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Minus, Plus, Trash2 } from "lucide-react";
 import { SmartImage } from "@/components/ui/smart-image";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, capitalizeFirst, capitalizeWords } from "@/lib/format";
 import { images } from "@/constants/images";
 import type { CustomDrinkPreset } from "@/types/custom-order";
 import { placeCustomOrder } from "@/app/(customer)/custom-order/actions";
@@ -144,13 +144,17 @@ export function CustomOrderScreen({
           <div className="flex gap-2">
             <input
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(capitalizeWords(e.target.value))}
               placeholder="Drink name"
               className="h-12 flex-1 rounded-2xl border border-border px-4 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             />
             <input
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              onChange={(e) => {
+                // Numeric only: digits with an optional single decimal point.
+                const v = e.target.value;
+                if (v === "" || /^\d*\.?\d*$/.test(v)) setPrice(v);
+              }}
               inputMode="decimal"
               placeholder="RM"
               className="h-12 w-24 rounded-2xl border border-border px-4 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -194,7 +198,7 @@ export function CustomOrderScreen({
         {/* Notes */}
         <textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => setNotes(capitalizeFirst(e.target.value))}
           placeholder="Notes (optional)"
           rows={2}
           className="rounded-2xl border border-border px-4 py-3 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
