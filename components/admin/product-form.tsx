@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -13,9 +13,11 @@ import { ImageUpload } from "@/components/admin/image-upload";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { saveProduct } from "@/app/(admin)/admin/menu/actions";
+import { formatPrice } from "@/lib/format";
 import type {
   AdminAddon,
   AdminCategory,
+  AdminCostItem,
   AdminProductDetail,
   ProductFormData,
 } from "@/lib/menu/types";
@@ -28,10 +30,12 @@ export function ProductForm({
   product,
   categories,
   addons,
+  costItems,
 }: {
   product: AdminProductDetail | null;
   categories: AdminCategory[];
   addons: AdminAddon[];
+  costItems: AdminCostItem[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -65,6 +69,42 @@ export function ProductForm({
   const [recipeSteps, setRecipeSteps] = useState<string[]>(
     product?.recipeSteps ?? [],
   );
+
+  // Ticked recipe ingredients -> gram amount as a string ("" = unspecified).
+  // Excludes always-included items, which apply automatically.
+  const [recipe, setRecipe] = useState<Map<string, string>>(
+    new Map(
+      product?.recipeItems.map((r) => [
+        r.costItemId,
+        r.amountGrams == null ? "" : String(r.amountGrams),
+      ]) ?? [],
+    ),
+  );
+
+  const activeCostItems = costItems.filter((c) => !c.isArchived);
+  const alwaysItems = activeCostItems.filter((c) => c.alwaysIncluded);
+  const optionalItems = activeCostItems.filter((c) => !c.alwaysIncluded);
+
+  function toggleRecipe(costItemId: string) {
+    setRecipe((prev) => {
+      const next = new Map(prev);
+      if (next.has(costItemId)) next.delete(costItemId);
+      else next.set(costItemId, "");
+      return next;
+    });
+  }
+
+  function setGrams(costItemId: string, grams: string) {
+    setRecipe((prev) => new Map(prev).set(costItemId, grams));
+  }
+
+  // Live goods cost (sen): every always-included item + each ticked optional
+  // item's price. Grams are guidance and don't affect cost.
+  const goodsCost =
+    alwaysItems.reduce((sum, c) => sum + c.price, 0) +
+    optionalItems
+      .filter((c) => recipe.has(c.id))
+      .reduce((sum, c) => sum + c.price, 0);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const [overrides, setOverrides] = useState<Map<string, "add" | "remove">>(
@@ -118,6 +158,10 @@ export function ProductForm({
         mode,
       })),
       recipeSteps,
+      recipeItems: [...recipe.entries()].map(([costItemId, grams]) => ({
+        costItemId,
+        amountGrams: grams.trim() === "" ? null : Number(grams),
+      })),
     };
     startTransition(async () => {
       try {
@@ -258,7 +302,100 @@ export function ProductForm({
             )}
           </Panel>
 
-          <Panel title="Recipe" hint={`${recipeSteps.length} step${recipeSteps.length === 1 ? "" : "s"}`}>
+          <Panel
+            title="Recipe & cost"
+            hint={`Cost ${formatPrice(goodsCost)}`}
+          >
+            {activeCostItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No cost items yet. Create them under Cost Goods to build a recipe.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {/* Always-included items: shown locked, counted automatically. */}
+                {alwaysItems.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Always included
+                    </span>
+                    <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-muted/30">
+                      {alwaysItems.map((c) => (
+                        <div
+                          key={c.id}
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm"
+                        >
+                          <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-foreground text-background">
+                            <Check className="size-3" aria-hidden />
+                          </span>
+                          <span className="flex-1">{c.name}</span>
+                          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                            {formatPrice(c.price)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Optional ingredients: tick to add, enter grams for staff. */}
+                <div className="flex flex-col divide-y divide-border">
+                  {optionalItems.map((c) => {
+                    const checked = recipe.has(c.id);
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-3 py-2.5 text-sm"
+                      >
+                        <label className="flex flex-1 cursor-pointer items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleRecipe(c.id)}
+                            className="size-4 accent-foreground"
+                          />
+                          <span className={cn("flex-1", !checked && "text-muted-foreground")}>
+                            {c.name}
+                          </span>
+                        </label>
+                        {checked && (
+                          <div className="relative w-20">
+                            <Input
+                              inputMode="numeric"
+                              value={recipe.get(c.id) ?? ""}
+                              onChange={(e) => setGrams(c.id, e.target.value)}
+                              placeholder="0"
+                              aria-label={`${c.name} grams`}
+                              className="w-full pr-7 font-mono tabular-nums"
+                            />
+                            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              g
+                            </span>
+                          </div>
+                        )}
+                        <span
+                          className={cn(
+                            "w-16 shrink-0 text-right font-mono text-xs tabular-nums",
+                            checked ? "text-foreground" : "text-muted-foreground/60",
+                          )}
+                        >
+                          {formatPrice(c.price)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center justify-between rounded-xl bg-foreground px-4 py-3 text-background">
+                  <span className="text-sm font-semibold">Goods cost per drink</span>
+                  <span className="font-mono text-lg font-bold tabular-nums">
+                    {formatPrice(goodsCost)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Prep steps" hint={`${recipeSteps.length} step${recipeSteps.length === 1 ? "" : "s"}`}>
             {recipeSteps.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No steps yet. Add preparation instructions for staff.

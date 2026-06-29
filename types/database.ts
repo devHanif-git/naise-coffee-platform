@@ -148,6 +148,39 @@ export type Database = {
           },
         ]
       }
+      cost_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_always_included: boolean
+          is_archived: boolean
+          name: string
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_always_included?: boolean
+          is_archived?: boolean
+          name: string
+          price: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_always_included?: boolean
+          is_archived?: boolean
+          name?: string
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       custom_drinks: {
         Row: {
           created_at: string
@@ -223,6 +256,7 @@ export type Database = {
           reward_cost: number
           size_name: string | null
           status: Database["public"]["Enums"]["item_status"]
+          unit_cost: number | null
           unit_price: number
         }
         Insert: {
@@ -239,6 +273,7 @@ export type Database = {
           reward_cost?: number
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
+          unit_cost?: number | null
           unit_price: number
         }
         Update: {
@@ -255,6 +290,7 @@ export type Database = {
           reward_cost?: number
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
+          unit_cost?: number | null
           unit_price?: number
         }
         Relationships: [
@@ -432,6 +468,42 @@ export type Database = {
           },
           {
             foreignKeyName: "product_addons_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_recipe_items: {
+        Row: {
+          amount_grams: number | null
+          cost_item_id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          amount_grams?: number | null
+          cost_item_id: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          amount_grams?: number | null
+          cost_item_id?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_recipe_items_cost_item_id_fkey"
+            columns: ["cost_item_id"]
+            isOneToOne: false
+            referencedRelation: "cost_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_recipe_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"

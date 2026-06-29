@@ -3,6 +3,7 @@ import {
   getAdminProduct,
   listAdminCategories,
   listAdminAddons,
+  listAdminCostItems,
 } from "@/lib/menu/admin";
 import { ProductForm } from "@/components/admin/product-form";
 
@@ -12,11 +13,19 @@ export default async function EditProductPage(props: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await props.params;
-  const [product, categories, addons] = await Promise.all([
+  const [product, categories, addons, costItems] = await Promise.all([
     getAdminProduct(id),
     listAdminCategories(),
     listAdminAddons(),
+    listAdminCostItems(),
   ]);
   if (!product) notFound();
-  return <ProductForm product={product} categories={categories} addons={addons} />;
+  return (
+    <ProductForm
+      product={product}
+      categories={categories}
+      addons={addons}
+      costItems={costItems}
+    />
+  );
 }

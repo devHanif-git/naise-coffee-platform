@@ -36,6 +36,21 @@ export type AdminProduct = {
 
 export type AdminVariant = { id: string; name: string; price: number };
 
+// A raw cost-of-goods item (milk, matcha, packaging…). Price in sen is the flat
+// cost it contributes to a drink; alwaysIncluded items are added to every drink.
+export type AdminCostItem = {
+  id: string;
+  name: string;
+  price: number;
+  alwaysIncluded: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+};
+
+// One line of a product's recipe: a cost item plus optional grams (staff
+// guidance; does not change cost).
+export type RecipeItem = { costItemId: string; amountGrams: number | null };
+
 export type AdminProductDetail = AdminProduct & {
   description: string;
   basePrice: number | null;
@@ -43,6 +58,9 @@ export type AdminProductDetail = AdminProduct & {
   variants: AdminVariant[];
   // Per-product override rows keyed by addon id.
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
+  // Ticked cost items and their gram amounts. Excludes always-included items
+  // (those apply automatically and aren't stored per product).
+  recipeItems: RecipeItem[];
 };
 
 // Payload the item form submits (server action parses this).
@@ -63,4 +81,6 @@ export type ProductFormData = {
   isAvailable: boolean;
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
   recipeSteps: string[];
+  // Ticked cost items + grams. Always-included items aren't listed here.
+  recipeItems: RecipeItem[];
 };

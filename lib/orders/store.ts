@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getProductCosts } from "@/lib/menu/cost";
 import { rowToOrder, type OrderItemRow } from "@/lib/orders/mappers";
 import {
   statusesForFilter,
@@ -54,6 +55,20 @@ export async function createOrder(
     throw new Error(orderErr?.message ?? "Failed to create order.");
   }
 
+  // Snapshot each line's goods cost (sen) at sale time, mirroring unit_price:
+  // editing a cost item later only affects future orders. Cost tables are
+  // admin-only under RLS, so always read them with the service-role client even
+  // when the order itself is inserted under the member's cookie client. Custom
+  // drinks and unlinked lines have no product cost -> null.
+  const productIds = [
+    ...new Set(
+      draft.items
+        .map((i) => i.productId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const costByProduct = await getProductCosts(createAdminClient(), productIds);
+
   const itemsPayload = draft.items.map((item, position) => ({
     order_id: orderRow.id,
     position,
@@ -63,6 +78,7 @@ export async function createOrder(
     addon_names: item.addonNames,
     unit_price: item.unitPrice,
     line_total: item.lineTotal,
+    unit_cost: item.productId ? costByProduct.get(item.productId) ?? null : null,
     status: item.status,
     is_reward: item.isReward ?? false,
     reward_cost: item.rewardCost ?? 0,

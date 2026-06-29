@@ -103,6 +103,10 @@ export function ReportsView({
   }
 
   const aov = data.totals.orders > 0 ? Math.round(data.totals.revenue / data.totals.orders) : 0;
+  const margin =
+    data.totals.revenue > 0
+      ? Math.round((data.totals.netProfit / data.totals.revenue) * 100)
+      : 0;
   const payTotal = data.paymentBreakdown.reduce((s, p) => s + p.revenue, 0);
   const itemMax = Math.max(1, ...data.topItems.map((i) => i.quantity));
 
@@ -161,6 +165,22 @@ export function ReportsView({
             />
             <StatTile label="Avg order" value={formatPrice(aov)} />
           </div>
+        </div>
+
+        {/* Profit band — gross take, what goods cost, and what's left. Net
+            profit is the headline figure in ink; margin rides alongside it. */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile label="Gross revenue" value={formatPrice(data.totals.revenue)} />
+          <StatTile label="Goods cost" value={formatPrice(data.totals.cost)} />
+          <div className="flex flex-col gap-1 rounded-2xl border border-border bg-foreground p-4 text-background">
+            <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-background/60">
+              Net profit
+            </span>
+            <span className="font-mono text-2xl font-bold tabular-nums tracking-tight">
+              {formatPrice(data.totals.netProfit)}
+            </span>
+          </div>
+          <StatTile label="Margin" value={`${margin}%`} />
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

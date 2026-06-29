@@ -96,6 +96,8 @@ export default async function AdminDashboardPage() {
               {m.today.orders} order{m.today.orders === 1 ? "" : "s"} placed
               <span className="px-1.5 text-white/30">·</span>
               avg {formatPrice(aov(m.today.revenue, m.today.completed))}
+              <span className="px-1.5 text-white/30">·</span>
+              profit {formatPrice(m.today.profit)}
             </span>
           </div>
 
@@ -123,9 +125,9 @@ export default async function AdminDashboardPage() {
           <StatTile label="Revenue" value={formatPrice(m.month.revenue)}>
             <Sparkline data={m.trend14} />
           </StatTile>
+          <StatTile label="Net profit" value={formatPrice(m.month.profit)} />
           <StatTile label="Orders" value={String(m.month.orders)} />
           <StatTile label="Active customers" value={String(m.month.activeCustomers)} />
-          <StatTile label="Avg order" value={formatPrice(aov(m.month.revenue, m.month.completed))} />
         </div>
       </section>
 

@@ -98,6 +98,14 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   }
   if (data.maxAddons != null && (!Number.isInteger(data.maxAddons) || data.maxAddons < 0))
     return { ok: false, error: "Max add-ons must be a non-negative whole number." };
+  if (
+    data.recipeItems.some(
+      (r) =>
+        r.amountGrams != null &&
+        (!Number.isInteger(r.amountGrams) || r.amountGrams < 0),
+    )
+  )
+    return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
 
   const db = await createClient();
   const slug = data.slug.trim() ? slugify(data.slug) : slugify(name);
@@ -179,6 +187,25 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
       sort_order: i,
     }));
     const { error } = await db.from("product_addons").insert(rows);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  // Replace recipe ingredients (replace-all, like variants). Grams are optional
+  // staff guidance; the cost is derived from the cost item, not stored here.
+  const recipeDelete = await db
+    .from("product_recipe_items")
+    .delete()
+    .eq("product_id", productId);
+  if (recipeDelete.error)
+    return { ok: false, error: recipeDelete.error.message };
+  if (data.recipeItems.length > 0) {
+    const rows = data.recipeItems.map((r, i) => ({
+      product_id: productId!,
+      cost_item_id: r.costItemId,
+      amount_grams: r.amountGrams,
+      sort_order: i,
+    }));
+    const { error } = await db.from("product_recipe_items").insert(rows);
     if (error) return { ok: false, error: error.message };
   }
 
