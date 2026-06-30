@@ -8,10 +8,11 @@ import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { ReceiptModal } from "@/components/receipt-modal";
-import { paymentMethodLabel } from "@/data/payment-methods";
+import { paymentMethodLabel, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import {
   cancelOrderAction,
   markReadyAndNotify,
+  setOrderPaymentAction,
   updateDrinkStatus,
 } from "@/app/(admin)/manage/actions";
 import { OrderCompleteModal } from "@/components/order-complete-modal";
@@ -57,6 +58,10 @@ export function OrderDetail({
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState(order.paymentMethod);
+  const [settingPayment, setSettingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [completeError, setCompleteError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
 
@@ -137,6 +142,23 @@ export function OrderDetail({
       router.push(backHref);
     });
   }
+
+  // Resolve a pay-later order's method. Staff-only; the action re-checks auth.
+  function resolvePayment(method: "cash" | "duitnow-qr") {
+    setPaymentError(null);
+    setSettingPayment(true);
+    startTransition(async () => {
+      const res = await setOrderPaymentAction(order.token, method);
+      setSettingPayment(false);
+      if (!res.ok) {
+        setPaymentError(res.error);
+        return;
+      }
+      setPaymentMethod(method);
+    });
+  }
+
+  const isUnpaid = paymentMethod === UNPAID_PAYMENT_METHOD;
 
   // Whether the staff cancel control is offered: persisted orders that aren't
   // already finished. A non-persisting (persist=false) render never shows it.
@@ -241,7 +263,34 @@ export function OrderDetail({
         </div>
         <div className="rounded-2xl bg-neutral-100 px-4 py-3">
           <dt className="text-xs font-medium text-muted-foreground">Payment</dt>
-          <dd className="mt-0.5 text-sm font-bold">{paymentMethodLabel(order.paymentMethod)}</dd>
+          {isUnpaid ? (
+            <dd className="mt-1 flex flex-col gap-2">
+              <span className="inline-flex w-fit items-center rounded-full bg-amber-100 px-2 py-0.5 text-[0.6875rem] font-bold uppercase tracking-wide text-amber-700">
+                Unpaid
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => resolvePayment("cash")}
+                  disabled={settingPayment}
+                  className="h-8 flex-1 rounded-xl border border-border bg-white text-xs font-semibold disabled:opacity-50"
+                >
+                  Cash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resolvePayment("duitnow-qr")}
+                  disabled={settingPayment}
+                  className="h-8 flex-1 rounded-xl border border-border bg-white text-xs font-semibold disabled:opacity-50"
+                >
+                  DuitNow QR
+                </button>
+              </div>
+              {paymentError && <span className="text-xs text-rose-600">{paymentError}</span>}
+            </dd>
+          ) : (
+            <dd className="mt-0.5 text-sm font-bold">{paymentMethodLabel(paymentMethod)}</dd>
+          )}
         </div>
       </dl>
 
