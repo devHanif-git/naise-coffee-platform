@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { filterDigits } from "@/lib/input";
+import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { AdminAddon, AdminCategory } from "@/lib/menu/types";
@@ -83,7 +84,7 @@ export function CategoryManager({
             <Input
               id="new-category"
               value={newName}
-              onChange={(e) => setNewName(e.target.value)}
+              onChange={(e) => setNewName(capitalizeWords(e.target.value))}
               placeholder="e.g. Pastries"
             />
           </div>
@@ -246,7 +247,7 @@ function CategoryRow({
             <Input
               id={`name-${category.id}`}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(capitalizeWords(e.target.value))}
             />
           </div>
           <div className="flex flex-col gap-1.5">

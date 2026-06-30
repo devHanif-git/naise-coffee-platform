@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { filterDigits, filterDecimal } from "@/lib/input";
+import { capitalizeWords, capitalizeFirst } from "@/lib/format";
 import { ImageUpload } from "@/components/admin/image-upload";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -190,7 +191,7 @@ export function ProductForm({
         <div className="flex flex-col gap-4 lg:col-span-2">
           <Panel title="Details">
             <Field label="Name">
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+              <Input value={name} onChange={(e) => setName(capitalizeWords(e.target.value))} />
             </Field>
             <Field label="Slug (optional, auto from name)">
               <Input
@@ -202,7 +203,7 @@ export function ProductForm({
             <Field label="Description">
               <Textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e) => setDescription(capitalizeFirst(e.target.value))}
                 rows={3}
               />
             </Field>
@@ -258,7 +259,7 @@ export function ProductForm({
                       onChange={(e) =>
                         setVariants((p) =>
                           p.map((x, j) =>
-                            j === i ? { ...x, name: e.target.value } : x,
+                            j === i ? { ...x, name: capitalizeWords(e.target.value) } : x,
                           ),
                         )
                       }

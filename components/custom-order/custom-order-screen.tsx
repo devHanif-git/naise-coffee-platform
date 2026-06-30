@@ -39,6 +39,11 @@ export function CustomOrderScreen({
 
   const total = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
 
+  // A manual line is addable once it has a name and a positive price. Drives the
+  // "Add to order" button's enabled + black-vs-grey state.
+  const manualSen = Math.round(parseFloat(price) * 100);
+  const canAddManual = name.trim() !== "" && Number.isFinite(manualSen) && manualSen > 0;
+
   function addLine(n: string, sen: number) {
     const trimmed = n.trim();
     if (trimmed === "" || sen <= 0) return;
@@ -160,7 +165,12 @@ export function CustomOrderScreen({
           <button
             type="button"
             onClick={addManual}
-            className="h-11 rounded-2xl bg-neutral-100 text-sm font-semibold transition-colors hover:bg-neutral-200"
+            disabled={!canAddManual}
+            className={`h-11 rounded-2xl text-sm font-semibold transition-colors ${
+              canAddManual
+                ? "bg-black text-white hover:bg-neutral-800"
+                : "bg-neutral-100 text-muted-foreground"
+            } disabled:cursor-not-allowed`}
           >
             Add to order
           </button>
