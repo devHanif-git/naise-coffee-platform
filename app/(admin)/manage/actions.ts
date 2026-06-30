@@ -10,6 +10,7 @@ import {
   getOrderByToken,
   listOrdersPage,
   setItemStatus,
+  setOrderPayment,
 } from "@/lib/orders/store";
 import { buildOrderReadyMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -124,6 +125,26 @@ export async function cancelOrderAction(
   if (!updated) return { ok: false, error: "Order not found." };
 
   await reverseOrderRewards(token);
+
+  revalidatePath(`/manage/${token}`);
+  revalidatePath("/manage");
+  return { ok: true, orderStatus: updated.status };
+}
+
+// Resolve the payment method on a "pay later" store order. Only Cash / DuitNow QR
+// are accepted — never 'unpaid' (resolution only moves away from unpaid).
+export async function setOrderPaymentAction(
+  token: string,
+  method: "cash" | "duitnow-qr",
+): Promise<OrderActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (method !== "cash" && method !== "duitnow-qr") {
+    return { ok: false, error: "Invalid payment method." };
+  }
+  const updated = await setOrderPayment(token, method);
+  if (!updated) return { ok: false, error: "Order not found." };
 
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");

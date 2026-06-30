@@ -277,6 +277,23 @@ export async function cancelOrder(token: string): Promise<Order | null> {
   return getOrderByToken(token);
 }
 
+// Set the real payment method on an order. Used to resolve a "pay later" store
+// order (payment_method = 'unpaid') once the customer pays. Staff-only; callers
+// gate first. Uses the cookie client so the staff RLS update policy applies.
+// Only ever moves TO a real method — never back to 'unpaid'.
+export async function setOrderPayment(
+  token: string,
+  method: "cash" | "duitnow-qr",
+): Promise<Order | null> {
+  const db = await createClient();
+  const { error } = await db
+    .from("orders")
+    .update({ payment_method: method })
+    .eq("token", token);
+  if (error) return null;
+  return getOrderByToken(token);
+}
+
 // Cancel an order via the service-role client, for server-side rollback paths
 // where the caller is a member (who cannot UPDATE orders under RLS — that policy
 // is staff-only). Used by placeOrder when reward settlement fails: the order was
