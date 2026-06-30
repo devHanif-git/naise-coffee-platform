@@ -3,11 +3,11 @@ export function formatPrice(sen: number): string {
   return `RM ${(sen / 100).toFixed(2)}`;
 }
 
-// Capitalize the first character of free-text input (notes) so entries are
-// consistently sentence-cased. Leaves the rest as typed; no-op on empty input.
+// Capitalize the first letter of free-text input (notes, labels) so entries are
+// consistently sentence-cased. Skips leading whitespace so a stray space before
+// the first word doesn't prevent it. Leaves the rest as typed; no-op on empty.
 export function capitalizeFirst(value: string): string {
-  if (!value) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1);
+  return value.replace(/^(\s*)([a-z])/, (_, space: string, char: string) => space + char.toUpperCase());
 }
 
 // Capitalize the first character of every word (after each space) for drink

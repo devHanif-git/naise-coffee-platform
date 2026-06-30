@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { capitalizeFirst } from "@/lib/format";
 import type { StoreSettings } from "@/lib/settings/types";
 import { updateStoreSettings } from "@/app/(admin)/admin/settings/actions";
 
@@ -91,7 +92,7 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
           <Label>Closed message</Label>
           <Textarea
             value={s.closedMessage}
-            onChange={(e) => setS({ ...s, closedMessage: e.target.value })}
+            onChange={(e) => setS({ ...s, closedMessage: capitalizeFirst(e.target.value) })}
             rows={2}
           />
         </div>

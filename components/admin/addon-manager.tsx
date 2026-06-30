@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { filterDecimal } from "@/lib/input";
+import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { AdminAddon } from "@/lib/menu/types";
@@ -55,7 +56,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
             <Input
               id="new-addon-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(capitalizeWords(e.target.value))}
               placeholder="e.g. Oat Milk"
             />
           </div>
@@ -126,7 +127,7 @@ function AddonRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Input
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => setName(capitalizeWords(e.target.value))}
           className="w-full sm:flex-1"
         />
         <div className="relative w-full sm:w-24">

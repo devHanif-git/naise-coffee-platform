@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { filterDigits } from "@/lib/input";
+import { capitalizeWords, capitalizeFirst } from "@/lib/format";
 import { ImageUpload } from "@/components/admin/image-upload";
 import type {
   AdminLoyaltySettings,
@@ -191,7 +192,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
           </div>
           <div className="flex flex-1 flex-col gap-1.5">
             <Label>Voucher label</Label>
-            <Input value={settings.voucher} onChange={(e) => setSettings((s) => ({ ...s, voucher: e.target.value }))} placeholder="RM5 Voucher" />
+            <Input value={settings.voucher} onChange={(e) => setSettings((s) => ({ ...s, voucher: capitalizeWords(e.target.value) }))} placeholder="RM5 Voucher" />
           </div>
         </div>
       </Section>
@@ -205,11 +206,11 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
             {tiers.map((t) => (
               <div key={t.key} className={cn("flex flex-col gap-2 rounded-2xl border border-border bg-card p-3", t.isArchived && "opacity-60")}>
                 <div className="flex items-center gap-2">
-                  <Input value={t.name} onChange={(e) => updateTier(t.key, { name: e.target.value })} placeholder="Name" className="flex-1" />
+                  <Input value={t.name} onChange={(e) => updateTier(t.key, { name: capitalizeWords(e.target.value) })} placeholder="Name" className="flex-1" />
                   {!t.id && <NewPill />}
                 </div>
                 <div className="flex gap-2">
-                  <Input value={t.perk} onChange={(e) => updateTier(t.key, { perk: e.target.value })} placeholder="Perk description" className="flex-1" />
+                  <Input value={t.perk} onChange={(e) => updateTier(t.key, { perk: capitalizeFirst(e.target.value) })} placeholder="Perk description" className="flex-1" />
                   <div className="relative w-28 shrink-0">
                     <Input
                       inputMode="numeric"
@@ -254,10 +255,10 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
             {visibleMilestones.map((m) => (
               <div key={m.key} className={cn("flex flex-col gap-2 rounded-2xl border border-border bg-card p-3", !m.isActive && "opacity-60")}>
                 <div className="flex items-center gap-2">
-                  <Input value={m.label} onChange={(e) => updateMilestone(m.key, { label: e.target.value })} placeholder="Ledger label (e.g. 3-Day Streak Bonus)" className="flex-1" />
+                  <Input value={m.label} onChange={(e) => updateMilestone(m.key, { label: capitalizeWords(e.target.value) })} placeholder="Ledger label (e.g. 3-Day Streak Bonus)" className="flex-1" />
                   {!m.id && <NewPill />}
                 </div>
-                <Input value={m.displayLabel} onChange={(e) => updateMilestone(m.key, { displayLabel: e.target.value })} placeholder="Card label (e.g. 50 Beans)" />
+                <Input value={m.displayLabel} onChange={(e) => updateMilestone(m.key, { displayLabel: capitalizeWords(e.target.value) })} placeholder="Card label (e.g. 50 Beans)" />
                 <div className="flex items-center gap-2">
                   <Input inputMode="numeric" value={m.beans} onChange={(e) => updateMilestone(m.key, { beans: filterDigits(e.target.value) })} placeholder="Beans" className="flex-1 font-mono tabular-nums" />
                   <Input inputMode="numeric" value={m.triggerDay} onChange={(e) => updateMilestone(m.key, { triggerDay: filterDigits(e.target.value) })} placeholder="Day" className="w-16 font-mono tabular-nums" />
@@ -300,7 +301,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
                   {!r.id && <NewPill />}
                 </div>
                 <div className="flex gap-2">
-                  <Input value={r.name} onChange={(e) => updateReward(r.key, { name: e.target.value })} placeholder="Name" className="flex-1" />
+                  <Input value={r.name} onChange={(e) => updateReward(r.key, { name: capitalizeWords(e.target.value) })} placeholder="Name" className="flex-1" />
                   <Input inputMode="numeric" value={r.cost} onChange={(e) => updateReward(r.key, { cost: filterDigits(e.target.value) })} placeholder="Beans" className="w-24 font-mono tabular-nums" />
                 </div>
                 <select

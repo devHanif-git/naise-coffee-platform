@@ -10,6 +10,7 @@ import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { filterSignedInteger } from "@/lib/input";
+import { capitalizeFirst } from "@/lib/format";
 
 const ROLES: Role[] = ["customer", "staff", "manager", "admin"];
 
@@ -154,7 +155,7 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
           />
           <Input
             value={reason}
-            onChange={(e) => { setReason(e.target.value); setBeansMsg(null); }}
+            onChange={(e) => { setReason(capitalizeFirst(e.target.value)); setBeansMsg(null); }}
             placeholder="Reason (required)"
             className="h-10"
           />
