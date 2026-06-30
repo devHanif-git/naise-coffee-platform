@@ -145,6 +145,19 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
         );
       })}
 
+      <div className="flex items-start justify-between gap-4 rounded-2xl border border-border bg-muted/40 p-3.5">
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="font-heading text-sm font-semibold">Allow &ldquo;Pay later&rdquo; at kiosk</span>
+          <span className="text-xs text-muted-foreground">
+            Staff can place a store order before payment is decided, then set it later.
+          </span>
+        </div>
+        <Switch
+          checked={s.payLaterEnabled}
+          onCheckedChange={(v) => setS({ ...s, payLaterEnabled: v })}
+        />
+      </div>
+
       {msg && (
         <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"}>{msg.text}</p>
       )}
