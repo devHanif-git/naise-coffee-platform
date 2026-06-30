@@ -15,6 +15,7 @@ export default async function StoreCheckoutPage() {
     <StoreCheckout
       cashOk={cashOk}
       qrOk={qrOk}
+      payLaterEnabled={payments.payLaterEnabled}
       qrUrl={payments.duitnowQrUrl}
       closedMessage={settings.isOpen ? null : settings.closedMessage}
     />

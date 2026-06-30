@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { canManageOrders } from "@/lib/auth/session";
 import { reverseOrderRewards } from "@/lib/rewards/store";
+import { verifyStorePasscode } from "@/lib/auth/store-passcode";
+import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
+import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import {
   cancelOrder,
   completeOrder,
@@ -10,6 +13,7 @@ import {
   getOrderByToken,
   listOrdersPage,
   setItemStatus,
+  setOrderPayment,
 } from "@/lib/orders/store";
 import { buildOrderReadyMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -81,6 +85,10 @@ export async function markReadyAndNotify(
   const order = await getOrderByToken(token);
   if (!order) return { ok: false, error: "Order not found." };
 
+  if (order.paymentMethod === UNPAID_PAYMENT_METHOD) {
+    return { ok: false, error: "Set the payment method before completing this order." };
+  }
+
   // Persist completion FIRST — the DB is the source of truth, and the customer's
   // live tracking flips to completed via the broadcast trigger regardless of
   // Telegram. Then send the pickup notice best-effort; a Telegram failure must
@@ -124,6 +132,55 @@ export async function cancelOrderAction(
   if (!updated) return { ok: false, error: "Order not found." };
 
   await reverseOrderRewards(token);
+
+  revalidatePath(`/manage/${token}`);
+  revalidatePath("/manage");
+  return { ok: true, orderStatus: updated.status };
+}
+
+// Resolve the payment method on a "pay later" store order. Only Cash / DuitNow QR
+// are accepted — never 'unpaid' (resolution only moves away from unpaid).
+export async function setOrderPaymentAction(
+  token: string,
+  method: "cash" | "duitnow-qr",
+): Promise<OrderActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (method !== "cash" && method !== "duitnow-qr") {
+    return { ok: false, error: "Invalid payment method." };
+  }
+  const updated = await setOrderPayment(token, method);
+  if (!updated) return { ok: false, error: "Order not found." };
+
+  revalidatePath(`/manage/${token}`);
+  revalidatePath("/manage");
+  return { ok: true, orderStatus: updated.status };
+}
+
+// Correct a mis-keyed payment method on an order that already has one set
+// (e.g. staff recorded Cash but it was QR). Manager-gated: requires the store
+// passcode that only managers know, the same secret that gates store mode. The
+// new method must be one of the currently-enabled methods in payment settings.
+export async function changeOrderPaymentAction(
+  token: string,
+  method: string,
+  passcode: string,
+): Promise<OrderActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (!(await verifyStorePasscode(passcode))) {
+    return { ok: false, error: "Incorrect manager passcode." };
+  }
+  // The target must be a currently-enabled, real method (never 'unpaid').
+  const settings = await getPaymentSettings();
+  const enabled = getEnabledPaymentMethods(settings).map((m) => m.id);
+  if (method === UNPAID_PAYMENT_METHOD || !enabled.includes(method as never)) {
+    return { ok: false, error: "That payment method isn't available." };
+  }
+  const updated = await setOrderPayment(token, method);
+  if (!updated) return { ok: false, error: "Order not found." };
 
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");

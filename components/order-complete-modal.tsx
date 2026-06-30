@@ -10,12 +10,14 @@ export function OrderCompleteModal({
   orderNumber,
   busy,
   hasContactPhone,
+  error,
   onConfirm,
   onCancel,
 }: {
   orderNumber: string;
   busy: boolean;
   hasContactPhone: boolean;
+  error?: string | null;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -59,6 +61,12 @@ export function OrderCompleteModal({
             ? "This marks the order complete and opens WhatsApp so you can send the buyer their ready notice."
             : "This marks the order complete and notifies the buyer that their order is ready for pickup."}
         </p>
+
+        {error && (
+          <p className="mt-4 w-full rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+            {error}
+          </p>
+        )}
 
         <button
           type="button"

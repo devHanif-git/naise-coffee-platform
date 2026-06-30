@@ -75,6 +75,7 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
       bank_account_holder: input.bank.accountHolder.trim(),
       // Empty/blank normalizes to null so checkout falls back to the bundled QR.
       duitnow_qr_url: input.duitnowQrUrl?.trim() ? input.duitnowQrUrl.trim() : null,
+      pay_later_enabled: input.payLaterEnabled,
     })
     .eq("id", true)
     .select("id")
