@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { normalizeMyPhone } from "@/lib/phone";
+import { filterPhone } from "@/lib/input";
 
 // Skippable prompt shown at checkout when no number is on file for this order.
 // Collects an unverified MY mobile so the store can message the customer on
@@ -87,7 +88,7 @@ export function PhonePromptSheet({
             autoComplete="tel-national"
             autoFocus
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(filterPhone(e.target.value))}
             placeholder="11-2561 7058"
             disabled={busy}
             className="h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"

@@ -10,6 +10,7 @@ import { uploadAvatar } from "@/lib/supabase/avatar";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { AvatarCropModal } from "@/components/avatar-crop-modal";
 import { normalizeMyPhone, formatMyPhoneNational } from "@/lib/phone";
+import { filterPhone } from "@/lib/input";
 
 // Edit Profile — photo and display name only (security lives in Settings).
 // Persists to the Supabase `profiles` row: the picked photo is uploaded to the
@@ -175,7 +176,7 @@ export function ProfileEditScreen() {
               inputMode="numeric"
               autoComplete="tel-national"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(filterPhone(e.target.value))}
               placeholder="11-2561 7058"
               className="h-12 flex-1 rounded-2xl border border-border bg-white px-4 text-sm font-medium outline-none transition-colors focus-visible:border-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             />

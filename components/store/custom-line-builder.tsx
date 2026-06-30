@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { capitalizeWords } from "@/lib/format";
+import { filterDecimal } from "@/lib/input";
 import { StorePasscodePrompt } from "@/components/store/store-passcode-prompt";
 
 // Staff-gated "add an off-menu drink" control for the kiosk cart. /store is
@@ -93,11 +94,7 @@ export function CustomLineBuilder() {
         />
         <input
           value={price}
-          onChange={(e) => {
-            // Numeric only: digits with an optional single decimal point.
-            const v = e.target.value;
-            if (v === "" || /^\d*\.?\d*$/.test(v)) setPrice(v);
-          }}
+          onChange={(e) => setPrice(filterDecimal(e.target.value, price))}
           inputMode="decimal"
           placeholder="RM"
           className="h-12 w-24 rounded-2xl border border-border px-4 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"

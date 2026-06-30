@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Minus, Plus, Trash2 } from "lucide-react";
 import { SmartImage } from "@/components/ui/smart-image";
 import { formatPrice, capitalizeFirst, capitalizeWords } from "@/lib/format";
+import { filterDecimal } from "@/lib/input";
 import { images } from "@/constants/images";
 import type { CustomDrinkPreset } from "@/types/custom-order";
 import { placeCustomOrder } from "@/app/(customer)/custom-order/actions";
@@ -150,11 +151,7 @@ export function CustomOrderScreen({
             />
             <input
               value={price}
-              onChange={(e) => {
-                // Numeric only: digits with an optional single decimal point.
-                const v = e.target.value;
-                if (v === "" || /^\d*\.?\d*$/.test(v)) setPrice(v);
-              }}
+              onChange={(e) => setPrice(filterDecimal(e.target.value, price))}
               inputMode="decimal"
               placeholder="RM"
               className="h-12 w-24 rounded-2xl border border-border px-4 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50"

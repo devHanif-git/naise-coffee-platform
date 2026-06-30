@@ -9,6 +9,7 @@ import { setCustomerRole, adjustCustomerBeans } from "@/app/(admin)/admin/custom
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { filterSignedInteger } from "@/lib/input";
 
 const ROLES: Role[] = ["customer", "staff", "manager", "admin"];
 
@@ -147,7 +148,7 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
           <Input
             inputMode="numeric"
             value={amount}
-            onChange={(e) => { setAmount(e.target.value); setBeansMsg(null); }}
+            onChange={(e) => { setAmount(filterSignedInteger(e.target.value)); setBeansMsg(null); }}
             placeholder="Amount (e.g. 100 or -50)"
             className="h-10 font-mono tabular-nums"
           />
