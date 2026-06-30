@@ -7,6 +7,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { filterDigits } from "@/lib/input";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { AdminAddon, AdminCategory } from "@/lib/menu/types";
@@ -254,7 +255,7 @@ function CategoryRow({
               id={`max-addons-${category.id}`}
               inputMode="numeric"
               value={maxAddons}
-              onChange={(e) => setMaxAddons(e.target.value)}
+              onChange={(e) => setMaxAddons(filterDigits(e.target.value))}
               className="w-24 font-mono tabular-nums"
             />
           </div>
