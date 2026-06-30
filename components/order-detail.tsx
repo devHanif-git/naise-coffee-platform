@@ -105,9 +105,20 @@ export function OrderDetail({
 
   function confirmComplete() {
     setCompleting(true);
+    setCompleteError(null);
     startTransition(async () => {
-      if (persist) await markReadyAndNotify(order.token);
-      setCompleting(false);
+      if (persist) {
+        const res = await markReadyAndNotify(order.token);
+        setCompleting(false);
+        if (!res.ok) {
+          // Most common cause: order still 'unpaid'. Keep the modal open and
+          // tell staff to resolve payment first (the picker is in the modal).
+          setCompleteError(res.error);
+          return;
+        }
+      } else {
+        setCompleting(false);
+      }
       setShowComplete(false);
       // Auto-open WhatsApp with the prefilled ready notice so staff don't tap a
       // second button. Same-tab navigation (not window.open) so it isn't
@@ -120,6 +131,7 @@ export function OrderDetail({
   // Cancel reverts the drink that just completed back to "preparing", so the
   // order leaves "ready" and no notice is sent.
   function cancelComplete() {
+    setCompleteError(null);
     setShowComplete(false);
     if (lastDoneIndex !== null) applyStatus(lastDoneIndex, "preparing");
     setLastDoneIndex(null);
@@ -446,6 +458,7 @@ export function OrderDetail({
           orderNumber={order.orderNumber}
           busy={completing}
           hasContactPhone={Boolean(order.contactPhone)}
+          error={completeError}
           onConfirm={confirmComplete}
           onCancel={cancelComplete}
         />

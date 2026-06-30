@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { canManageOrders } from "@/lib/auth/session";
 import { reverseOrderRewards } from "@/lib/rewards/store";
+import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import {
   cancelOrder,
   completeOrder,
@@ -81,6 +82,10 @@ export async function markReadyAndNotify(
   }
   const order = await getOrderByToken(token);
   if (!order) return { ok: false, error: "Order not found." };
+
+  if (order.paymentMethod === UNPAID_PAYMENT_METHOD) {
+    return { ok: false, error: "Set the payment method before completing this order." };
+  }
 
   // Persist completion FIRST — the DB is the source of truth, and the customer's
   // live tracking flips to completed via the broadcast trigger regardless of
