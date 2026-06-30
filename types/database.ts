@@ -353,6 +353,7 @@ export type Database = {
           google_pay_enabled: boolean
           grabpay_enabled: boolean
           id: boolean
+          pay_later_enabled: boolean
           qr_enabled: boolean
           tng_ewallet_enabled: boolean
           updated_at: string
@@ -375,6 +376,7 @@ export type Database = {
           google_pay_enabled?: boolean
           grabpay_enabled?: boolean
           id?: boolean
+          pay_later_enabled?: boolean
           qr_enabled?: boolean
           tng_ewallet_enabled?: boolean
           updated_at?: string
@@ -397,6 +399,7 @@ export type Database = {
           google_pay_enabled?: boolean
           grabpay_enabled?: boolean
           id?: boolean
+          pay_later_enabled?: boolean
           qr_enabled?: boolean
           tng_ewallet_enabled?: boolean
           updated_at?: string
