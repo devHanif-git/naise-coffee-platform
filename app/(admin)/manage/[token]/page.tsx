@@ -4,6 +4,7 @@ import { PackageX } from "lucide-react";
 import { OrderDetail } from "@/components/order-detail";
 import { canManageOrders } from "@/lib/auth/session";
 import { getOrderByToken } from "@/lib/orders/store";
+import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Management view is internal — keep it out of search results.
@@ -62,5 +63,19 @@ export default async function ManageOrderPage({
     }
   }
 
-  return <OrderDetail order={order} recipeMap={recipeMap} />;
+  // Methods staff can switch this order to (manager-gated edit). Mirrors what
+  // the storefront offers, so disabling a method in settings removes it here too.
+  const payments = await getPaymentSettings();
+  const paymentOptions = getEnabledPaymentMethods(payments).map((m) => ({
+    id: m.id,
+    name: m.name,
+  }));
+
+  return (
+    <OrderDetail
+      order={order}
+      recipeMap={recipeMap}
+      paymentOptions={paymentOptions}
+    />
+  );
 }

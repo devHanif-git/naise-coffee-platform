@@ -10,6 +10,7 @@ import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 import { STORE_OWNER_ID } from "@/constants/store";
+import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 
 type StoreOrderItem = {
   productId?: string;
@@ -25,7 +26,7 @@ type StoreOrderItem = {
 
 export type PlaceStoreOrderInput = {
   items: StoreOrderItem[];
-  paymentMethod: "cash" | "duitnow-qr";
+  paymentMethod: "cash" | "duitnow-qr" | "unpaid";
   notes?: string;
   subtotal: number;
   total: number;
@@ -55,6 +56,8 @@ export async function placeStoreOrder(
     return { ok: false, error: "Cash is not available." };
   if (input.paymentMethod === "duitnow-qr" && !qrOk)
     return { ok: false, error: "QR is not available." };
+  if (input.paymentMethod === UNPAID_PAYMENT_METHOD && !payments.payLaterEnabled)
+    return { ok: false, error: "Pay later is not available." };
 
   // Re-validate availability against the live catalogue. Custom lines have no
   // product, so only real menu lines are checked.

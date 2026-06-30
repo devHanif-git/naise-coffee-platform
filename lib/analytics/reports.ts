@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { normalizePaymentMethod } from "@/data/payment-methods";
+import { normalizePaymentMethod, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import type { ReportData, ReportRange } from "@/lib/analytics/types";
 
 const KL = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
@@ -85,10 +85,14 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
 
     // Group on the canonical method id so legacy display-name variants
     // ("DuitNow QR", "Duitnow QR") collapse into the same method as "duitnow-qr".
+    // Skip the 'unpaid' sentinel — the completion guard already prevents an
+    // unpaid order from completing, so this is a belt-and-suspenders backstop.
     const method = normalizePaymentMethod(o.payment_method);
-    const p = payMap.get(method) ?? { orders: 0, revenue: 0 };
-    p.orders += 1; p.revenue += o.total;
-    payMap.set(method, p);
+    if (method !== UNPAID_PAYMENT_METHOD) {
+      const p = payMap.get(method) ?? { orders: 0, revenue: 0 };
+      p.orders += 1; p.revenue += o.total;
+      payMap.set(method, p);
+    }
   }
 
   const trend = [...trendMap.entries()]

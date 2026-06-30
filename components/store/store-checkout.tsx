@@ -9,16 +9,18 @@ import { images } from "@/constants/images";
 import { STORE_CONFIRMATION_RESET_MS } from "@/constants/store";
 import { placeStoreOrder } from "@/app/(store)/store/(kiosk)/actions";
 
-type Method = "cash" | "duitnow-qr";
+type Method = "cash" | "duitnow-qr" | "unpaid";
 
 export function StoreCheckout({
   cashOk,
   qrOk,
+  payLaterEnabled,
   qrUrl,
   closedMessage,
 }: {
   cashOk: boolean;
   qrOk: boolean;
+  payLaterEnabled: boolean;
   qrUrl: string | null;
   closedMessage: string | null;
 }) {
@@ -104,7 +106,12 @@ export function StoreCheckout({
             DuitNow QR
           </button>
         )}
-        {!cashOk && !qrOk && (
+        {payLaterEnabled && (
+          <button type="button" onClick={() => setMethod("unpaid")} aria-pressed={method === "unpaid"} className={`h-14 rounded-2xl border text-sm font-semibold ${method === "unpaid" ? "border-black bg-black text-white" : "border-border bg-white"}`}>
+            Pay later
+          </button>
+        )}
+        {!cashOk && !qrOk && !payLaterEnabled && (
           <p className="text-sm text-muted-foreground">Ordering is temporarily unavailable.</p>
         )}
       </div>
