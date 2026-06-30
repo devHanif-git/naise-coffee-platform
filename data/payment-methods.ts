@@ -75,6 +75,12 @@ export const paymentMethods: PaymentMethod[] = [
 // otherwise. Checkout falls back to the first enabled method at runtime.
 export const defaultPaymentMethodId: PaymentMethod["id"] = "cash";
 
+// Sentinel payment_method for a store order placed before payment is decided
+// ("Pay later"). NOT a member of `paymentMethods` — it must never be a
+// customer-selectable method — but it is a valid stored value that staff later
+// overwrite with a real method. See paymentMethodLabel below for its label.
+export const UNPAID_PAYMENT_METHOD = "unpaid";
+
 // Orders historically stored their payment method inconsistently: the online
 // checkout saved the display name ("DuitNow QR") while the in-store kiosk saved
 // the method id ("duitnow-qr"). That split the same method into separate rows in
@@ -97,6 +103,7 @@ export function normalizePaymentMethod(value: string): string {
 // Human-readable label for a stored payment_method value. Falls back to a
 // prettified form for any value not in the catalogue (legacy/removed methods).
 export function paymentMethodLabel(value: string): string {
+  if (value === UNPAID_PAYMENT_METHOD) return "Unpaid";
   const method = methodById.get(normalizePaymentMethod(value));
   if (method) return method.name;
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
