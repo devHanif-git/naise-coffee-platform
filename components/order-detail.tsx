@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, ChevronLeft, ChevronRight, Loader2, MessageCircle, Receipt, TriangleAlert } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Loader2, MessageCircle, Pencil, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
@@ -11,11 +11,13 @@ import { ReceiptModal } from "@/components/receipt-modal";
 import { paymentMethodLabel, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import {
   cancelOrderAction,
+  changeOrderPaymentAction,
   markReadyAndNotify,
   setOrderPaymentAction,
   updateDrinkStatus,
 } from "@/app/(admin)/manage/actions";
 import { OrderCompleteModal } from "@/components/order-complete-modal";
+import { ChangePaymentModal } from "@/components/change-payment-modal";
 import type { Order } from "@/types/order";
 
 // Interactive single-order management view used by the manage page
@@ -32,12 +34,16 @@ export function OrderDetail({
   persist = true,
   backHref = "/manage",
   recipeMap,
+  paymentOptions = [],
 }: {
   order: Order;
   persist?: boolean;
   // Where the back control returns to — the staff board by default.
   backHref?: string;
   recipeMap?: Map<string, string[]>;
+  // Methods staff can switch this order to (manager-gated edit). Empty disables
+  // the edit control (e.g. a read-only / non-persisting render).
+  paymentOptions?: { id: string; name: string }[];
 }) {
   // Per-drink status, keyed by line index, seeded from the order's own lines.
   // Held locally for optimistic updates; the server action persists in parallel.
@@ -59,9 +65,12 @@ export function OrderDetail({
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState(order.paymentMethod);
-  const [settingPayment, setSettingPayment] = useState(false);
+  const [settingPayment, setSettingPayment] = useState<"cash" | "duitnow-qr" | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  const [showChangePayment, setShowChangePayment] = useState(false);
+  const [changingPayment, setChangingPayment] = useState(false);
+  const [changePaymentError, setChangePaymentError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
 
@@ -158,10 +167,10 @@ export function OrderDetail({
   // Resolve a pay-later order's method. Staff-only; the action re-checks auth.
   function resolvePayment(method: "cash" | "duitnow-qr") {
     setPaymentError(null);
-    setSettingPayment(true);
+    setSettingPayment(method);
     startTransition(async () => {
       const res = await setOrderPaymentAction(order.token, method);
-      setSettingPayment(false);
+      setSettingPayment(null);
       if (!res.ok) {
         setPaymentError(res.error);
         return;
@@ -171,6 +180,30 @@ export function OrderDetail({
   }
 
   const isUnpaid = paymentMethod === UNPAID_PAYMENT_METHOD;
+
+  // Manager-gated correction of an already-set method. Offered for persisted,
+  // non-cancelled orders that have a real method and at least one option to
+  // switch to. The action re-verifies the passcode and staff role server-side.
+  const canEditPayment =
+    persist &&
+    !isUnpaid &&
+    order.status !== "cancelled" &&
+    paymentOptions.length > 0;
+
+  function changePayment(method: string, passcode: string) {
+    setChangePaymentError(null);
+    setChangingPayment(true);
+    startTransition(async () => {
+      const res = await changeOrderPaymentAction(order.token, method, passcode);
+      setChangingPayment(false);
+      if (!res.ok) {
+        setChangePaymentError(res.error);
+        return;
+      }
+      setPaymentMethod(method);
+      setShowChangePayment(false);
+    });
+  }
 
   // Whether the staff cancel control is offered: persisted orders that aren't
   // already finished. A non-persisting (persist=false) render never shows it.
@@ -274,37 +307,72 @@ export function OrderDetail({
           </dd>
         </div>
         <div className="rounded-2xl bg-neutral-100 px-4 py-3">
-          <dt className="text-xs font-medium text-muted-foreground">Payment</dt>
+          <div className="flex items-center justify-between gap-2">
+            <dt className="text-xs font-medium text-muted-foreground">Payment</dt>
+            {canEditPayment && (
+              <button
+                type="button"
+                onClick={() => {
+                  setChangePaymentError(null);
+                  setShowChangePayment(true);
+                }}
+                aria-label="Change payment method"
+                className="-my-1 -mr-1 inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[0.6875rem] font-semibold text-muted-foreground outline-none transition-colors hover:bg-neutral-200/70 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <Pencil className="size-3" strokeWidth={2.5} aria-hidden />
+                Edit
+              </button>
+            )}
+          </div>
           {isUnpaid ? (
-            <dd className="mt-1 flex flex-col gap-2">
-              <span className="inline-flex w-fit items-center rounded-full bg-amber-100 px-2 py-0.5 text-[0.6875rem] font-bold uppercase tracking-wide text-amber-700">
+            <dd className="mt-1">
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-amber-700">
                 Unpaid
               </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => resolvePayment("cash")}
-                  disabled={settingPayment}
-                  className="h-8 flex-1 rounded-xl border border-border bg-white text-xs font-semibold disabled:opacity-50"
-                >
-                  Cash
-                </button>
-                <button
-                  type="button"
-                  onClick={() => resolvePayment("duitnow-qr")}
-                  disabled={settingPayment}
-                  className="h-8 flex-1 rounded-xl border border-border bg-white text-xs font-semibold disabled:opacity-50"
-                >
-                  DuitNow QR
-                </button>
-              </div>
-              {paymentError && <span className="text-xs text-rose-600">{paymentError}</span>}
             </dd>
           ) : (
             <dd className="mt-0.5 text-sm font-bold">{paymentMethodLabel(paymentMethod)}</dd>
           )}
         </div>
       </dl>
+
+      {/* Resolve a pay-later order. Full-width so the method labels never wrap
+          (a half-grid cell crammed "DuitNow QR" onto two lines). */}
+      {isUnpaid && (
+        <section className="mt-3 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-xs font-bold uppercase tracking-wider">Set payment</h2>
+            <p className="text-xs text-muted-foreground">
+              Record how the customer paid to complete this order.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => resolvePayment("cash")}
+              disabled={settingPayment !== null}
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-white text-sm font-semibold outline-none transition-colors hover:bg-neutral-100 disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              {settingPayment === "cash" && (
+                <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+              )}
+              Cash
+            </button>
+            <button
+              type="button"
+              onClick={() => resolvePayment("duitnow-qr")}
+              disabled={settingPayment !== null}
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-white text-sm font-semibold outline-none transition-colors hover:bg-neutral-100 disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              {settingPayment === "duitnow-qr" && (
+                <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+              )}
+              DuitNow QR
+            </button>
+          </div>
+          {paymentError && <p className="text-xs text-rose-600">{paymentError}</p>}
+        </section>
+      )}
 
       <section className="mt-7 flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
@@ -461,6 +529,16 @@ export function OrderDetail({
           error={completeError}
           onConfirm={confirmComplete}
           onCancel={cancelComplete}
+        />
+      )}
+      {showChangePayment && (
+        <ChangePaymentModal
+          options={paymentOptions}
+          currentMethod={paymentMethod}
+          busy={changingPayment}
+          error={changePaymentError}
+          onConfirm={changePayment}
+          onClose={() => setShowChangePayment(false)}
         />
       )}
     </main>

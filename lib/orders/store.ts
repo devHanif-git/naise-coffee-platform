@@ -278,12 +278,14 @@ export async function cancelOrder(token: string): Promise<Order | null> {
 }
 
 // Set the real payment method on an order. Used to resolve a "pay later" store
-// order (payment_method = 'unpaid') once the customer pays. Staff-only; callers
+// order (payment_method = 'unpaid') once the customer pays, and to correct a
+// mis-keyed method (manager-gated, in the action layer). Staff-only; callers
 // gate first. Uses the cookie client so the staff RLS update policy applies.
-// Only ever moves TO a real method — never back to 'unpaid'.
+// `method` is a payment-method id; never write 'unpaid' here — resolution and
+// correction only ever move TO a real method.
 export async function setOrderPayment(
   token: string,
-  method: "cash" | "duitnow-qr",
+  method: string,
 ): Promise<Order | null> {
   const db = await createClient();
   const { error } = await db
