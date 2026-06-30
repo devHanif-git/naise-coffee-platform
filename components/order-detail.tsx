@@ -17,6 +17,7 @@ import {
   updateDrinkStatus,
 } from "@/app/(admin)/manage/actions";
 import { OrderCompleteModal } from "@/components/order-complete-modal";
+import { OrderFinishedModal } from "@/components/order-finished-modal";
 import { ChangePaymentModal } from "@/components/change-payment-modal";
 import type { Order } from "@/types/order";
 
@@ -74,6 +75,17 @@ export function OrderDetail({
   const [, startTransition] = useTransition();
   const router = useRouter();
 
+  // Counter orders (kiosk + admin custom) are handed over at the counter, so the
+  // confirm-and-notify step is wasted movement: completion runs automatically and
+  // we show a success/error state instead.
+  const isCounterOrder = order.source === "store" || order.source === "custom";
+  // Drives the post-completion modal. null = not shown. For counter orders this
+  // opens in "loading" while markReadyAndNotify runs; online orders open it in
+  // "success" after the confirm modal.
+  const [finishState, setFinishState] = useState<
+    "loading" | "success" | "error" | null
+  >(null);
+
   const doneCount = statuses.filter((s) => s === "done").length;
   const allDone = doneCount === order.items.length;
   // wa.me deep link for the manual ready handoff; null when no number on file.
@@ -89,11 +101,16 @@ export function OrderDetail({
     setCompletedAt((prev) =>
       nowAllDone ? (prev ?? new Date().toISOString()) : undefined,
     );
-    // Auto-open the completion modal the moment the last drink turns done, but
-    // only for real (persisted) orders that aren't already completed.
-    if (nowAllDone && status === "done") {
+    // The moment the last drink turns done on a real, not-yet-complete order:
+    // counter orders auto-complete (no confirm); online orders open the confirm
+    // modal. Guard on persist so a read-only render never fires completion.
+    if (nowAllDone && status === "done" && persist) {
       setLastDoneIndex(index);
-      setShowComplete(true);
+      if (isCounterOrder) {
+        completeCounterOrder();
+      } else {
+        setShowComplete(true);
+      }
     }
 
     if (persist) {
@@ -112,6 +129,30 @@ export function OrderDetail({
   // True once every drink is done.
   const justCompleted = allDone;
 
+  // Return to the staff board. Used by every post-completion "done" affordance so
+  // staff never have to hit Back on a finished order.
+  function goToBoard() {
+    router.push(backHref);
+  }
+
+  // Counter-order completion: no confirm step. Runs markReadyAndNotify and shows
+  // the finished modal. On failure (almost always an unpaid order) we surface the
+  // error in the modal; dismissing it leaves staff on the page to set payment,
+  // after which resolvePayment auto-resumes this.
+  function completeCounterOrder() {
+    setCompleteError(null);
+    setFinishState("loading");
+    startTransition(async () => {
+      const res = await markReadyAndNotify(order.token);
+      if (!res.ok) {
+        setCompleteError(res.error);
+        setFinishState("error");
+        return;
+      }
+      setFinishState("success");
+    });
+  }
+
   function confirmComplete() {
     setCompleting(true);
     setCompleteError(null);
@@ -129,11 +170,10 @@ export function OrderDetail({
         setCompleting(false);
       }
       setShowComplete(false);
-      // Auto-open WhatsApp with the prefilled ready notice so staff don't tap a
-      // second button. Same-tab navigation (not window.open) so it isn't
-      // popup-blocked after the await; on mobile this hands off to the WA app.
-      // The persistent button below stays for manual re-sends.
-      if (persist && waReadyLink) window.location.href = waReadyLink;
+      // Order is complete. Show the success state, where staff send the WhatsApp
+      // ready notice from a real anchor tap (not popup-blocked) that also routes
+      // back to the board. No same-tab jump here, so staff land on /manage.
+      setFinishState("success");
     });
   }
 
@@ -176,6 +216,12 @@ export function OrderDetail({
         return;
       }
       setPaymentMethod(method);
+      // If this was a counter order blocked on payment with every drink already
+      // done, finish it now so staff don't re-trigger completion by hand.
+      if (isCounterOrder && allDone) {
+        setFinishState(null);
+        completeCounterOrder();
+      }
     });
   }
 
@@ -539,6 +585,17 @@ export function OrderDetail({
           error={changePaymentError}
           onConfirm={changePayment}
           onClose={() => setShowChangePayment(false)}
+        />
+      )}
+      {finishState && (
+        <OrderFinishedModal
+          orderNumber={order.orderNumber}
+          state={finishState}
+          variant={isCounterOrder ? "counter" : "online"}
+          waReadyLink={waReadyLink}
+          error={completeError}
+          onDone={goToBoard}
+          onClose={() => setFinishState(null)}
         />
       )}
     </main>
