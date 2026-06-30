@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronLeft, Gift, Trash2 } from "lucide-react";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, capitalizeFirst } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { images } from "@/constants/images";
 import { useCart } from "@/store/cart";
@@ -186,13 +186,7 @@ export function CartScreen({
             <textarea
               id="order-notes"
               value={notes}
-              onChange={(e) =>
-                setNotes(
-                  e.target.value.replace(/^\s*([a-z])/, (_, c: string) =>
-                    c.toUpperCase(),
-                  ),
-                )
-              }
+              onChange={(e) => setNotes(capitalizeFirst(e.target.value))}
               autoCapitalize="sentences"
               rows={2}
               placeholder="(eg. No ice, Less sugar...)"
