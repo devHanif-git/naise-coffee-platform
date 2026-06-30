@@ -5,7 +5,7 @@ import { ChevronRight, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { statusDisplay, timeAgo } from "@/lib/orders/status";
-import { paymentMethodLabel } from "@/data/payment-methods";
+import { paymentMethodLabel, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import type { Order } from "@/types/order";
 
 // A summary card in the /manage order list. Read-only — tapping opens the
@@ -39,7 +39,13 @@ export function OrderCard({ order, delay = 0 }: { order: Order; delay?: number }
             <span className="tabular-nums" suppressHydrationWarning>
               {timeAgo(order.createdAt)}
             </span>
-            <span className="font-medium">{paymentMethodLabel(order.paymentMethod)}</span>
+            {order.paymentMethod === UNPAID_PAYMENT_METHOD ? (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                Unpaid
+              </span>
+            ) : (
+              <span className="font-medium">{paymentMethodLabel(order.paymentMethod)}</span>
+            )}
           </div>
         </header>
 
