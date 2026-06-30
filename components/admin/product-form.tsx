@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { filterDigits, filterDecimal } from "@/lib/input";
 import { ImageUpload } from "@/components/admin/image-upload";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
@@ -244,7 +245,7 @@ export function ProductForm({
               <Input
                 inputMode="decimal"
                 value={basePrice}
-                onChange={(e) => setBasePrice(e.target.value)}
+                onChange={(e) => setBasePrice(filterDecimal(e.target.value, basePrice))}
                 placeholder="0.00"
                 className="w-32 font-mono tabular-nums"
               />
@@ -270,7 +271,7 @@ export function ProductForm({
                       onChange={(e) =>
                         setVariants((p) =>
                           p.map((x, j) =>
-                            j === i ? { ...x, price: e.target.value } : x,
+                            j === i ? { ...x, price: filterDecimal(e.target.value, x.price) } : x,
                           ),
                         )
                       }
@@ -448,7 +449,7 @@ export function ProductForm({
               <Input
                 inputMode="numeric"
                 value={maxAddons}
-                onChange={(e) => setMaxAddons(e.target.value)}
+                onChange={(e) => setMaxAddons(filterDigits(e.target.value))}
                 placeholder={String(selectedCategory?.maxAddons ?? 3)}
                 className="w-24 font-mono tabular-nums"
               />

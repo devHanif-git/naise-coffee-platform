@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { filterDigits } from "@/lib/input";
 import { ImageUpload } from "@/components/admin/image-upload";
 import type {
   AdminLoyaltySettings,
@@ -173,7 +174,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
           <Input
             inputMode="numeric"
             value={settings.beansPerRinggit}
-            onChange={(e) => setSettings((s) => ({ ...s, beansPerRinggit: e.target.value }))}
+            onChange={(e) => setSettings((s) => ({ ...s, beansPerRinggit: filterDigits(e.target.value) }))}
             className="w-28 font-mono tabular-nums"
           />
           <p className="text-xs text-muted-foreground">Applies to future orders only. The Beans ledger is immutable.</p>
@@ -184,7 +185,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
             <Input
               inputMode="numeric"
               value={settings.referralBeans}
-              onChange={(e) => setSettings((s) => ({ ...s, referralBeans: e.target.value }))}
+              onChange={(e) => setSettings((s) => ({ ...s, referralBeans: filterDigits(e.target.value) }))}
               className="font-mono tabular-nums"
             />
           </div>
@@ -213,7 +214,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
                     <Input
                       inputMode="numeric"
                       value={t.threshold}
-                      onChange={(e) => updateTier(t.key, { threshold: e.target.value })}
+                      onChange={(e) => updateTier(t.key, { threshold: filterDigits(e.target.value) })}
                       placeholder="0"
                       className="w-full pr-12 font-mono tabular-nums"
                     />
@@ -258,9 +259,9 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
                 </div>
                 <Input value={m.displayLabel} onChange={(e) => updateMilestone(m.key, { displayLabel: e.target.value })} placeholder="Card label (e.g. 50 Beans)" />
                 <div className="flex items-center gap-2">
-                  <Input inputMode="numeric" value={m.beans} onChange={(e) => updateMilestone(m.key, { beans: e.target.value })} placeholder="Beans" className="flex-1 font-mono tabular-nums" />
-                  <Input inputMode="numeric" value={m.triggerDay} onChange={(e) => updateMilestone(m.key, { triggerDay: e.target.value })} placeholder="Day" className="w-16 font-mono tabular-nums" />
-                  <Input inputMode="numeric" value={m.repeat} onChange={(e) => updateMilestone(m.key, { repeat: e.target.value })} placeholder="Repeat" className="w-16 font-mono tabular-nums" />
+                  <Input inputMode="numeric" value={m.beans} onChange={(e) => updateMilestone(m.key, { beans: filterDigits(e.target.value) })} placeholder="Beans" className="flex-1 font-mono tabular-nums" />
+                  <Input inputMode="numeric" value={m.triggerDay} onChange={(e) => updateMilestone(m.key, { triggerDay: filterDigits(e.target.value) })} placeholder="Day" className="w-16 font-mono tabular-nums" />
+                  <Input inputMode="numeric" value={m.repeat} onChange={(e) => updateMilestone(m.key, { repeat: filterDigits(e.target.value) })} placeholder="Repeat" className="w-16 font-mono tabular-nums" />
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
@@ -300,7 +301,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
                 </div>
                 <div className="flex gap-2">
                   <Input value={r.name} onChange={(e) => updateReward(r.key, { name: e.target.value })} placeholder="Name" className="flex-1" />
-                  <Input inputMode="numeric" value={r.cost} onChange={(e) => updateReward(r.key, { cost: e.target.value })} placeholder="Beans" className="w-24 font-mono tabular-nums" />
+                  <Input inputMode="numeric" value={r.cost} onChange={(e) => updateReward(r.key, { cost: filterDigits(e.target.value) })} placeholder="Beans" className="w-24 font-mono tabular-nums" />
                 </div>
                 <select
                   value={r.productId}

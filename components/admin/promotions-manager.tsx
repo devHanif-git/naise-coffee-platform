@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { filterDigits } from "@/lib/input";
 import { promotionStatus, type PromotionStatus } from "@/lib/promotions/pricing";
 import type { AdminPromotion } from "@/lib/promotions/types";
 import type { AdminProduct, AdminCategory } from "@/lib/menu/types";
@@ -171,7 +172,7 @@ function PromotionEditor({
     <div className="flex flex-col gap-3">
       <div className="flex gap-2">
         <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (e.g. Flash Deal)" className="flex-1" />
-        <Input inputMode="numeric" value={percentOff} onChange={(e) => setPercentOff(e.target.value)} placeholder="% off" className="w-20" />
+        <Input inputMode="numeric" value={percentOff} onChange={(e) => setPercentOff(filterDigits(e.target.value))} placeholder="% off" className="w-20" />
       </div>
       <label className="flex items-center justify-between text-sm font-medium">
         <span>Active</span>

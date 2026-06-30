@@ -5,6 +5,7 @@ import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { filterDecimal } from "@/lib/input";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import type { AdminAddon } from "@/lib/menu/types";
@@ -64,7 +65,7 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
               id="new-addon-price"
               inputMode="decimal"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              onChange={(e) => setPrice(filterDecimal(e.target.value, price))}
               placeholder="0.00"
               className="font-mono tabular-nums"
             />
@@ -135,7 +136,7 @@ function AddonRow({
           <Input
             inputMode="decimal"
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            onChange={(e) => setPrice(filterDecimal(e.target.value, price))}
             className="w-full pl-9 font-mono tabular-nums"
           />
         </div>
