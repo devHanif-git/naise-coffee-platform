@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, ChevronLeft, ChevronRight, Loader2, MessageCircle, Pencil, Receipt, TriangleAlert } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, CheckCircle2, Loader2, MessageCircle, Pencil, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
@@ -91,6 +91,21 @@ export function OrderDetail({
   // wa.me deep link for the manual ready handoff; null when no number on file.
   const waReadyLink = buildWhatsAppReadyLink(order);
 
+  // Whether the order is actually settled — completed in the DB, or completed in
+  // this session. Distinct from `allDone`: an order can have every drink done yet
+  // still sit at "ready" if completion never ran (an interrupted auto-complete).
+  const isCompleted = order.status === "completed" || finishState === "success";
+  // All drinks done but the order was never settled — it needs an explicit
+  // Complete action since there's nothing left to swipe. Hidden while a
+  // completion is already in flight (the finished/confirm modals cover it).
+  const needsManualComplete =
+    persist &&
+    allDone &&
+    !isCompleted &&
+    order.status !== "cancelled" &&
+    finishState === null &&
+    !showComplete;
+
   // Optimistically set a drink's status, then persist (for real orders).
   function applyStatus(index: number, status: DrinkStatus) {
     const next = [...statuses];
@@ -104,10 +119,15 @@ export function OrderDetail({
     // The moment the last drink turns done on a real, not-yet-complete order:
     // counter orders auto-complete (no confirm); online orders open the confirm
     // modal. Guard on persist so a read-only render never fires completion.
+    const autoComplete =
+      nowAllDone && status === "done" && persist && isCounterOrder;
     if (nowAllDone && status === "done" && persist) {
       setLastDoneIndex(index);
       if (isCounterOrder) {
-        completeCounterOrder();
+        // Surface the completing state now; the actual completion runs below,
+        // after the drink write lands (see the transition).
+        setCompleteError(null);
+        setFinishState("loading");
       } else {
         setShowComplete(true);
       }
@@ -115,7 +135,13 @@ export function OrderDetail({
 
     if (persist) {
       startTransition(async () => {
+        // Persist the drink status FIRST. This write derives the order status
+        // from the drinks — "ready" once every drink is done — and clears
+        // completed_at. Completing before it lands would be overwritten, leaving
+        // the order stuck in "ready" even though all drinks are done. So for a
+        // counter order we auto-complete only after this write finishes.
         await updateDrinkStatus(order.token, index, status);
+        if (autoComplete) completeCounterOrder();
       });
     }
   }
@@ -124,6 +150,19 @@ export function OrderDetail({
   function advanceDrink(index: number) {
     const current = statuses[index];
     applyStatus(index, current === "pending" ? "preparing" : "done");
+  }
+
+  // Settle an order whose drinks are all done but which was never completed (a
+  // stuck "ready" order, or an interrupted auto-complete). Same paths as the
+  // automatic flow: counter orders complete directly; online orders open the
+  // confirm modal so staff still get the notify step.
+  function completeNow() {
+    if (isCounterOrder) {
+      completeCounterOrder();
+    } else {
+      setCompleteError(null);
+      setShowComplete(true);
+    }
   }
 
   // True once every drink is done.
@@ -482,15 +521,36 @@ export function OrderDetail({
         <span className="tabular-nums">{formatPrice(order.total)}</span>
       </section>
 
-      {canCancel && (
-        <button
-          type="button"
-          onClick={() => setShowCancel(true)}
-          className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 text-xs font-semibold uppercase tracking-wider text-rose-600 transition-colors hover:bg-rose-50 outline-none focus-visible:ring-3 focus-visible:ring-rose-300"
-        >
-          <Ban className="size-4" strokeWidth={2} aria-hidden />
-          Cancel Order
-        </button>
+      {/* Order actions, grouped as one block: a tight stack set off from the
+          content above. Complete is the primary action for an all-drinks-done
+          order; Cancel is the secondary override. */}
+      {(needsManualComplete || canCancel) && (
+        <div className="mt-6 flex flex-col gap-3">
+          {/* All drinks done but the order was never settled (a stuck "ready"
+              order, or an interrupted auto-complete). Give staff an explicit way
+              to finish it, since there's nothing left to swipe. */}
+          {needsManualComplete && (
+            <button
+              type="button"
+              onClick={completeNow}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-emerald-300"
+            >
+              <CheckCircle2 className="size-4" strokeWidth={2} aria-hidden />
+              Complete Order
+            </button>
+          )}
+
+          {canCancel && (
+            <button
+              type="button"
+              onClick={() => setShowCancel(true)}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 text-xs font-semibold uppercase tracking-wider text-rose-600 transition-colors hover:bg-rose-50 outline-none focus-visible:ring-3 focus-visible:ring-rose-300"
+            >
+              <Ban className="size-4" strokeWidth={2} aria-hidden />
+              Cancel Order
+            </button>
+          )}
+        </div>
       )}
 
       {showCancel && (
