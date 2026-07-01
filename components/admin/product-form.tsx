@@ -132,10 +132,12 @@ export function ProductForm({
 
   function startDrag(index: number, e: React.PointerEvent) {
     e.preventDefault();
-    const li = (e.currentTarget as HTMLElement).closest("li");
-    const list = li?.parentElement;
-    if (!li || !list) return;
+    // Rows are wrapped in display:contents divs, so walk up to the <ol> itself
+    // rather than the immediate parent, then measure every row's center.
+    const list = (e.currentTarget as HTMLElement).closest("ol");
+    if (!list) return;
     const rows = Array.from(list.querySelectorAll<HTMLElement>("li[data-step]"));
+    if (rows.length === 0) return;
     dragCenters.current = rows.map((r) => {
       const rect = r.getBoundingClientRect();
       return rect.top + rect.height / 2;
