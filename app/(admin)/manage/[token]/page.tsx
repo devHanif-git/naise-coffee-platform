@@ -7,6 +7,7 @@ import { getOrderByToken } from "@/lib/orders/store";
 import { listCategories, listProducts } from "@/lib/menu/store";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveRecipeStrings, type RecipeEntry } from "@/lib/menu/recipe";
 
 // Management view is internal — keep it out of search results.
 export const metadata: Metadata = {
@@ -49,18 +50,25 @@ export default async function ManageOrderPage({
       .map((item) => item.productId!),
   )];
 
-  // Fetch recipe_steps for those products
+  // Resolve each product's unified recipe list into ordered display strings for
+  // the staff prep sheet (ingredient steps rendered from cost-item templates
+  // with grams filled; custom + free steps as written).
   const recipeMap = new Map<string, string[]>();
   if (productIds.length > 0) {
     const db = createAdminClient();
-    const { data: prods } = await db
-      .from("products")
-      .select("id, recipe_steps")
-      .in("id", productIds);
-    for (const p of prods ?? []) {
-      if (p.recipe_steps?.length) {
-        recipeMap.set(p.id, p.recipe_steps);
-      }
+    const [prods, items] = await Promise.all([
+      db.from("products").select("id, recipe").in("id", productIds),
+      db.from("cost_items").select("id, prep_template"),
+    ]);
+    const templateById = new Map(
+      (items.data ?? []).map((c) => [c.id, c.prep_template]),
+    );
+    for (const p of prods.data ?? []) {
+      const strings = resolveRecipeStrings(
+        ((p.recipe as unknown) as RecipeEntry[] | null) ?? null,
+        templateById,
+      );
+      if (strings.length > 0) recipeMap.set(p.id, strings);
     }
   }
 
