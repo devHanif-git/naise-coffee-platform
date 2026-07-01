@@ -6,11 +6,17 @@ import { subscribeToOrders } from "@/lib/orders/realtime";
 import { loadOrdersAction } from "@/app/(admin)/manage/actions";
 import {
   ORDERS_PAGE_SIZE,
+  isOrderFilter,
   type OrderFilter,
   type OrderGroupCounts,
 } from "@/lib/orders/status";
-import type { DateRangeKey } from "@/lib/orders/range";
+import { isDateRangeKey, type DateRangeKey } from "@/lib/orders/range";
 import type { Order } from "@/types/order";
+
+// Remembers the staffer's tab/range for this browser session, so returning to
+// the board (back button, or a router.push from a finished order) restores the
+// view instead of snapping back to the Pending default.
+const VIEW_STORAGE_KEY = "manage-orders-view";
 
 type Props = {
   initialOrders: Order[];
@@ -107,6 +113,53 @@ export function ManageOrdersLive({
     },
     [filter, range, applyView],
   );
+
+  // On mount, restore the tab/range the staffer last used this session. The
+  // server always renders the Pending default, so if the stored view differs we
+  // switch to it and re-fetch. Runs once; state updates happen inside the
+  // transition (not synchronously in the effect body) and SSR has no
+  // sessionStorage, so reading it here is safe. `hydrated` gates the persist
+  // effect below until the initial view is settled, so it can't overwrite the
+  // saved value with the default before restore applies.
+  const started = useRef(false);
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    let f = filter;
+    let r = range;
+    const raw = sessionStorage.getItem(VIEW_STORAGE_KEY);
+    if (raw) {
+      try {
+        const saved = JSON.parse(raw) as { filter?: string; range?: string };
+        if (saved.filter && isOrderFilter(saved.filter)) f = saved.filter;
+        if (saved.range && isDateRangeKey(saved.range)) r = saved.range;
+      } catch {
+        // Corrupt entry — keep the server default.
+      }
+    }
+    if (f === filter && r === range) {
+      hydrated.current = true;
+      return;
+    }
+    startTransition(async () => {
+      const res = await fetchPages(f, r, 1);
+      hydrated.current = true;
+      if (!res) return;
+      setFilter(f);
+      setRange(r);
+      setOrders(res.orders);
+      setHasMore(res.hasMore);
+      setCounts(res.counts);
+    });
+  }, [fetchPages, filter, range]);
+
+  // Persist the active view so the next visit restores it. Gated on `hydrated`
+  // so the mount-time write can't clobber the stored value before restore runs.
+  useEffect(() => {
+    if (!hydrated.current) return;
+    sessionStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ filter, range }));
+  }, [filter, range]);
 
   const onLoadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
