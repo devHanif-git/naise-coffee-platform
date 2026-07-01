@@ -98,19 +98,32 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   }
   if (data.maxAddons != null && (!Number.isInteger(data.maxAddons) || data.maxAddons < 0))
     return { ok: false, error: "Max add-ons must be a non-negative whole number." };
-  if (
-    data.recipeItems.some(
-      (r) =>
-        r.amountGrams != null &&
-        (!Number.isInteger(r.amountGrams) || r.amountGrams < 0),
-    )
-  )
-    return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
+  // Validate the unified recipe list: grams non-negative ints or null;
+  // ingredient entries must carry a cost item id; entries must be well-formed.
+  for (const entry of data.recipe) {
+    if (entry.kind === "ingredient") {
+      if (!entry.costItemId)
+        return { ok: false, error: "A recipe ingredient is missing its cost item." };
+      if (
+        entry.grams != null &&
+        (!Number.isInteger(entry.grams) || entry.grams < 0)
+      )
+        return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
+    } else if (entry.kind !== "free") {
+      return { ok: false, error: "Invalid recipe step." };
+    }
+  }
 
   const db = await createClient();
   const slug = data.slug.trim() ? slugify(data.slug) : slugify(name);
   if (!slug)
     return { ok: false, error: "Enter a slug or name with letters or numbers." };
+
+  // Drop blank free steps; keep ingredient steps (they render from a template
+  // even with empty text).
+  const cleanRecipe = data.recipe.filter((e) =>
+    e.kind === "ingredient" ? true : e.text.trim().length > 0,
+  );
 
   const payload = {
     category_id: data.categoryId,
@@ -124,9 +137,7 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
     is_new: data.isNew,
     is_featured: data.isFeatured,
     is_available: data.isAvailable,
-    recipe_steps: data.recipeSteps?.filter(s => s.trim()).length
-      ? data.recipeSteps.filter(s => s.trim())
-      : null,
+    recipe: cleanRecipe.length > 0 ? cleanRecipe : null,
   };
 
   let productId = data.id;
@@ -187,25 +198,6 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
       sort_order: i,
     }));
     const { error } = await db.from("product_addons").insert(rows);
-    if (error) return { ok: false, error: error.message };
-  }
-
-  // Replace recipe ingredients (replace-all, like variants). Grams are optional
-  // staff guidance; the cost is derived from the cost item, not stored here.
-  const recipeDelete = await db
-    .from("product_recipe_items")
-    .delete()
-    .eq("product_id", productId);
-  if (recipeDelete.error)
-    return { ok: false, error: recipeDelete.error.message };
-  if (data.recipeItems.length > 0) {
-    const rows = data.recipeItems.map((r, i) => ({
-      product_id: productId!,
-      cost_item_id: r.costItemId,
-      amount_grams: r.amountGrams,
-      sort_order: i,
-    }));
-    const { error } = await db.from("product_recipe_items").insert(rows);
     if (error) return { ok: false, error: error.message };
   }
 
