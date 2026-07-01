@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Plus, Check } from "lucide-react";
+import { Trash2, Plus, Check, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { saveProduct } from "@/app/(admin)/admin/menu/actions";
 import { formatPrice } from "@/lib/format";
+import { deriveGoodsCost, renderStep, type RecipeEntry } from "@/lib/menu/recipe";
 import type {
   AdminAddon,
   AdminCategory,
@@ -68,45 +69,111 @@ export function ProductForm({
   // without exposing a control. Re-add a ToggleRow when the section ships.
   const [isFeatured] = useState(product?.isFeatured ?? false);
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
-  const [recipeSteps, setRecipeSteps] = useState<string[]>(
-    product?.recipeSteps ?? [],
-  );
 
-  // Ticked recipe ingredients -> gram amount as a string ("" = unspecified).
-  // Excludes always-included items, which apply automatically.
-  const [recipe, setRecipe] = useState<Map<string, string>>(
-    new Map(
-      product?.recipeItems.map((r) => [
-        r.costItemId,
-        r.amountGrams == null ? "" : String(r.amountGrams),
-      ]) ?? [],
-    ),
-  );
+  // Ordered, unified recipe list (ingredient steps + free-text steps).
+  const [recipe, setRecipe] = useState<RecipeEntry[]>(product?.recipe ?? []);
+  const templateById = new Map(costItems.map((c) => [c.id, c.prepTemplate]));
 
   const activeCostItems = costItems.filter((c) => !c.isArchived);
   const alwaysItems = activeCostItems.filter((c) => c.alwaysIncluded);
   const optionalItems = activeCostItems.filter((c) => !c.alwaysIncluded);
 
-  function toggleRecipe(costItemId: string) {
+  // Which optional cost items are currently in the list (as ingredient steps).
+  const tickedIds = new Set(
+    recipe.flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
+  );
+
+  function toggleIngredient(costItemId: string) {
     setRecipe((prev) => {
-      const next = new Map(prev);
-      if (next.has(costItemId)) next.delete(costItemId);
-      else next.set(costItemId, "");
+      const exists = prev.some(
+        (e) => e.kind === "ingredient" && e.costItemId === costItemId,
+      );
+      if (exists)
+        return prev.filter(
+          (e) => !(e.kind === "ingredient" && e.costItemId === costItemId),
+        );
+      // New ingredient step appended at the bottom; drag to reposition.
+      return [
+        ...prev,
+        { kind: "ingredient", costItemId, grams: null, text: null, custom: false },
+      ];
+    });
+  }
+
+  function addFreeStep() {
+    setRecipe((prev) => [...prev, { kind: "free", text: "" }]);
+  }
+
+  function removeAt(index: number) {
+    setRecipe((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Adjacent swap for the up/down buttons.
+  function move(index: number, dir: -1 | 1) {
+    setRecipe((prev) => {
+      const to = index + dir;
+      if (to < 0 || to >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[to]] = [next[to], next[index]];
       return next;
     });
   }
 
-  function setGrams(costItemId: string, grams: string) {
-    setRecipe((prev) => new Map(prev).set(costItemId, grams));
+  // Insert-at-index for pointer drag.
+  function reorder(from: number, to: number) {
+    setRecipe((prev) => {
+      if (to < 0 || to >= prev.length || from === to) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
   }
 
-  // Live goods cost (sen): every always-included item + each ticked optional
-  // item's price. Grams are guidance and don't affect cost.
-  const goodsCost =
-    alwaysItems.reduce((sum, c) => sum + c.price, 0) +
-    optionalItems
-      .filter((c) => recipe.has(c.id))
-      .reduce((sum, c) => sum + c.price, 0);
+  // Editing grams re-renders an untouched ingredient step from its template
+  // (text stays null); a custom step keeps its frozen text.
+  function setGramsAt(index: number, gramsStr: string) {
+    const grams = gramsStr.trim() === "" ? null : Number(gramsStr);
+    setRecipe((prev) =>
+      prev.map((e, i) =>
+        i === index && e.kind === "ingredient" ? { ...e, grams } : e,
+      ),
+    );
+  }
+
+  // Editing an ingredient step's text freezes it (custom=true). Free steps just
+  // update text.
+  function setTextAt(index: number, text: string) {
+    setRecipe((prev) =>
+      prev.map((e, i) => {
+        if (i !== index) return e;
+        if (e.kind === "free") return { ...e, text };
+        return { ...e, text, custom: true };
+      }),
+    );
+  }
+
+  // Revert a frozen ingredient step back to its template.
+  function resetToTemplate(index: number) {
+    setRecipe((prev) =>
+      prev.map((e, i) =>
+        i === index && e.kind === "ingredient"
+          ? { ...e, text: null, custom: false }
+          : e,
+      ),
+    );
+  }
+
+  // Live goods cost (sen): ticked ingredients + every always-included item.
+  const goodsCost = deriveGoodsCost(
+    recipe,
+    activeCostItems.map((c) => ({
+      id: c.id,
+      price: c.price,
+      alwaysIncluded: c.alwaysIncluded,
+      isArchived: c.isArchived,
+    })),
+  );
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
   const [overrides, setOverrides] = useState<Map<string, "add" | "remove">>(
@@ -159,11 +226,7 @@ export function ProductForm({
         addonId,
         mode,
       })),
-      recipeSteps,
-      recipeItems: [...recipe.entries()].map(([costItemId, grams]) => ({
-        costItemId,
-        amountGrams: grams.trim() === "" ? null : Number(grams),
-      })),
+      recipe,
     };
     startTransition(async () => {
       try {
@@ -304,10 +367,7 @@ export function ProductForm({
             )}
           </Panel>
 
-          <Panel
-            title="Recipe & cost"
-            hint={`Cost ${formatPrice(goodsCost)}`}
-          >
+          <Panel title="Recipe" hint={`Cost ${formatPrice(goodsCost)}`}>
             {activeCostItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No cost items yet. Create them under Cost Goods to build a recipe.
@@ -339,52 +399,86 @@ export function ProductForm({
                   </div>
                 )}
 
-                {/* Optional ingredients: tick to add, enter grams for staff. */}
-                <div className="flex flex-col divide-y divide-border">
-                  {optionalItems.map((c) => {
-                    const checked = recipe.has(c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        className="flex items-center gap-3 py-2.5 text-sm"
-                      >
-                        <label className="flex flex-1 cursor-pointer items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleRecipe(c.id)}
-                            className="size-4 accent-foreground"
-                          />
-                          <span className={cn("flex-1", !checked && "text-muted-foreground")}>
-                            {c.name}
-                          </span>
-                        </label>
-                        {checked && (
-                          <div className="relative w-20">
-                            <Input
-                              inputMode="numeric"
-                              value={recipe.get(c.id) ?? ""}
-                              onChange={(e) => setGrams(c.id, e.target.value)}
-                              placeholder="0"
-                              aria-label={`${c.name} grams`}
-                              className="w-full pr-7 font-mono tabular-nums"
-                            />
-                            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                              g
-                            </span>
-                          </div>
-                        )}
-                        <span
+                {/* Ingredient picker — tap to add a step, tap again to remove. */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Ingredients
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {optionalItems.map((c) => {
+                      const on = tickedIds.has(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => toggleIngredient(c.id)}
+                          aria-pressed={on}
                           className={cn(
-                            "w-16 shrink-0 text-right font-mono text-xs tabular-nums",
-                            checked ? "text-foreground" : "text-muted-foreground/60",
+                            "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                            on
+                              ? "border-foreground bg-foreground text-background"
+                              : "border-border hover:bg-muted",
                           )}
                         >
-                          {formatPrice(c.price)}
-                        </span>
-                      </div>
-                    );
-                  })}
+                          {on && <Check className="size-3" aria-hidden />}
+                          {c.name}
+                          <span
+                            className={cn(
+                              "font-mono tabular-nums",
+                              on ? "text-background/70" : "text-muted-foreground",
+                            )}
+                          >
+                            {formatPrice(c.price)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Ordered step list — ingredient + free steps, reorderable. */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Prep steps
+                    </span>
+                    <button
+                      type="button"
+                      onClick={addFreeStep}
+                      className="flex items-center gap-1 rounded-sm text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <Plus className="size-4" /> Add step
+                    </button>
+                  </div>
+                  {recipe.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                      Tick an ingredient above or add a step. Drag to reorder.
+                    </p>
+                  ) : (
+                    <ol className="flex flex-col gap-2">
+                      {recipe.map((entry, i) => (
+                        <RecipeStepRow
+                          key={i}
+                          index={i}
+                          total={recipe.length}
+                          entry={entry}
+                          templateById={templateById}
+                          costName={
+                            entry.kind === "ingredient"
+                              ? activeCostItems.find((c) => c.id === entry.costItemId)?.name ??
+                                "Ingredient"
+                              : ""
+                          }
+                          onGrams={(g) => setGramsAt(i, g)}
+                          onText={(t) => setTextAt(i, t)}
+                          onReset={() => resetToTemplate(i)}
+                          onRemove={() => removeAt(i)}
+                          onMove={(dir) => move(i, dir)}
+                          onReorder={reorder}
+                        />
+                      ))}
+                    </ol>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between rounded-xl bg-foreground px-4 py-3 text-background">
@@ -395,51 +489,6 @@ export function ProductForm({
                 </div>
               </div>
             )}
-          </Panel>
-
-          <Panel title="Prep steps" hint={`${recipeSteps.length} step${recipeSteps.length === 1 ? "" : "s"}`}>
-            {recipeSteps.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No steps yet. Add preparation instructions for staff.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {recipeSteps.map((step, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground tabular-nums">
-                      {i + 1}
-                    </span>
-                    <Input
-                      value={step}
-                      onChange={(e) =>
-                        setRecipeSteps((prev) =>
-                          prev.map((s, j) => (j === i ? e.target.value : s)),
-                        )
-                      }
-                      placeholder={`Step ${i + 1}`}
-                      className="flex-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setRecipeSteps((prev) => prev.filter((_, j) => j !== i))
-                      }
-                      aria-label={`Remove step ${i + 1}`}
-                      className="rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setRecipeSteps((prev) => [...prev, ""])}
-              className="flex w-fit items-center gap-1 rounded-sm text-xs font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <Plus className="size-4" /> Add step
-            </button>
           </Panel>
 
           <Panel
@@ -614,5 +663,155 @@ function ToggleRow({
       <span>{label}</span>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
+  );
+}
+
+// One row in the ordered recipe list: drag handle + up/down for reorder, an
+// editable body (ingredient steps render from their template with grams inline;
+// free steps are plain text), and a remove control.
+function RecipeStepRow({
+  index,
+  total,
+  entry,
+  templateById,
+  costName,
+  onGrams,
+  onText,
+  onReset,
+  onRemove,
+  onMove,
+  onReorder,
+}: {
+  index: number;
+  total: number;
+  entry: RecipeEntry;
+  templateById: Map<string, string | null>;
+  costName: string;
+  onGrams: (grams: string) => void;
+  onText: (text: string) => void;
+  onReset: () => void;
+  onRemove: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onReorder: (from: number, to: number) => void;
+}) {
+  const isIngredient = entry.kind === "ingredient";
+  const custom = isIngredient && entry.custom;
+  const hasTemplate = isIngredient && !!templateById.get(entry.costItemId);
+  // Untouched ingredient step shows its rendered template as the input value;
+  // editing it freezes to custom. Custom/free show their own text.
+  const shownText =
+    isIngredient && !custom ? renderStep(entry, templateById) : entry.text ?? "";
+
+  // Pointer-drag reordering: track the row under the pointer by measuring
+  // sibling <li> centers. The up/down buttons cover touch/keyboard.
+  function onHandlePointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    const li = (e.currentTarget as HTMLElement).closest("li");
+    const list = li?.parentElement;
+    if (!li || !list) return;
+    const rows = Array.from(list.children) as HTMLElement[];
+
+    function onMoveEvt(ev: PointerEvent) {
+      const centers = rows.map((r) => {
+        const rect = r.getBoundingClientRect();
+        return rect.top + rect.height / 2;
+      });
+      let to = centers.findIndex((c) => ev.clientY < c);
+      if (to === -1) to = rows.length - 1;
+      if (to !== index) onReorder(index, to);
+    }
+    function onUp() {
+      window.removeEventListener("pointermove", onMoveEvt);
+      window.removeEventListener("pointerup", onUp);
+    }
+    window.addEventListener("pointermove", onMoveEvt);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  return (
+    <li className="flex items-start gap-2 rounded-xl border border-border bg-card px-2 py-2">
+      <div className="flex flex-col items-center gap-0.5 pt-1">
+        <button
+          type="button"
+          onClick={() => onMove(-1)}
+          disabled={index === 0}
+          aria-label="Move step up"
+          className="rounded-sm p-0.5 text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-30 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <ChevronUp className="size-4" />
+        </button>
+        <span
+          onPointerDown={onHandlePointerDown}
+          aria-hidden
+          className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+        >
+          <GripVertical className="size-4" />
+        </span>
+        <button
+          type="button"
+          onClick={() => onMove(1)}
+          disabled={index === total - 1}
+          aria-label="Move step down"
+          className="rounded-sm p-0.5 text-muted-foreground outline-none transition-colors hover:text-foreground disabled:opacity-30 focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <ChevronDown className="size-4" />
+        </button>
+      </div>
+
+      <span className="mt-1.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground tabular-nums">
+        {index + 1}
+      </span>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <Input
+            value={shownText}
+            onChange={(e) => onText(e.target.value)}
+            placeholder={isIngredient ? "Step text" : `Step ${index + 1}`}
+            className="flex-1"
+          />
+          {isIngredient && (
+            <div className="relative w-20 shrink-0">
+              <Input
+                inputMode="numeric"
+                value={entry.grams == null ? "" : String(entry.grams)}
+                onChange={(e) => onGrams(e.target.value)}
+                placeholder="0"
+                aria-label={`${costName} grams`}
+                className="w-full pr-7 font-mono tabular-nums"
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                g
+              </span>
+            </div>
+          )}
+        </div>
+        {isIngredient && (
+          <div className="flex items-center gap-2 text-[0.7rem] text-muted-foreground">
+            <span className="rounded-full bg-muted px-2 py-0.5 font-semibold">
+              {costName}
+            </span>
+            {custom && hasTemplate && (
+              <button
+                type="button"
+                onClick={onReset}
+                className="rounded-sm font-semibold outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Reset to template
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Remove step"
+        className="mt-1.5 rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <Trash2 className="size-4" />
+      </button>
+    </li>
   );
 }
