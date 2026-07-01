@@ -34,6 +34,25 @@ export type OrderLine = {
   // Links order item back to menu product for live recipe lookup on the manage
   // page. null for custom drinks (no product).
   productId?: string | null;
+  // Set when staff voided this drink on the manage screen: it stays on the order
+  // for history but is struck through, excluded from the bill, and ignored by the
+  // "all drinks done" check. ISO timestamp. Maps to order_items.voided_at.
+  voidedAt?: string;
+};
+
+// A staff amendment to an order: a single drink voided or swapped for another.
+// Drives the running list of price differences shown above the order total.
+// `delta` is in sen — positive when the customer owes more, negative for a
+// refund/cheaper swap. Maps to a public.order_adjustments row.
+export type OrderAdjustment = {
+  itemPosition: number;
+  kind: "void" | "swap";
+  // The drink as it was, e.g. "Latte (Large, Oat Milk)".
+  fromLabel: string;
+  // The replacement drink for a swap; absent for a void.
+  toLabel?: string;
+  delta: number;
+  createdAt: string;
 };
 
 export type Order = {
@@ -73,6 +92,9 @@ export type Order = {
   // Channel the order came from. Defaults to "online" for the storefront; the
   // in-store kiosk sets "store". Maps to orders.source.
   source?: "online" | "store" | "custom";
+  // Staff amendments (voids/swaps) to this order, newest last. Populated on the
+  // manage read path; absent elsewhere. Drives the amendments panel + recalced total.
+  adjustments?: OrderAdjustment[];
 };
 
 // The fields a caller supplies when placing an order. The store fills in the

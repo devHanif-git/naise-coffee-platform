@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProductCosts } from "@/lib/menu/cost";
-import { rowToOrder, type OrderItemRow } from "@/lib/orders/mappers";
+import {
+  rowToOrder,
+  rowToOrderAdjustment,
+  type OrderAdjustmentRow,
+  type OrderItemRow,
+} from "@/lib/orders/mappers";
 import {
   statusesForFilter,
   ORDERS_PAGE_SIZE,
@@ -9,23 +14,44 @@ import {
   type OrderGroupCounts,
 } from "@/lib/orders/status";
 import { rangeBounds, type DateRangeKey } from "@/lib/orders/range";
-import type { ItemStatus, Order, OrderDraft, OrderStatus } from "@/types/order";
+import type {
+  ItemStatus,
+  Order,
+  OrderDraft,
+  OrderStatus,
+} from "@/types/order";
 
 // Supabase-backed order store. Members read/write under RLS via the cookie
 // client; guests (no auth identity) go through the service-role admin client in
 // these server-only functions. Money is in sen.
 
-// Overall status derived from the drinks. All done -> "ready" (awaiting the
+// Overall status derived from the drinks. Voided lines are ignored — they've
+// been removed from the order, so they never hold it in "pending"/"preparing"
+// nor count toward "ready". All active drinks done -> "ready" (awaiting the
 // staff completion confirm); "completed" and "cancelled" are set explicitly by
 // their own actions, never derived here.
-export function deriveOrderStatus(items: { status: ItemStatus }[]): OrderStatus {
-  if (items.length > 0 && items.every((i) => i.status === "done")) {
+export function deriveOrderStatus(
+  items: { status: ItemStatus; voidedAt?: string | null }[],
+): OrderStatus {
+  const active = items.filter((i) => !i.voidedAt);
+  if (active.length > 0 && active.every((i) => i.status === "done")) {
     return "ready";
   }
-  if (items.some((i) => i.status !== "pending")) {
+  if (active.some((i) => i.status !== "pending")) {
     return "preparing";
   }
   return "pending";
+}
+
+// Human-readable label for a drink line, e.g. "Latte (Large, Oat Milk)" or just
+// "Latte". Used in the amendment log so staff can read what was voided/swapped.
+function drinkLabel(item: {
+  name: string;
+  sizeName?: string | null;
+  addonNames?: string[] | null;
+}): string {
+  const extras = [item.sizeName, ...(item.addonNames ?? [])].filter(Boolean);
+  return extras.length > 0 ? `${item.name} (${extras.join(", ")})` : item.name;
 }
 
 // Create an order + its lines. Members: userId is set, insert under RLS via the
@@ -99,6 +125,8 @@ export async function createOrder(
 
 // Single order by token. Uses the admin client so it works for staff (manage
 // link) and guests (their own order detail) alike; the token is the secret.
+// Attaches the amendment log (voids/swaps) so the manage screen can render the
+// price-difference panel and the recalculated total together.
 export async function getOrderByToken(token: string): Promise<Order | null> {
   const db = createAdminClient();
   const { data: orderRow } = await db
@@ -108,11 +136,19 @@ export async function getOrderByToken(token: string): Promise<Order | null> {
     .maybeSingle();
   if (!orderRow) return null;
 
-  const { data: itemRows } = await db
-    .from("order_items")
-    .select()
-    .eq("order_id", orderRow.id);
-  return rowToOrder(orderRow, (itemRows as OrderItemRow[]) ?? []);
+  const [{ data: itemRows }, { data: adjustmentRows }] = await Promise.all([
+    db.from("order_items").select().eq("order_id", orderRow.id),
+    db
+      .from("order_adjustments")
+      .select()
+      .eq("order_id", orderRow.id)
+      .order("created_at", { ascending: true }),
+  ]);
+  const order = rowToOrder(orderRow, (itemRows as OrderItemRow[]) ?? []);
+  order.adjustments = ((adjustmentRows as OrderAdjustmentRow[]) ?? []).map(
+    rowToOrderAdjustment,
+  );
+  return order;
 }
 
 export type OrdersPage = { orders: Order[]; hasMore: boolean };
@@ -253,9 +289,10 @@ export async function setItemStatus(
     .eq("id", target.id);
   if (updErr) return null;
 
-  const nextItems = itemRows.map((it, i) =>
-    i === itemIndex ? { ...it, status } : it,
-  );
+  const nextItems = itemRows.map((it, i) => ({
+    status: (i === itemIndex ? status : it.status) as ItemStatus,
+    voidedAt: it.voided_at,
+  }));
   const derived = deriveOrderStatus(nextItems);
 
   // Don't clobber a completed order. Re-deriving yields "ready" whenever every
@@ -278,6 +315,195 @@ export async function setItemStatus(
   if (ordErr) return null;
 
   return getOrderByToken(token);
+}
+
+// The outcome of a per-drink amendment (void/swap). `last_line` means the target
+// was the only active drink left — voiding it would empty the order, so the
+// caller is told to cancel the whole order instead. `invalid` covers a locked
+// order (completed/cancelled), a done/already-voided/reward line, or an unknown
+// index. `not_found` means the token doesn't resolve.
+export type AmendResult =
+  | { ok: true; order: Order }
+  | { ok: false; reason: "not_found" | "invalid" | "last_line" };
+
+// Void a single drink: strike it from the bill but keep the row for history.
+// Logs an order_adjustments row (delta = -line_total) and recalculates the
+// order's subtotal/total and status from the remaining active drinks. Staff-only;
+// callers gate first. Uses the cookie client so the staff RLS policies apply.
+export async function voidOrderItem(
+  token: string,
+  position: number,
+): Promise<AmendResult> {
+  const db = await createClient();
+
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id, status, subtotal, total")
+    .eq("token", token)
+    .maybeSingle();
+  if (!orderRow) return { ok: false, reason: "not_found" };
+  // Terminal orders can't be amended.
+  if (orderRow.status === "completed" || orderRow.status === "cancelled") {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const { data: itemRows } = await db
+    .from("order_items")
+    .select()
+    .eq("order_id", orderRow.id)
+    .order("position", { ascending: true });
+  if (!itemRows) return { ok: false, reason: "not_found" };
+
+  const target = itemRows.find((it) => it.position === position);
+  if (!target) return { ok: false, reason: "invalid" };
+  // A ready drink must be re-opened before it can be amended; reward lines carry
+  // committed Beans we don't unwind here; a voided line can't be voided twice.
+  if (target.status === "done" || target.is_reward || target.voided_at) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  // Never empty the order by voiding — cancel the whole order instead.
+  const activeCount = itemRows.filter((it) => !it.voided_at).length;
+  if (activeCount <= 1) return { ok: false, reason: "last_line" };
+
+  const voidedAt = new Date().toISOString();
+  const { error: voidErr } = await db
+    .from("order_items")
+    .update({ voided_at: voidedAt })
+    .eq("id", target.id);
+  if (voidErr) return { ok: false, reason: "invalid" };
+
+  await db.from("order_adjustments").insert({
+    order_id: orderRow.id,
+    item_position: position,
+    kind: "void",
+    from_label: drinkLabel(target),
+    to_label: null,
+    delta: -target.line_total,
+  });
+
+  // Recalc money (clamp at zero) and re-derive status from remaining active lines.
+  const nextItems = itemRows.map((it) =>
+    it.id === target.id
+      ? { status: it.status as ItemStatus, voidedAt: voidedAt }
+      : { status: it.status as ItemStatus, voidedAt: it.voided_at },
+  );
+  const { error: ordErr } = await db
+    .from("orders")
+    .update({
+      subtotal: Math.max(0, orderRow.subtotal - target.line_total),
+      total: Math.max(0, orderRow.total - target.line_total),
+      status: deriveOrderStatus(nextItems),
+      completed_at: null,
+    })
+    .eq("id", orderRow.id);
+  if (ordErr) return { ok: false, reason: "invalid" };
+
+  const order = await getOrderByToken(token);
+  return order ? { ok: true, order } : { ok: false, reason: "not_found" };
+}
+
+// The replacement drink for a swap. Priced server-side by the caller (never trust
+// a client price); quantity carries over from the line being replaced.
+export type SwapInput = {
+  productId: string;
+  name: string;
+  sizeName?: string;
+  addonNames: string[];
+  // Per-unit price in sen, already resolved (size + add-ons, promo applied).
+  unitPrice: number;
+};
+
+// Swap a single drink for another product. Rewrites the line in place (new name,
+// size, add-ons, price, cost snapshot) and resets it to "pending" — the new drink
+// still needs making. Logs an order_adjustments row with the price difference and
+// recalculates the order total/status. Staff-only; callers gate first.
+export async function swapOrderItem(
+  token: string,
+  position: number,
+  next: SwapInput,
+): Promise<AmendResult> {
+  const db = await createClient();
+
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id, status, subtotal, total")
+    .eq("token", token)
+    .maybeSingle();
+  if (!orderRow) return { ok: false, reason: "not_found" };
+  if (orderRow.status === "completed" || orderRow.status === "cancelled") {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const { data: itemRows } = await db
+    .from("order_items")
+    .select()
+    .eq("order_id", orderRow.id)
+    .order("position", { ascending: true });
+  if (!itemRows) return { ok: false, reason: "not_found" };
+
+  const target = itemRows.find((it) => it.position === position);
+  if (!target) return { ok: false, reason: "invalid" };
+  if (target.status === "done" || target.is_reward || target.voided_at) {
+    return { ok: false, reason: "invalid" };
+  }
+
+  const newLineTotal = next.unitPrice * target.quantity;
+  const delta = newLineTotal - target.line_total;
+
+  // Re-snapshot goods cost for the new product (admin-only tables → admin client).
+  const costByProduct = await getProductCosts(createAdminClient(), [
+    next.productId,
+  ]);
+  const fromLabel = drinkLabel(target);
+
+  const { error: swapErr } = await db
+    .from("order_items")
+    .update({
+      name: next.name,
+      size_name: next.sizeName ?? null,
+      addon_names: next.addonNames,
+      unit_price: next.unitPrice,
+      line_total: newLineTotal,
+      unit_cost: costByProduct.get(next.productId) ?? null,
+      product_id: next.productId,
+      is_custom: false,
+      status: "pending",
+    })
+    .eq("id", target.id);
+  if (swapErr) return { ok: false, reason: "invalid" };
+
+  await db.from("order_adjustments").insert({
+    order_id: orderRow.id,
+    item_position: position,
+    kind: "swap",
+    from_label: fromLabel,
+    to_label: drinkLabel({
+      name: next.name,
+      sizeName: next.sizeName,
+      addonNames: next.addonNames,
+    }),
+    delta,
+  });
+
+  const nextItems = itemRows.map((it) =>
+    it.id === target.id
+      ? { status: "pending" as ItemStatus, voidedAt: it.voided_at }
+      : { status: it.status as ItemStatus, voidedAt: it.voided_at },
+  );
+  const { error: ordErr } = await db
+    .from("orders")
+    .update({
+      subtotal: Math.max(0, orderRow.subtotal + delta),
+      total: Math.max(0, orderRow.total + delta),
+      status: deriveOrderStatus(nextItems),
+      completed_at: null,
+    })
+    .eq("id", orderRow.id);
+  if (ordErr) return { ok: false, reason: "invalid" };
+
+  const order = await getOrderByToken(token);
+  return order ? { ok: true, order } : { ok: false, reason: "not_found" };
 }
 
 // Explicitly complete an order: set status=completed, stamp completed_at.

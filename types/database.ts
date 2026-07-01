@@ -241,6 +241,47 @@ export type Database = {
         }
         Relationships: []
       }
+      order_adjustments: {
+        Row: {
+          created_at: string
+          delta: number
+          from_label: string
+          id: string
+          item_position: number
+          kind: string
+          order_id: string
+          to_label: string | null
+        }
+        Insert: {
+          created_at?: string
+          delta: number
+          from_label: string
+          id?: string
+          item_position: number
+          kind: string
+          order_id: string
+          to_label?: string | null
+        }
+        Update: {
+          created_at?: string
+          delta?: number
+          from_label?: string
+          id?: string
+          item_position?: number
+          kind?: string
+          order_id?: string
+          to_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_adjustments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           addon_names: string[]
@@ -258,6 +299,7 @@ export type Database = {
           status: Database["public"]["Enums"]["item_status"]
           unit_cost: number | null
           unit_price: number
+          voided_at: string | null
         }
         Insert: {
           addon_names?: string[]
@@ -275,6 +317,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["item_status"]
           unit_cost?: number | null
           unit_price: number
+          voided_at?: string | null
         }
         Update: {
           addon_names?: string[]
@@ -292,6 +335,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["item_status"]
           unit_cost?: number | null
           unit_price?: number
+          voided_at?: string | null
         }
         Relationships: [
           {

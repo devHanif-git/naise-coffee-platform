@@ -4,6 +4,7 @@ import { PackageX } from "lucide-react";
 import { OrderDetail } from "@/components/order-detail";
 import { canManageOrders } from "@/lib/auth/session";
 import { getOrderByToken } from "@/lib/orders/store";
+import { listCategories, listProducts } from "@/lib/menu/store";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -71,11 +72,20 @@ export default async function ManageOrderPage({
     name: m.name,
   }));
 
+  // Catalog for the swap picker: the same menu the customer sees, so staff pick
+  // from live, correctly-priced drinks.
+  const [categories, products] = await Promise.all([
+    listCategories(),
+    listProducts(),
+  ]);
+
   return (
     <OrderDetail
       order={order}
       recipeMap={recipeMap}
       paymentOptions={paymentOptions}
+      categories={categories}
+      products={products}
     />
   );
 }
