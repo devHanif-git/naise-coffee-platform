@@ -7,6 +7,7 @@ import { Ban, ChevronLeft, ChevronRight, CheckCircle2, Loader2, MessageCircle, P
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
+import { SwapPicker } from "@/components/swap-picker";
 import { ReceiptModal } from "@/components/receipt-modal";
 import { paymentMethodLabel, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import {
@@ -14,12 +15,16 @@ import {
   changeOrderPaymentAction,
   markReadyAndNotify,
   setOrderPaymentAction,
+  swapDrinkAction,
   updateDrinkStatus,
+  voidDrinkAction,
+  type SwapDrinkInput,
 } from "@/app/(admin)/manage/actions";
 import { OrderCompleteModal } from "@/components/order-complete-modal";
 import { OrderFinishedModal } from "@/components/order-finished-modal";
 import { ChangePaymentModal } from "@/components/change-payment-modal";
-import type { Order } from "@/types/order";
+import type { Category, Product } from "@/types/menu";
+import type { Order, OrderAdjustment } from "@/types/order";
 
 // Interactive single-order management view used by the manage page
 // (/manage/[token]). Each drink is advanced individually by swiping
@@ -36,6 +41,8 @@ export function OrderDetail({
   backHref = "/manage",
   recipeMap,
   paymentOptions = [],
+  categories = [],
+  products = [],
 }: {
   order: Order;
   persist?: boolean;
@@ -45,11 +52,27 @@ export function OrderDetail({
   // Methods staff can switch this order to (manager-gated edit). Empty disables
   // the edit control (e.g. a read-only / non-persisting render).
   paymentOptions?: { id: string; name: string }[];
+  // Menu catalog for the swap picker. Empty on a non-persisting render (no swaps).
+  categories?: Category[];
+  products?: Product[];
 }) {
   // Per-drink status, keyed by line index, seeded from the order's own lines.
   // Held locally for optimistic updates; the server action persists in parallel.
   const [statuses, setStatuses] = useState<DrinkStatus[]>(() =>
     order.items.map((item) => item.status),
+  );
+  // Which lines have been voided, keyed by index. Seeded from the order; updated
+  // when a void action returns the refreshed order.
+  const [voided, setVoided] = useState<boolean[]>(() =>
+    order.items.map((item) => Boolean(item.voidedAt)),
+  );
+  // Live copies of the fields amendments change: the lines (name/size/add-ons on
+  // a swap), the running total, and the amendment log. All refreshed wholesale
+  // from the server's returned order after a void/swap.
+  const [lines, setLines] = useState(() => order.items);
+  const [total, setTotal] = useState(order.total);
+  const [adjustments, setAdjustments] = useState<OrderAdjustment[]>(
+    () => order.adjustments ?? [],
   );
   // Completion timestamp. Seeded from the order (set for orders already
   // complete when loaded) and stamped client-side when the last drink is
@@ -72,6 +95,13 @@ export function OrderDetail({
   const [showChangePayment, setShowChangePayment] = useState(false);
   const [changingPayment, setChangingPayment] = useState(false);
   const [changePaymentError, setChangePaymentError] = useState<string | null>(null);
+  // Per-drink amendment (void/swap) UI state. `amending` names the line + action
+  // in flight so the row and modal can show a busy state. Void goes through a
+  // small confirm; swap opens the picker.
+  const [swapIndex, setSwapIndex] = useState<number | null>(null);
+  const [voidIndex, setVoidIndex] = useState<number | null>(null);
+  const [amending, setAmending] = useState(false);
+  const [amendError, setAmendError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const router = useRouter();
 
@@ -86,10 +116,23 @@ export function OrderDetail({
     "loading" | "success" | "error" | null
   >(null);
 
-  const doneCount = statuses.filter((s) => s === "done").length;
-  const allDone = doneCount === order.items.length;
+  // Progress is measured over ACTIVE (non-voided) drinks only — a voided line has
+  // left the order, so it neither counts toward completion nor blocks it.
+  const activeCount = voided.filter((v) => !v).length;
+  const doneCount = statuses.filter((s, i) => s === "done" && !voided[i]).length;
+  const allDone = activeCount > 0 && doneCount === activeCount;
   // wa.me deep link for the manual ready handoff; null when no number on file.
   const waReadyLink = buildWhatsAppReadyLink(order);
+
+  // Whether staff can still amend individual drinks: a persisted, in-progress
+  // order with the catalog loaded. Terminal orders (completed/cancelled) are
+  // locked. Individual line eligibility (not done/voided/reward) is decided per row.
+  const canAmend =
+    persist &&
+    products.length > 0 &&
+    order.status !== "completed" &&
+    order.status !== "cancelled" &&
+    finishState !== "success";
 
   // Whether the order is actually settled — completed in the DB, or completed in
   // this session. Distinct from `allDone`: an order can have every drink done yet
@@ -112,7 +155,10 @@ export function OrderDetail({
     next[index] = status;
     setStatuses(next);
 
-    const nowAllDone = next.length > 0 && next.every((s) => s === "done");
+    // "All done" is measured over active (non-voided) lines only.
+    const activeIdx = next.filter((_, i) => !voided[i]);
+    const nowAllDone =
+      activeIdx.length > 0 && activeIdx.every((s) => s === "done");
     setCompletedAt((prev) =>
       nowAllDone ? (prev ?? new Date().toISOString()) : undefined,
     );
@@ -150,6 +196,66 @@ export function OrderDetail({
   function advanceDrink(index: number) {
     const current = statuses[index];
     applyStatus(index, current === "pending" ? "preparing" : "done");
+  }
+
+  // Refresh all amendment-affected local state from the server's returned order.
+  // The server is the source of truth for voids, swapped line details, the
+  // recalculated total, and the amendment log — so we replace wholesale.
+  function applyRefreshedOrder(next: Order) {
+    setLines(next.items);
+    setStatuses(next.items.map((i) => i.status));
+    setVoided(next.items.map((i) => Boolean(i.voidedAt)));
+    setTotal(next.total);
+    setAdjustments(next.adjustments ?? []);
+  }
+
+  // Void one drink. Opens a confirm first (handleVoid), then commits here. On the
+  // "last active drink" guard the action returns an error steering staff to cancel
+  // the whole order instead; we surface it inline in the confirm.
+  function confirmVoid() {
+    if (voidIndex === null) return;
+    const index = voidIndex;
+    setAmendError(null);
+    setAmending(true);
+    startTransition(async () => {
+      const res = await voidDrinkAction(order.token, index);
+      setAmending(false);
+      if (!res.ok) {
+        setAmendError(res.error);
+        return;
+      }
+      applyRefreshedOrder(res.order);
+      setVoidIndex(null);
+    });
+  }
+
+  // Swap one drink for another. The picker collects the product/size/add-ons; the
+  // server re-prices and rewrites the line, then returns the refreshed order.
+  function confirmSwap(input: SwapDrinkInput) {
+    if (swapIndex === null) return;
+    const index = swapIndex;
+    setAmendError(null);
+    setAmending(true);
+    startTransition(async () => {
+      const res = await swapDrinkAction(order.token, index, input);
+      setAmending(false);
+      if (!res.ok) {
+        setAmendError(res.error);
+        return;
+      }
+      applyRefreshedOrder(res.order);
+      setSwapIndex(null);
+    });
+  }
+
+  // Open the void confirm / swap picker for a line, clearing any stale error.
+  function handleVoid(index: number) {
+    setAmendError(null);
+    setVoidIndex(index);
+  }
+  function handleSwap(index: number) {
+    setAmendError(null);
+    setSwapIndex(index);
   }
 
   // Settle an order whose drinks are all done but which was never completed (a
@@ -331,23 +437,25 @@ export function OrderDetail({
             {justCompleted ? "Order Complete" : "Progress"}
           </span>
           <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-            {doneCount}/{order.items.length} drinks
+            {doneCount}/{activeCount} drinks
           </span>
         </div>
         <div className="flex gap-1.5">
-          {order.items.map((_, i) => (
-            <div
-              key={i}
-              className={
-                "h-1.5 flex-1 rounded-full transition-colors " +
-                (statuses[i] === "done"
-                  ? "bg-emerald-500"
-                  : statuses[i] === "preparing"
-                    ? "bg-blue-500"
-                    : "bg-neutral-300")
-              }
-            />
-          ))}
+          {lines.map((line, i) =>
+            voided[i] ? null : (
+              <div
+                key={i}
+                className={
+                  "h-1.5 flex-1 rounded-full transition-colors " +
+                  (statuses[i] === "done"
+                    ? "bg-emerald-500"
+                    : statuses[i] === "preparing"
+                      ? "bg-blue-500"
+                      : "bg-neutral-300")
+                }
+              />
+            ),
+          )}
         </div>
         {justCompleted && (
           <div className="flex flex-col gap-2.5">
@@ -463,16 +571,24 @@ export function OrderDetail({
         <div className="flex items-baseline justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider">Drinks</h2>
           <span className="text-[0.6875rem] text-muted-foreground">
-            Swipe each drink to update
+            {canAmend ? "Swipe ← to update · → to amend" : "Swipe each drink to update"}
           </span>
         </div>
         <ul className="flex flex-col">
-          {order.items.map((item, i) => (
+          {lines.map((item, i) => (
             <DrinkRow
               key={`${item.name}-${i}`}
               item={item}
               status={statuses[i]}
+              amendable={
+                canAmend &&
+                !voided[i] &&
+                statuses[i] !== "done" &&
+                !item.isReward
+              }
               onAdvance={() => advanceDrink(i)}
+              onSwap={() => handleSwap(i)}
+              onVoid={() => handleVoid(i)}
               recipeSteps={item.productId ? recipeMap?.get(item.productId) ?? null : null}
             />
           ))}
@@ -516,9 +632,70 @@ export function OrderDetail({
         </section>
       )}
 
-      <section className="mt-7 flex items-baseline justify-between border-t border-border pt-5 text-base font-bold">
+      {/* Amendments — the running list of price differences from voids/swaps,
+          shown right above the Total so staff read the change before the number.
+          Green +RM… when the customer owes more, red −RM… for a refund/cheaper. */}
+      {adjustments.length > 0 && (
+        <section className="mt-7 flex flex-col gap-2.5 border-t border-border pt-5">
+          <h2 className="text-xs font-bold uppercase tracking-wider">
+            Amendments
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {adjustments.map((adj, i) => {
+              const positive = adj.delta > 0;
+              return (
+                <li key={i} className="flex items-start justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-wider text-muted-foreground">
+                      {adj.kind === "void" ? "Voided" : "Swapped"}
+                    </span>
+                    <span className="min-w-0 break-words font-medium leading-snug">
+                      {adj.kind === "swap" && adj.toLabel ? (
+                        <>
+                          {adj.fromLabel}
+                          <span className="text-muted-foreground"> → </span>
+                          {adj.toLabel}
+                        </>
+                      ) : (
+                        adj.fromLabel
+                      )}
+                    </span>
+                  </span>
+                  <span
+                    className={
+                      "shrink-0 font-bold tabular-nums " +
+                      (positive
+                        ? "text-emerald-600"
+                        : adj.delta < 0
+                          ? "text-rose-600"
+                          : "text-muted-foreground")
+                    }
+                  >
+                    {positive ? "+" : adj.delta < 0 ? "−" : ""}
+                    {formatPrice(Math.abs(adj.delta))}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      <section
+        className={
+          "mt-5 flex items-baseline justify-between text-base font-bold " +
+          (adjustments.length > 0 ? "" : "mt-7 border-t border-border pt-5")
+        }
+      >
         <span>Total</span>
-        <span className="tabular-nums">{formatPrice(order.total)}</span>
+        <span className="flex items-baseline gap-2">
+          {total !== order.total && (
+            <span className="text-xs font-medium text-muted-foreground line-through tabular-nums">
+              {formatPrice(order.total)}
+            </span>
+          )}
+          <span className="tabular-nums">{formatPrice(total)}</span>
+        </span>
       </section>
 
       {/* Order actions, grouped as one block: a tight stack set off from the
@@ -656,6 +833,92 @@ export function OrderDetail({
           error={completeError}
           onDone={goToBoard}
           onClose={() => setFinishState(null)}
+        />
+      )}
+
+      {/* Void a single drink — confirm first. Reworded per-drink from the
+          whole-order cancel dialog; surfaces the "last drink" guard inline. */}
+      {voidIndex !== null && lines[voidIndex] && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="void-drink-title"
+          onClick={() => !amending && setVoidIndex(null)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 naise-fade"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex w-full max-w-sm flex-col gap-4 rounded-3xl bg-white p-6 naise-pop"
+          >
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                <Ban className="size-6" strokeWidth={2} aria-hidden />
+              </span>
+              <h2
+                id="void-drink-title"
+                className="font-heading text-xl font-bold tracking-tight"
+              >
+                Void {lines[voidIndex].name}?
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                This removes the drink from the order and takes{" "}
+                {formatPrice(lines[voidIndex].lineTotal)} off the total. It stays
+                on the ticket, struck through, for the record.
+              </p>
+            </div>
+
+            {amendError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-2.5 text-xs text-rose-700"
+              >
+                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                <p className="min-w-0 flex-1">{amendError}</p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={confirmVoid}
+                disabled={amending}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+              >
+                {amending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+                    Voiding
+                  </>
+                ) : (
+                  "Void Drink"
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setVoidIndex(null)}
+                disabled={amending}
+                className="flex h-12 w-full items-center justify-center rounded-full border border-border text-xs font-semibold uppercase tracking-[0.15em] text-foreground transition-colors hover:bg-neutral-50 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-70"
+              >
+                Keep Drink
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Swap a single drink for another menu item. */}
+      {swapIndex !== null && lines[swapIndex] && (
+        <SwapPicker
+          open
+          onOpenChange={(next) => {
+            if (!next) setSwapIndex(null);
+          }}
+          categories={categories}
+          products={products}
+          replacing={lines[swapIndex]}
+          busy={amending}
+          error={amendError}
+          onConfirm={confirmSwap}
         />
       )}
     </main>

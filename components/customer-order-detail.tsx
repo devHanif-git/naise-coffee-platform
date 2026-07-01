@@ -74,21 +74,38 @@ export function CustomerOrderDetail({
               const subtitle = [item.sizeName, ...item.addonNames]
                 .filter(Boolean)
                 .join(", ");
+              const voided = Boolean(item.voidedAt);
               return (
                 <li
                   key={`${item.name}-${i}`}
-                  className="flex items-start gap-3 py-3 text-sm"
+                  className={cn(
+                    "flex items-start gap-3 py-3 text-sm",
+                    voided && "opacity-60",
+                  )}
                 >
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-black text-[0.6875rem] font-bold tabular-nums text-white">
+                  <span
+                    className={cn(
+                      "flex size-6 shrink-0 items-center justify-center rounded-lg text-[0.6875rem] font-bold tabular-nums text-white",
+                      voided ? "bg-neutral-400" : "bg-black",
+                    )}
+                  >
                     {item.quantity}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate font-medium">{item.name}</span>
-                      {item.isCustom && (
-                        <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
-                          Custom
+                      <span className={cn("truncate font-medium", voided && "line-through")}>
+                        {item.name}
+                      </span>
+                      {voided ? (
+                        <span className="shrink-0 rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-rose-700">
+                          Voided
                         </span>
+                      ) : (
+                        item.isCustom && (
+                          <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                            Custom
+                          </span>
+                        )
                       )}
                     </span>
                     {subtitle && (
@@ -97,7 +114,12 @@ export function CustomerOrderDetail({
                       </span>
                     )}
                   </div>
-                  <span className="shrink-0 font-semibold tabular-nums">
+                  <span
+                    className={cn(
+                      "shrink-0 font-semibold tabular-nums",
+                      voided && "text-muted-foreground line-through",
+                    )}
+                  >
                     {formatPrice(item.lineTotal)}
                   </span>
                 </li>

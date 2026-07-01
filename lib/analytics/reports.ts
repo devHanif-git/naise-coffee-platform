@@ -108,10 +108,11 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
   let redemptionBeans = 0;
   let rewardLines = 0;
   let itemsSold = 0;
+  let totalCost = 0;
   if (ids.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
-      .select("name, quantity, line_total, is_reward, reward_cost, is_custom, order_id, products(name)")
+      .select("name, quantity, line_total, unit_cost, is_reward, reward_cost, is_custom, order_id, products(name)")
       .in("order_id", ids);
     if (itemsErr) throw new Error(`getReportData failed: ${itemsErr.message}`);
     const map = new Map<string, { quantity: number; revenue: number }>();
@@ -124,6 +125,8 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
       cur.quantity += it.quantity; cur.revenue += it.line_total;
       map.set(displayName, cur);
       itemsSold += it.quantity;
+      // Goods cost snapshotted at sale. Null for legacy/unlinked lines -> 0.
+      totalCost += (it.unit_cost ?? 0) * it.quantity;
       if (it.is_reward) { rewardLines += 1; redemptionBeans += it.reward_cost; }
       if (it.is_custom) {
         const c = customMap.get(displayName) ?? { quantity: 0, revenue: 0 };
@@ -142,7 +145,15 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
 
   return {
     range,
-    totals: { orders: completed.length, revenue: totalsRevenue, redemptionBeans, rewardLines, itemsSold },
+    totals: {
+      orders: completed.length,
+      revenue: totalsRevenue,
+      cost: totalCost,
+      netProfit: totalsRevenue - totalCost,
+      redemptionBeans,
+      rewardLines,
+      itemsSold,
+    },
     totalsBySource,
     previous: { orders: prevOrders, revenue: prevRevenue },
     trend,

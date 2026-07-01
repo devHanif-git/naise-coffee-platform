@@ -165,6 +165,21 @@
   animation: naise-pop 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* One-shot highlight for a freshly added list row, so the eye catches it
+   arriving even when the press happened elsewhere on screen. */
+@keyframes naise-flash {
+  0% {
+    background-color: color-mix(in oklab, var(--color-foreground) 12%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.naise-flash {
+  animation: naise-flash 1.6s ease-out forwards;
+}
+
 @keyframes naise-breathe {
   0%,
   100% {
@@ -368,6 +383,9 @@
     opacity: 1;
     transform: none;
     clip-path: none;
+  }
+  .naise-flash {
+    animation: none;
   }
   .reveal {
     opacity: 1;

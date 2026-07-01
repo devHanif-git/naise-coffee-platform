@@ -28,6 +28,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   const activeUsers = new Set<string>();
   const statusCounts = new Map<string, number>();
   const monthCompletedIds: string[] = [];
+  const todayCompletedIds = new Set<string>();
   const dayRevenue = new Map<string, number>(); // KL day -> completed revenue (sen)
 
   for (const o of orders ?? []) {
@@ -43,6 +44,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
       if (o.status === "completed") {
         todayRevenue += o.total;
         todayCompleted++;
+        todayCompletedIds.add(o.id);
       }
       if (IN_PROGRESS.has(o.status)) todayInProgress++;
     }
@@ -63,14 +65,20 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   });
 
   let topSellers: { name: string; quantity: number }[] = [];
+  let monthCost = 0;
+  let todayCost = 0;
   if (monthCompletedIds.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
-      .select("name, quantity, is_custom, order_id, products(name)")
+      .select("name, quantity, unit_cost, is_custom, order_id, products(name)")
       .in("order_id", monthCompletedIds);
     if (itemsErr) throw new Error(`getDashboardMetrics failed: ${itemsErr.message}`);
     const byName = new Map<string, number>();
     for (const it of items ?? []) {
+      // Goods cost snapshotted at sale; null for legacy/unlinked lines -> 0.
+      const lineCost = (it.unit_cost ?? 0) * it.quantity;
+      monthCost += lineCost;
+      if (todayCompletedIds.has(it.order_id)) todayCost += lineCost;
       if (it.is_custom) continue; // best-sellers is for featurable menu items only
       // Prefer the current product name so renames flow through; fall back to the
       // snapshot name for unlinked legacy rows.
@@ -87,12 +95,14 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     today: {
       orders: todayOrders,
       revenue: todayRevenue,
+      profit: todayRevenue - todayCost,
       inProgress: todayInProgress,
       completed: todayCompleted,
     },
     month: {
       orders: monthOrders,
       revenue: monthRevenue,
+      profit: monthRevenue - monthCost,
       activeCustomers: activeUsers.size,
       completed: monthCompletedIds.length,
     },

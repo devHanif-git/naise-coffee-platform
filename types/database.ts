@@ -148,6 +148,42 @@ export type Database = {
           },
         ]
       }
+      cost_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_always_included: boolean
+          is_archived: boolean
+          name: string
+          prep_template: string | null
+          price: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_always_included?: boolean
+          is_archived?: boolean
+          name: string
+          prep_template?: string | null
+          price: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_always_included?: boolean
+          is_archived?: boolean
+          name?: string
+          prep_template?: string | null
+          price?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       custom_drinks: {
         Row: {
           created_at: string
@@ -208,6 +244,47 @@ export type Database = {
         }
         Relationships: []
       }
+      order_adjustments: {
+        Row: {
+          created_at: string
+          delta: number
+          from_label: string
+          id: string
+          item_position: number
+          kind: string
+          order_id: string
+          to_label: string | null
+        }
+        Insert: {
+          created_at?: string
+          delta: number
+          from_label: string
+          id?: string
+          item_position: number
+          kind: string
+          order_id: string
+          to_label?: string | null
+        }
+        Update: {
+          created_at?: string
+          delta?: number
+          from_label?: string
+          id?: string
+          item_position?: number
+          kind?: string
+          order_id?: string
+          to_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_adjustments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           addon_names: string[]
@@ -223,7 +300,9 @@ export type Database = {
           reward_cost: number
           size_name: string | null
           status: Database["public"]["Enums"]["item_status"]
+          unit_cost: number | null
           unit_price: number
+          voided_at: string | null
         }
         Insert: {
           addon_names?: string[]
@@ -239,7 +318,9 @@ export type Database = {
           reward_cost?: number
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
+          unit_cost?: number | null
           unit_price: number
+          voided_at?: string | null
         }
         Update: {
           addon_names?: string[]
@@ -255,7 +336,9 @@ export type Database = {
           reward_cost?: number
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
+          unit_cost?: number | null
           unit_price?: number
+          voided_at?: string | null
         }
         Relationships: [
           {
@@ -442,6 +525,42 @@ export type Database = {
           },
         ]
       }
+      product_recipe_items: {
+        Row: {
+          amount_grams: number | null
+          cost_item_id: string
+          product_id: string
+          sort_order: number
+        }
+        Insert: {
+          amount_grams?: number | null
+          cost_item_id: string
+          product_id: string
+          sort_order?: number
+        }
+        Update: {
+          amount_grams?: number | null
+          cost_item_id?: string
+          product_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_recipe_items_cost_item_id_fkey"
+            columns: ["cost_item_id"]
+            isOneToOne: false
+            referencedRelation: "cost_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_recipe_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           created_at: string
@@ -495,6 +614,7 @@ export type Database = {
           is_new: boolean
           max_addons: number | null
           name: string
+          recipe: Json | null
           recipe_steps: string[] | null
           slug: string
           sort_order: number
@@ -514,6 +634,7 @@ export type Database = {
           is_new?: boolean
           max_addons?: number | null
           name: string
+          recipe?: Json | null
           recipe_steps?: string[] | null
           slug: string
           sort_order?: number
@@ -533,6 +654,7 @@ export type Database = {
           is_new?: boolean
           max_addons?: number | null
           name?: string
+          recipe?: Json | null
           recipe_steps?: string[] | null
           slug?: string
           sort_order?: number
