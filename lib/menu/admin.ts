@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { RecipeEntry } from "@/lib/menu/recipe";
 import type {
   AdminAddon,
   AdminCategory,
@@ -39,6 +40,7 @@ export async function listAdminCostItems(): Promise<AdminCostItem[]> {
     alwaysIncluded: c.is_always_included,
     isArchived: c.is_archived,
     sortOrder: c.sort_order,
+    prepTemplate: c.prep_template,
   }));
 }
 
@@ -92,7 +94,6 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
       isAvailable: p.is_available,
       isArchived: p.is_archived,
       sortOrder: p.sort_order,
-      recipeSteps: p.recipe_steps,
     };
   });
 }
@@ -116,12 +117,8 @@ export async function getAdminProduct(
   if (variants.error) throw new Error(`getAdminProduct failed: ${variants.error.message}`);
   if (overrides.error) throw new Error(`getAdminProduct failed: ${overrides.error.message}`);
   if (cats.error) throw new Error(`getAdminProduct failed: ${cats.error.message}`);
-  const recipe = await db
-    .from("product_recipe_items")
-    .select("cost_item_id, amount_grams")
-    .eq("product_id", id)
-    .order("sort_order");
-  if (recipe.error) throw new Error(`getAdminProduct failed: ${recipe.error.message}`);
+  // Ordered unified recipe list stored as JSONB on the product.
+  const recipe = ((p.recipe as unknown) as RecipeEntry[] | null) ?? [];
   const catName = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
   const vs = variants.data ?? [];
   return {
@@ -138,7 +135,6 @@ export async function getAdminProduct(
     isAvailable: p.is_available,
     isArchived: p.is_archived,
     sortOrder: p.sort_order,
-    recipeSteps: p.recipe_steps,
     description: p.description,
     basePrice: p.base_price,
     maxAddons: p.max_addons,
@@ -147,9 +143,6 @@ export async function getAdminProduct(
       addonId: o.addon_id,
       mode: o.mode as "add" | "remove",
     })),
-    recipeItems: (recipe.data ?? []).map((r) => ({
-      costItemId: r.cost_item_id,
-      amountGrams: r.amount_grams,
-    })),
+    recipe,
   };
 }
