@@ -25,10 +25,15 @@ export async function saveCostItems(
     price: number;
     alwaysIncluded: boolean;
     isArchived: boolean;
+    prepTemplate: string | null;
   }[],
 ): Promise<ActionResult> {
   if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
-  const clean = items.map((i) => ({ ...i, name: i.name.trim() }));
+  const clean = items.map((i) => ({
+    ...i,
+    name: i.name.trim(),
+    prepTemplate: i.prepTemplate?.trim() || null,
+  }));
   if (clean.some((i) => !i.name))
     return { ok: false, error: "Every item needs a name." };
   if (clean.some((i) => !Number.isInteger(i.price) || i.price < 0))
@@ -46,6 +51,7 @@ export async function saveCostItems(
         price: i.price,
         is_always_included: i.alwaysIncluded,
         is_archived: i.isArchived,
+        prep_template: i.prepTemplate,
       })
       .eq("id", i.id!);
     if (error) return { ok: false, error: error.message };
@@ -57,6 +63,7 @@ export async function saveCostItems(
         price: i.price,
         is_always_included: i.alwaysIncluded,
         is_archived: i.isArchived,
+        prep_template: i.prepTemplate,
       })),
     );
     if (error) return { ok: false, error: error.message };

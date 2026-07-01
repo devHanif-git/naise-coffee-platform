@@ -26,6 +26,7 @@ type Row = {
   price: string;
   alwaysIncluded: boolean;
   isArchived: boolean;
+  prepTemplate: string;
 };
 
 function toRow(item: AdminCostItem): Row {
@@ -36,6 +37,7 @@ function toRow(item: AdminCostItem): Row {
     price: toRm(item.price),
     alwaysIncluded: item.alwaysIncluded,
     isArchived: item.isArchived,
+    prepTemplate: item.prepTemplate ?? "",
   };
 }
 
@@ -90,7 +92,7 @@ export function CostManager({ initial }: { initial: AdminCostItem[] }) {
     }
     const key = `new-${nextKey.current++}`;
     setRows((prev) => [
-      { key, name: "", price: "", alwaysIncluded: false, isArchived: false },
+      { key, name: "", price: "", alwaysIncluded: false, isArchived: false, prepTemplate: "" },
       ...prev,
     ]);
     setFocusKey(key);
@@ -117,6 +119,7 @@ export function CostManager({ initial }: { initial: AdminCostItem[] }) {
             price: toSen(r.price),
             alwaysIncluded: r.alwaysIncluded,
             isArchived: r.isArchived,
+            prepTemplate: r.prepTemplate.trim() || null,
           })),
         );
         if (res.ok) router.refresh();
@@ -273,70 +276,84 @@ function CostRow({
   return (
     <div
       data-row={row.key}
-      className={cn(
-        "border-b border-border px-4 py-4 last:border-b-0 transition-colors sm:py-3",
-        row.alwaysIncluded && "bg-muted/30",
-        cols,
-      )}
+      className="border-b border-border px-4 py-4 last:border-b-0 transition-colors sm:py-3"
     >
-      {/* Ingredient name */}
-      <div className="flex items-center gap-2">
-        <Input
-          value={row.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-          placeholder="e.g. Oat milk"
-          className="w-full"
-        />
-        {row.alwaysIncluded && (
-          <span className="hidden shrink-0 rounded-full bg-foreground px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-background sm:inline">
-            Every cup
-          </span>
-        )}
-      </div>
-
-      {/* Cost — settings row on mobile (label left, field right). */}
-      <div className="mt-3 flex items-center justify-between gap-3 sm:mt-0 sm:block">
-        <span className="text-sm font-medium text-muted-foreground sm:hidden">
-          Cost
-        </span>
-        <div className="relative w-32 sm:w-full">
-          <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-            RM
-          </span>
+      <div className={cn(row.alwaysIncluded && "bg-muted/30", cols)}>
+        {/* Ingredient name */}
+        <div className="flex items-center gap-2">
           <Input
-            inputMode="decimal"
-            value={row.price}
-            onChange={(e) => onChange({ price: e.target.value })}
-            placeholder="0.00"
-            aria-label={`${row.name || "Ingredient"} cost in ringgit`}
-            className="w-full pl-9 text-right font-mono tabular-nums sm:text-left"
+            value={row.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            placeholder="e.g. Oat milk"
+            className="w-full"
           />
+          {row.alwaysIncluded && (
+            <span className="hidden shrink-0 rounded-full bg-foreground px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-background sm:inline">
+              Every cup
+            </span>
+          )}
+        </div>
+
+        {/* Cost — settings row on mobile (label left, field right). */}
+        <div className="mt-3 flex items-center justify-between gap-3 sm:mt-0 sm:block">
+          <span className="text-sm font-medium text-muted-foreground sm:hidden">
+            Cost
+          </span>
+          <div className="relative w-32 sm:w-full">
+            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              RM
+            </span>
+            <Input
+              inputMode="decimal"
+              value={row.price}
+              onChange={(e) => onChange({ price: e.target.value })}
+              placeholder="0.00"
+              aria-label={`${row.name || "Ingredient"} cost in ringgit`}
+              className="w-full pl-9 text-right font-mono tabular-nums sm:text-left"
+            />
+          </div>
+        </div>
+
+        {/* In-every-cup toggle — settings row on mobile, carries its own label. */}
+        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 sm:mt-0 sm:justify-center">
+          <span className="text-sm font-medium text-muted-foreground sm:hidden">
+            In every cup
+          </span>
+          <Switch
+            checked={row.alwaysIncluded}
+            onCheckedChange={(v) => onChange({ alwaysIncluded: v })}
+            aria-label="Add to every cup"
+          />
+        </label>
+
+        {/* Remove — full-width affordance on mobile, icon on desktop. */}
+        <div className="mt-3 border-t border-border pt-3 sm:mt-0 sm:flex sm:justify-center sm:border-t-0 sm:pt-0">
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Archive ${row.name || "ingredient"}`}
+            className="flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Trash2 className="size-4" />
+            <span className="sm:hidden">Remove ingredient</span>
+          </button>
         </div>
       </div>
 
-      {/* In-every-cup toggle — settings row on mobile, carries its own label. */}
-      <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 sm:mt-0 sm:justify-center">
-        <span className="text-sm font-medium text-muted-foreground sm:hidden">
-          In every cup
+      {/* Prep step text — the step this ingredient generates in a recipe. {g}
+          is replaced with the grams entered on that step. */}
+      <div className="mt-3 flex flex-col gap-1">
+        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          Prep step text{" "}
+          <span className="font-normal normal-case">— use {"{g}"} for grams</span>
         </span>
-        <Switch
-          checked={row.alwaysIncluded}
-          onCheckedChange={(v) => onChange({ alwaysIncluded: v })}
-          aria-label="Add to every cup"
+        <Input
+          value={row.prepTemplate}
+          onChange={(e) => onChange({ prepTemplate: e.target.value })}
+          placeholder="e.g. Steam {g}g milk"
+          aria-label={`${row.name || "Ingredient"} prep step text`}
+          className="w-full"
         />
-      </label>
-
-      {/* Remove — full-width affordance on mobile, icon on desktop. */}
-      <div className="mt-3 border-t border-border pt-3 sm:mt-0 sm:flex sm:justify-center sm:border-t-0 sm:pt-0">
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Archive ${row.name || "ingredient"}`}
-          className="flex items-center gap-1.5 rounded-sm text-sm text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <Trash2 className="size-4" />
-          <span className="sm:hidden">Remove ingredient</span>
-        </button>
       </div>
     </div>
   );
