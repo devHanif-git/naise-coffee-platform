@@ -242,6 +242,16 @@ export async function setItemStatus(
   );
   const derived = deriveOrderStatus(nextItems);
 
+  // Don't clobber a completed order. Re-deriving yields "ready" whenever every
+  // drink is done, so a stray status write on an already-completed order (a
+  // concurrent auto-complete, a realtime refresh, a double-tap) would knock it
+  // back to "ready" and wipe completed_at — the order then sits in the In
+  // Progress list despite all drinks being done. Only downgrade when a drink is
+  // genuinely reopened (derived is preparing/pending); keep completed otherwise.
+  if (orderRow.status === "completed" && derived === "ready") {
+    return getOrderByToken(token);
+  }
+
   // Re-deriving never sets completed/cancelled. If the order was completed and a
   // drink is reopened, fall back to the derived in-progress status and clear the
   // completion stamp.
