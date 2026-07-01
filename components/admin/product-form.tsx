@@ -133,7 +133,8 @@ export function ProductForm({
   // Editing grams re-renders an untouched ingredient step from its template
   // (text stays null); a custom step keeps its frozen text.
   function setGramsAt(index: number, gramsStr: string) {
-    const grams = gramsStr.trim() === "" ? null : Number(gramsStr);
+    const n = Number(gramsStr);
+    const grams = gramsStr.trim() === "" || !Number.isFinite(n) ? null : n;
     setRecipe((prev) =>
       prev.map((e, i) =>
         i === index && e.kind === "ingredient" ? { ...e, grams } : e,
@@ -775,7 +776,7 @@ function RecipeStepRow({
               <Input
                 inputMode="numeric"
                 value={entry.grams == null ? "" : String(entry.grams)}
-                onChange={(e) => onGrams(e.target.value)}
+                onChange={(e) => onGrams(filterDigits(e.target.value))}
                 placeholder="0"
                 aria-label={`${costName} grams`}
                 className="w-full pr-7 font-mono tabular-nums"
