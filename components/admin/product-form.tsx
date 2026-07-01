@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Plus, Check, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -119,15 +119,58 @@ export function ProductForm({
     });
   }
 
-  // Insert-at-index for pointer drag.
-  function reorder(from: number, to: number) {
-    setRecipe((prev) => {
-      if (to < 0 || to >= prev.length || from === to) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
+  // Pointer-drag reordering with a lift + drop-line. The grabbed row follows the
+  // pointer (see RecipeStepRow); other rows stay put so nothing jumps, and a
+  // drop line marks the landing slot. We commit only on release.
+  //   from  — index being dragged
+  //   offset— pixels the row has moved from its resting position
+  //   drop  — insertion index (0..length) the pointer is currently over
+  const [drag, setDrag] = useState<{ from: number; offset: number; drop: number } | null>(null);
+  // Row vertical centers captured at drag start (rows don't move mid-drag).
+  const dragCenters = useRef<number[]>([]);
+  const dragStartY = useRef(0);
+
+  function startDrag(index: number, e: React.PointerEvent) {
+    e.preventDefault();
+    const li = (e.currentTarget as HTMLElement).closest("li");
+    const list = li?.parentElement;
+    if (!li || !list) return;
+    const rows = Array.from(list.querySelectorAll<HTMLElement>("li[data-step]"));
+    dragCenters.current = rows.map((r) => {
+      const rect = r.getBoundingClientRect();
+      return rect.top + rect.height / 2;
     });
+    dragStartY.current = e.clientY;
+    setDrag({ from: index, offset: 0, drop: index });
+
+    const onMove = (ev: PointerEvent) => {
+      const offset = ev.clientY - dragStartY.current;
+      let drop = dragCenters.current.findIndex((c) => ev.clientY < c);
+      if (drop === -1) drop = dragCenters.current.length;
+      setDrag((d) => (d ? { ...d, offset, drop } : d));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setDrag((d) => {
+        if (d) {
+          // `drop` is an insertion index into the full list; once the dragged
+          // row is pulled out, targets past it shift down by one.
+          const to = d.drop > d.from ? d.drop - 1 : d.drop;
+          if (to !== d.from) {
+            setRecipe((prev) => {
+              const next = [...prev];
+              const [moved] = next.splice(d.from, 1);
+              next.splice(Math.max(0, Math.min(to, next.length)), 0, moved);
+              return next;
+            });
+          }
+        }
+        return null;
+      });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   }
 
   // Editing grams re-renders an untouched ingredient step from its template
@@ -456,28 +499,41 @@ export function ProductForm({
                       Tick an ingredient above or add a step. Drag to reorder.
                     </p>
                   ) : (
-                    <ol className="flex flex-col gap-2">
+                    <ol className="relative flex flex-col gap-2">
                       {recipe.map((entry, i) => (
-                        <RecipeStepRow
-                          key={i}
-                          index={i}
-                          total={recipe.length}
-                          entry={entry}
-                          templateById={templateById}
-                          costName={
-                            entry.kind === "ingredient"
-                              ? activeCostItems.find((c) => c.id === entry.costItemId)?.name ??
-                                "Ingredient"
-                              : ""
-                          }
-                          onGrams={(g) => setGramsAt(i, g)}
-                          onText={(t) => setTextAt(i, t)}
-                          onReset={() => resetToTemplate(i)}
-                          onRemove={() => removeAt(i)}
-                          onMove={(dir) => move(i, dir)}
-                          onReorder={reorder}
-                        />
+                        <div key={i} className="contents">
+                          {/* Drop line before this slot while dragging. Hidden
+                              at the two positions that wouldn't move the row. */}
+                          {drag &&
+                            drag.drop === i &&
+                            i !== drag.from &&
+                            i !== drag.from + 1 && <DropLine />}
+                          <RecipeStepRow
+                            index={i}
+                            total={recipe.length}
+                            entry={entry}
+                            templateById={templateById}
+                            costName={
+                              entry.kind === "ingredient"
+                                ? activeCostItems.find((c) => c.id === entry.costItemId)?.name ??
+                                  "Ingredient"
+                                : ""
+                            }
+                            dragging={drag?.from === i}
+                            dragOffset={drag?.from === i ? drag.offset : 0}
+                            onGrams={(g) => setGramsAt(i, g)}
+                            onText={(t) => setTextAt(i, t)}
+                            onReset={() => resetToTemplate(i)}
+                            onRemove={() => removeAt(i)}
+                            onMove={(dir) => move(i, dir)}
+                            onDragStart={(e) => startDrag(i, e)}
+                          />
+                        </div>
                       ))}
+                      {/* Drop line at the very end. */}
+                      {drag &&
+                        drag.drop === recipe.length &&
+                        drag.from !== recipe.length - 1 && <DropLine />}
                     </ol>
                   )}
                 </div>
@@ -667,33 +723,49 @@ function ToggleRow({
   );
 }
 
+// A drop indicator line shown between rows while dragging, marking where the
+// grabbed step will land.
+function DropLine() {
+  return (
+    <li aria-hidden className="pointer-events-none -my-1 flex items-center gap-2 px-1">
+      <span className="size-2 rounded-full bg-primary" />
+      <span className="h-0.5 flex-1 rounded-full bg-primary" />
+    </li>
+  );
+}
+
 // One row in the ordered recipe list: drag handle + up/down for reorder, an
 // editable body (ingredient steps render from their template with grams inline;
-// free steps are plain text), and a remove control.
+// free steps are plain text), and a remove control. While its own row is being
+// dragged it lifts and follows the pointer.
 function RecipeStepRow({
   index,
   total,
   entry,
   templateById,
   costName,
+  dragging,
+  dragOffset,
   onGrams,
   onText,
   onReset,
   onRemove,
   onMove,
-  onReorder,
+  onDragStart,
 }: {
   index: number;
   total: number;
   entry: RecipeEntry;
   templateById: Map<string, string | null>;
   costName: string;
+  dragging: boolean;
+  dragOffset: number;
   onGrams: (grams: string) => void;
   onText: (text: string) => void;
   onReset: () => void;
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
-  onReorder: (from: number, to: number) => void;
+  onDragStart: (e: React.PointerEvent) => void;
 }) {
   const isIngredient = entry.kind === "ingredient";
   const custom = isIngredient && entry.custom;
@@ -703,34 +775,17 @@ function RecipeStepRow({
   const shownText =
     isIngredient && !custom ? renderStep(entry, templateById) : entry.text ?? "";
 
-  // Pointer-drag reordering: track the row under the pointer by measuring
-  // sibling <li> centers. The up/down buttons cover touch/keyboard.
-  function onHandlePointerDown(e: React.PointerEvent) {
-    e.preventDefault();
-    const li = (e.currentTarget as HTMLElement).closest("li");
-    const list = li?.parentElement;
-    if (!li || !list) return;
-    const rows = Array.from(list.children) as HTMLElement[];
-
-    function onMoveEvt(ev: PointerEvent) {
-      const centers = rows.map((r) => {
-        const rect = r.getBoundingClientRect();
-        return rect.top + rect.height / 2;
-      });
-      let to = centers.findIndex((c) => ev.clientY < c);
-      if (to === -1) to = rows.length - 1;
-      if (to !== index) onReorder(index, to);
-    }
-    function onUp() {
-      window.removeEventListener("pointermove", onMoveEvt);
-      window.removeEventListener("pointerup", onUp);
-    }
-    window.addEventListener("pointermove", onMoveEvt);
-    window.addEventListener("pointerup", onUp);
-  }
-
   return (
-    <li className="flex items-start gap-2 rounded-xl border border-border bg-card px-2 py-2">
+    <li
+      data-step
+      style={dragging ? { transform: `translateY(${dragOffset}px)` } : undefined}
+      className={cn(
+        "flex items-start gap-2 rounded-xl border bg-card px-2 py-2",
+        dragging
+          ? "relative z-10 border-primary shadow-lg ring-2 ring-primary/30 [&_input]:pointer-events-none"
+          : "border-border transition-transform",
+      )}
+    >
       <div className="flex flex-col items-center gap-0.5 pt-1">
         <button
           type="button"
@@ -742,7 +797,7 @@ function RecipeStepRow({
           <ChevronUp className="size-4" />
         </button>
         <span
-          onPointerDown={onHandlePointerDown}
+          onPointerDown={onDragStart}
           aria-hidden
           className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
         >
