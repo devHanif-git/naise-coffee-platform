@@ -1,5 +1,8 @@
 // CMS-facing shapes. Distinct from the storefront `Product` (which hides
 // archived rows and resolves add-ons): admin views need raw flags and ids.
+import type { RecipeEntry } from "@/lib/menu/recipe";
+export type { RecipeEntry };
+
 export type AdminAddon = {
   id: string;
   name: string;
@@ -31,7 +34,6 @@ export type AdminProduct = {
   isAvailable: boolean;
   isArchived: boolean;
   sortOrder: number;
-  recipeSteps: string[] | null;
 };
 
 export type AdminVariant = { id: string; name: string; price: number };
@@ -45,11 +47,8 @@ export type AdminCostItem = {
   alwaysIncluded: boolean;
   isArchived: boolean;
   sortOrder: number;
+  prepTemplate: string | null;
 };
-
-// One line of a product's recipe: a cost item plus optional grams (staff
-// guidance; does not change cost).
-export type RecipeItem = { costItemId: string; amountGrams: number | null };
 
 export type AdminProductDetail = AdminProduct & {
   description: string;
@@ -58,9 +57,8 @@ export type AdminProductDetail = AdminProduct & {
   variants: AdminVariant[];
   // Per-product override rows keyed by addon id.
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
-  // Ticked cost items and their gram amounts. Excludes always-included items
-  // (those apply automatically and aren't stored per product).
-  recipeItems: RecipeItem[];
+  // Ordered, unified recipe list (ingredient steps + free-text steps).
+  recipe: RecipeEntry[];
 };
 
 // Payload the item form submits (server action parses this).
@@ -80,7 +78,6 @@ export type ProductFormData = {
   isFeatured: boolean;
   isAvailable: boolean;
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
-  recipeSteps: string[];
-  // Ticked cost items + grams. Always-included items aren't listed here.
-  recipeItems: RecipeItem[];
+  // Ordered unified recipe list the form submits.
+  recipe: RecipeEntry[];
 };

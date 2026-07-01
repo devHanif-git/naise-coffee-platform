@@ -155,6 +155,7 @@ export type Database = {
           is_always_included: boolean
           is_archived: boolean
           name: string
+          prep_template: string | null
           price: number
           sort_order: number
           updated_at: string
@@ -165,6 +166,7 @@ export type Database = {
           is_always_included?: boolean
           is_archived?: boolean
           name: string
+          prep_template?: string | null
           price: number
           sort_order?: number
           updated_at?: string
@@ -175,6 +177,7 @@ export type Database = {
           is_always_included?: boolean
           is_archived?: boolean
           name?: string
+          prep_template?: string | null
           price?: number
           sort_order?: number
           updated_at?: string
@@ -611,6 +614,7 @@ export type Database = {
           is_new: boolean
           max_addons: number | null
           name: string
+          recipe: Json | null
           recipe_steps: string[] | null
           slug: string
           sort_order: number
@@ -630,6 +634,7 @@ export type Database = {
           is_new?: boolean
           max_addons?: number | null
           name: string
+          recipe?: Json | null
           recipe_steps?: string[] | null
           slug: string
           sort_order?: number
@@ -649,6 +654,7 @@ export type Database = {
           is_new?: boolean
           max_addons?: number | null
           name?: string
+          recipe?: Json | null
           recipe_steps?: string[] | null
           slug?: string
           sort_order?: number
