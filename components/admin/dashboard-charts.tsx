@@ -2,6 +2,8 @@
 
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { useMounted } from "@/hooks/use-mounted";
+
 type Point = { date: string; revenue: number };
 
 // Shared shaping: sen -> RM, and trim the YYYY- prefix off the day key.
@@ -12,13 +14,15 @@ function toChart(data: Point[]) {
 // Full revenue trend for the dashboard's wide card. Ink line over a soft fade —
 // the accent colour is reserved for the live counter, so the trend stays calm.
 export function RevenueArea({ data }: { data: Point[] }) {
+  const mounted = useMounted();
   if (data.every((d) => d.revenue === 0)) {
     return (
       <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-        No completed sales in the last 14 days.
+        No completed sales in this range.
       </div>
     );
   }
+  if (!mounted) return <div className="h-44 w-full" />;
   return (
     <div className="h-44 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -70,7 +74,9 @@ export function RevenueArea({ data }: { data: Point[] }) {
 // Bare sparkline tucked under the month-revenue tile. No axes, no tooltip —
 // just the shape of the trend.
 export function Sparkline({ data }: { data: Point[] }) {
+  const mounted = useMounted();
   if (data.every((d) => d.revenue === 0)) return <div className="h-9" />;
+  if (!mounted) return <div className="h-9 w-full" />;
   return (
     <div className="h-9 w-full">
       <ResponsiveContainer width="100%" height="100%">

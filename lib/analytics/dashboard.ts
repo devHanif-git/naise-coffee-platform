@@ -1,84 +1,65 @@
 import { createClient } from "@/lib/supabase/server";
-import type { DashboardMetrics } from "@/lib/analytics/types";
+import type { AnalyticsRange, DashboardMetrics } from "@/lib/analytics/types";
+import { klToday, eachDay } from "@/lib/analytics/range";
 
-// KL-day key (YYYY-MM-DD) for an ISO timestamp — matches the rewards engine TZ.
 const KL = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
 function klDate(iso: string): string {
   return KL.format(new Date(iso));
 }
-function klToday(): string {
-  return KL.format(new Date());
-}
 
 const IN_PROGRESS = new Set(["pending", "preparing", "ready"]);
 
-export async function getDashboardMetrics(): Promise<DashboardMetrics> {
+export async function getDashboardMetrics(range: AnalyticsRange): Promise<DashboardMetrics> {
   const db = await createClient();
   const { data: orders, error } = await db
     .from("orders")
     .select("id, status, total, created_at, user_id");
   if (error) throw new Error(`getDashboardMetrics failed: ${error.message}`);
 
+  const { from, to } = range;
   const today = klToday();
-  const month = today.slice(0, 7); // YYYY-MM
-  const cutoff30 = KL.format(new Date(Date.now() - 30 * 86_400_000));
 
-  let todayOrders = 0, todayRevenue = 0, todayInProgress = 0, todayCompleted = 0;
-  let monthOrders = 0, monthRevenue = 0;
+  let rangeOrders = 0;
+  let rangeRevenue = 0;
+  let liveInProgress = 0;
   const activeUsers = new Set<string>();
   const statusCounts = new Map<string, number>();
-  const monthCompletedIds: string[] = [];
-  const todayCompletedIds = new Set<string>();
+  const rangeCompletedIds: string[] = [];
   const dayRevenue = new Map<string, number>(); // KL day -> completed revenue (sen)
 
   for (const o of orders ?? []) {
     const d = klDate(o.created_at);
-    const m = d.slice(0, 7);
+    // Live: current snapshot of all orders by status; today's in-progress.
     statusCounts.set(o.status, (statusCounts.get(o.status) ?? 0) + 1);
-    if (o.status === "completed") {
-      dayRevenue.set(d, (dayRevenue.get(d) ?? 0) + o.total);
-    }
+    if (d === today && IN_PROGRESS.has(o.status)) liveInProgress++;
 
-    if (d === today) {
-      todayOrders++;
+    // Range-driven aggregates.
+    if (d >= from && d <= to) {
+      rangeOrders++;
+      if (o.user_id) activeUsers.add(o.user_id);
       if (o.status === "completed") {
-        todayRevenue += o.total;
-        todayCompleted++;
-        todayCompletedIds.add(o.id);
-      }
-      if (IN_PROGRESS.has(o.status)) todayInProgress++;
-    }
-    if (m === month) {
-      monthOrders++;
-      if (o.status === "completed") {
-        monthRevenue += o.total;
-        monthCompletedIds.push(o.id);
+        rangeRevenue += o.total;
+        rangeCompletedIds.push(o.id);
+        dayRevenue.set(d, (dayRevenue.get(d) ?? 0) + o.total);
       }
     }
-    if (d >= cutoff30 && o.user_id) activeUsers.add(o.user_id);
   }
 
-  // Last 14 KL days, oldest -> newest, zero-filled so the trend line is continuous.
-  const trend14 = Array.from({ length: 14 }, (_, i) => {
-    const date = KL.format(new Date(Date.now() - (13 - i) * 86_400_000));
-    return { date, revenue: dayRevenue.get(date) ?? 0 };
-  });
+  // Per-day revenue across the range, zero-filled so the trend line is continuous.
+  const trend = eachDay(range).map((date) => ({ date, revenue: dayRevenue.get(date) ?? 0 }));
 
   let topSellers: { name: string; quantity: number }[] = [];
-  let monthCost = 0;
-  let todayCost = 0;
-  if (monthCompletedIds.length > 0) {
+  let rangeCost = 0;
+  if (rangeCompletedIds.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
       .select("name, quantity, unit_cost, is_custom, order_id, products(name)")
-      .in("order_id", monthCompletedIds);
+      .in("order_id", rangeCompletedIds);
     if (itemsErr) throw new Error(`getDashboardMetrics failed: ${itemsErr.message}`);
     const byName = new Map<string, number>();
     for (const it of items ?? []) {
       // Goods cost snapshotted at sale; null for legacy/unlinked lines -> 0.
-      const lineCost = (it.unit_cost ?? 0) * it.quantity;
-      monthCost += lineCost;
-      if (todayCompletedIds.has(it.order_id)) todayCost += lineCost;
+      rangeCost += (it.unit_cost ?? 0) * it.quantity;
       if (it.is_custom) continue; // best-sellers is for featurable menu items only
       // Prefer the current product name so renames flow through; fall back to the
       // snapshot name for unlinked legacy rows.
@@ -92,22 +73,18 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   }
 
   return {
-    today: {
-      orders: todayOrders,
-      revenue: todayRevenue,
-      profit: todayRevenue - todayCost,
-      inProgress: todayInProgress,
-      completed: todayCompleted,
-    },
-    month: {
-      orders: monthOrders,
-      revenue: monthRevenue,
-      profit: monthRevenue - monthCost,
+    range: {
+      orders: rangeOrders,
+      revenue: rangeRevenue,
+      profit: rangeRevenue - rangeCost,
       activeCustomers: activeUsers.size,
-      completed: monthCompletedIds.length,
+      completed: rangeCompletedIds.length,
     },
-    trend14,
+    trend,
     topSellers,
-    statusBreakdown: [...statusCounts.entries()].map(([status, count]) => ({ status, count })),
+    live: {
+      inProgress: liveInProgress,
+      statusBreakdown: [...statusCounts.entries()].map(([status, count]) => ({ status, count })),
+    },
   };
 }
