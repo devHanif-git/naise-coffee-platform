@@ -2,7 +2,13 @@ export type AnalyticsRange = { from: string; to: string }; // inclusive KL day-k
 
 export type DashboardMetrics = {
   // Range-driven aggregates (follow the selected window).
-  range: { orders: number; revenue: number; activeCustomers: number; completed: number };
+  range: {
+    orders: number;
+    revenue: number;
+    profit: number; // revenue - goods cost (sen)
+    activeCustomers: number;
+    completed: number;
+  };
   trend: { date: string; revenue: number }[]; // per KL day within range, zero-filled
   topSellers: { name: string; quantity: number }[]; // within range, completed, top 5
   // Always-live store state (ignores the selected range).
@@ -17,6 +23,8 @@ export type ReportData = {
   totals: {
     orders: number;
     revenue: number;
+    cost: number; // goods cost of completed orders (sen), snapshotted at sale
+    netProfit: number; // revenue - cost (sen)
     redemptionBeans: number;
     rewardLines: number;
     itemsSold: number; // total quantity across completed orders

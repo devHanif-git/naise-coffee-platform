@@ -14,7 +14,11 @@ import {
   listOrdersPage,
   setItemStatus,
   setOrderPayment,
+  swapOrderItem,
+  voidOrderItem,
 } from "@/lib/orders/store";
+import { listProducts } from "@/lib/menu/store";
+import { applyDiscount, getProductDiscount } from "@/lib/promotions/pricing";
 import { buildOrderReadyMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import {
@@ -27,6 +31,12 @@ import type { ItemStatus, Order, OrderStatus } from "@/types/order";
 
 export type OrderActionResult =
   | { ok: true; orderStatus: OrderStatus }
+  | { ok: false; error: string };
+
+// Amendment actions (void/swap) return the fully refreshed order so the client
+// re-renders lines, adjustments, and totals from the source of truth.
+export type AmendActionResult =
+  | { ok: true; order: Order }
   | { ok: false; error: string };
 
 export type LoadOrdersResult =
@@ -136,6 +146,100 @@ export async function cancelOrderAction(
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
   return { ok: true, orderStatus: updated.status };
+}
+
+// Void a single drink on an order (staff amendment). Strikes it from the bill and
+// recalculates the total; the line stays visible for history. Returns the
+// refreshed order. The "last active drink" case is surfaced so the client can
+// steer staff to cancel the whole order instead.
+export async function voidDrinkAction(
+  token: string,
+  position: number,
+): Promise<AmendActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  const res = await voidOrderItem(token, position);
+  if (!res.ok) {
+    const error =
+      res.reason === "last_line"
+        ? "That's the only drink left — cancel the whole order instead."
+        : res.reason === "not_found"
+          ? "Order not found."
+          : "This drink can no longer be voided.";
+    return { ok: false, error };
+  }
+  revalidatePath(`/manage/${token}`);
+  revalidatePath("/manage");
+  return { ok: true, order: res.order };
+}
+
+// What the client submits for a swap: which line, and the chosen product + size +
+// add-ons. Price is recomputed here from the catalog — the client value is never
+// trusted.
+export type SwapDrinkInput = {
+  productId: string;
+  sizeId?: string;
+  addonIds: string[];
+};
+
+// Swap a single drink for another menu product (staff amendment). Prices the
+// replacement server-side from the live catalog (chosen size + add-ons, active
+// promotion applied to the drink only), then rewrites the line and logs the price
+// difference. Returns the refreshed order.
+export async function swapDrinkAction(
+  token: string,
+  position: number,
+  input: SwapDrinkInput,
+): Promise<AmendActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const products = await listProducts();
+  const product = products.find((p) => p.id === input.productId);
+  if (!product) return { ok: false, error: "That drink isn't on the menu." };
+  if (!product.isAvailable) {
+    return { ok: false, error: `${product.name} is sold out right now.` };
+  }
+
+  // Resolve the base (drink) price: the chosen size, or the flat price. A sized
+  // product requires a valid size selection.
+  const sizes = product.sizes ?? [];
+  const selectedSize = input.sizeId
+    ? sizes.find((s) => s.id === input.sizeId)
+    : undefined;
+  if (sizes.length > 0 && !selectedSize) {
+    return { ok: false, error: "Choose a size for this drink." };
+  }
+  const baseOriginal =
+    sizes.length > 0 ? (selectedSize?.price ?? 0) : (product.price ?? 0);
+
+  // Only real add-ons for this product count; discounts apply to the drink only.
+  const selectedAddons = product.addons.filter((a) =>
+    input.addonIds.includes(a.id),
+  );
+  const addonsTotal = selectedAddons.reduce((sum, a) => sum + a.price, 0);
+  const drinkPrice = applyDiscount(baseOriginal, getProductDiscount(product)).final;
+  const unitPrice = drinkPrice + addonsTotal;
+
+  const res = await swapOrderItem(token, position, {
+    productId: product.id,
+    name: product.name,
+    sizeName: selectedSize?.name,
+    addonNames: selectedAddons.map((a) => a.name),
+    unitPrice,
+  });
+  if (!res.ok) {
+    const error =
+      res.reason === "not_found"
+        ? "Order not found."
+        : "This drink can no longer be swapped.";
+    return { ok: false, error };
+  }
+  revalidatePath(`/manage/${token}`);
+  revalidatePath("/manage");
+  return { ok: true, order: res.order };
 }
 
 // Resolve the payment method on a "pay later" store order. Only Cash / DuitNow QR

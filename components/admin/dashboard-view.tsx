@@ -92,6 +92,8 @@ export function DashboardView({
                 {m.range.orders} order{m.range.orders === 1 ? "" : "s"} placed
                 <span className="px-1.5 text-white/30">·</span>
                 avg {formatPrice(aov(m.range.revenue, m.range.completed))}
+                <span className="px-1.5 text-white/30">·</span>
+                profit {formatPrice(m.range.profit)}
               </span>
             </div>
 
@@ -119,9 +121,9 @@ export function DashboardView({
             <StatTile label="Revenue" value={formatPrice(m.range.revenue)}>
               <Sparkline data={m.trend} />
             </StatTile>
+            <StatTile label="Net profit" value={formatPrice(m.range.profit)} />
             <StatTile label="Orders" value={String(m.range.orders)} />
             <StatTile label="Active customers" value={String(m.range.activeCustomers)} />
-            <StatTile label="Avg order" value={formatPrice(aov(m.range.revenue, m.range.completed))} />
           </div>
         </section>
 

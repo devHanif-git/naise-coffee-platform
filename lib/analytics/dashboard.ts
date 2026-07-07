@@ -49,15 +49,20 @@ export async function getDashboardMetrics(range: AnalyticsRange): Promise<Dashbo
   const trend = eachDay(range).map((date) => ({ date, revenue: dayRevenue.get(date) ?? 0 }));
 
   let topSellers: { name: string; quantity: number }[] = [];
+  let rangeCost = 0;
   if (rangeCompletedIds.length > 0) {
     const { data: items, error: itemsErr } = await db
       .from("order_items")
-      .select("name, quantity, is_custom, order_id, products(name)")
+      .select("name, quantity, unit_cost, is_custom, order_id, products(name)")
       .in("order_id", rangeCompletedIds);
     if (itemsErr) throw new Error(`getDashboardMetrics failed: ${itemsErr.message}`);
     const byName = new Map<string, number>();
     for (const it of items ?? []) {
+      // Goods cost snapshotted at sale; null for legacy/unlinked lines -> 0.
+      rangeCost += (it.unit_cost ?? 0) * it.quantity;
       if (it.is_custom) continue; // best-sellers is for featurable menu items only
+      // Prefer the current product name so renames flow through; fall back to the
+      // snapshot name for unlinked legacy rows.
       const displayName = it.products?.name ?? it.name;
       byName.set(displayName, (byName.get(displayName) ?? 0) + it.quantity);
     }
@@ -71,6 +76,7 @@ export async function getDashboardMetrics(range: AnalyticsRange): Promise<Dashbo
     range: {
       orders: rangeOrders,
       revenue: rangeRevenue,
+      profit: rangeRevenue - rangeCost,
       activeCustomers: activeUsers.size,
       completed: rangeCompletedIds.length,
     },
