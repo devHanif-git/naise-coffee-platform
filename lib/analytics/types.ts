@@ -1,15 +1,19 @@
+export type AnalyticsRange = { from: string; to: string }; // inclusive KL day-keys (YYYY-MM-DD)
+
 export type DashboardMetrics = {
-  today: { orders: number; revenue: number; inProgress: number; completed: number };
-  month: { orders: number; revenue: number; activeCustomers: number; completed: number };
-  trend14: { date: string; revenue: number }[]; // last 14 KL days, completed revenue
-  topSellers: { name: string; quantity: number }[]; // this month, completed, top 5
-  statusBreakdown: { status: string; count: number }[]; // current snapshot, all orders
+  // Range-driven aggregates (follow the selected window).
+  range: { orders: number; revenue: number; activeCustomers: number; completed: number };
+  trend: { date: string; revenue: number }[]; // per KL day within range, zero-filled
+  topSellers: { name: string; quantity: number }[]; // within range, completed, top 5
+  // Always-live store state (ignores the selected range).
+  live: {
+    inProgress: number; // today's pending+preparing+ready ("on the bar")
+    statusBreakdown: { status: string; count: number }[]; // current snapshot, all orders
+  };
 };
 
-export type ReportRange = "today" | "7d" | "30d" | "month";
-
 export type ReportData = {
-  range: ReportRange;
+  range: AnalyticsRange;
   totals: {
     orders: number;
     revenue: number;
