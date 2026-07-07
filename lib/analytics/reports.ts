@@ -1,53 +1,30 @@
 import { createClient } from "@/lib/supabase/server";
 import { normalizePaymentMethod, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
-import type { ReportData, ReportRange } from "@/lib/analytics/types";
+import type { AnalyticsRange, ReportData } from "@/lib/analytics/types";
+import { previousWindow } from "@/lib/analytics/range";
 
 const KL = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
 function klDate(iso: string): string {
   return KL.format(new Date(iso));
 }
-function klToday(): string {
-  return KL.format(new Date());
-}
 
-const DAY_MS = 86_400_000;
-
-// Inclusive start day (YYYY-MM-DD) for a range, in KL time.
-function rangeStart(range: ReportRange, today: string): string {
-  if (range === "today") return today;
-  if (range === "month") return `${today.slice(0, 7)}-01`;
-  const days = range === "7d" ? 6 : 29; // inclusive of today
-  return KL.format(new Date(Date.now() - days * DAY_MS));
-}
-
-// Shift a YYYY-MM-DD day key by whole days. Day keys are only ever compared as
-// calendar days, so plain UTC arithmetic is safe here.
-function shiftDay(dayKey: string, deltaDays: number): string {
-  return new Date(Date.parse(`${dayKey}T00:00:00Z`) + deltaDays * DAY_MS)
-    .toISOString()
-    .slice(0, 10);
-}
-
-export async function getReportData(range: ReportRange): Promise<ReportData> {
+export async function getReportData(range: AnalyticsRange): Promise<ReportData> {
   const db = await createClient();
-  const today = klToday();
-  const start = rangeStart(range, today);
-
-  // Equal-length window immediately before `start`, for period-over-period deltas.
-  const windowDays =
-    Math.round(
-      (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / DAY_MS,
-    ) + 1;
-  const prevEnd = shiftDay(start, -1);
-  const prevStart = shiftDay(start, -windowDays);
+  const { from, to } = range;
+  const prev = previousWindow(range);
 
   const { data: orders, error } = await db
     .from("orders")
     .select("id, status, total, payment_method, source, created_at");
   if (error) throw new Error(`getReportData failed: ${error.message}`);
 
+  const inRange = (iso: string) => {
+    const d = klDate(iso);
+    return d >= from && d <= to;
+  };
+
   const completed = (orders ?? []).filter(
-    (o) => klDate(o.created_at) >= start && o.status === "completed",
+    (o) => o.status === "completed" && inRange(o.created_at),
   );
 
   // Online vs in-store vs custom split (completed orders in range).
@@ -67,7 +44,7 @@ export async function getReportData(range: ReportRange): Promise<ReportData> {
   for (const o of orders ?? []) {
     if (o.status !== "completed") continue;
     const d = klDate(o.created_at);
-    if (d >= prevStart && d <= prevEnd) {
+    if (d >= prev.from && d <= prev.to) {
       prevRevenue += o.total;
       prevOrders += 1;
     }

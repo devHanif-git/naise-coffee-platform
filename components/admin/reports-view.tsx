@@ -2,31 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { TrendingUp, TrendingDown, Gift } from "lucide-react";
-import type { ReportData, ReportRange } from "@/lib/analytics/types";
+import type { AnalyticsRange, ReportData } from "@/lib/analytics/types";
+import { formatRangeLabel } from "@/lib/analytics/range";
 import { paymentMethodLabel } from "@/data/payment-methods";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { RevenueArea } from "@/components/admin/dashboard-charts";
-
-const RANGES: { value: ReportRange; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "7d", label: "7 days" },
-  { value: "30d", label: "30 days" },
-  { value: "month", label: "Month" },
-];
-
-const PERIOD_LABEL: Record<ReportRange, string> = {
-  today: "Today",
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  month: "This month",
-};
-const PREV_LABEL: Record<ReportRange, string> = {
-  today: "yesterday",
-  "7d": "prev 7 days",
-  "30d": "prev 30 days",
-  month: "prior period",
-};
+import { RangePicker } from "@/components/admin/range-picker";
 
 // Percentage change vs the prior period. null when there's no baseline.
 function delta(current: number, previous: number): number | null {
@@ -92,13 +74,12 @@ export function ReportsView({
   load,
 }: {
   initial: ReportData;
-  load: (range: ReportRange) => Promise<ReportData>;
+  load: (range: AnalyticsRange) => Promise<ReportData>;
 }) {
   const [data, setData] = useState(initial);
   const [pending, startTransition] = useTransition();
 
-  function pick(range: ReportRange) {
-    if (range === data.range) return;
+  function pick(range: AnalyticsRange) {
     startTransition(async () => setData(await load(range)));
   }
 
@@ -109,24 +90,8 @@ export function ReportsView({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
-          {RANGES.map((r) => (
-            <button
-              key={r.value}
-              onClick={() => pick(r.value)}
-              aria-pressed={data.range === r.value}
-              className={cn(
-                "rounded-full px-3.5 py-1.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
-                data.range === r.value
-                  ? "bg-foreground text-background"
-                  : "border border-border text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <Eyebrow>{PERIOD_LABEL[data.range]}</Eyebrow>
+        <RangePicker value={data.range} onChange={pick} disabled={pending} />
+        <Eyebrow>{formatRangeLabel(data.range)}</Eyebrow>
       </div>
 
       <div
@@ -146,7 +111,7 @@ export function ReportsView({
                 </span>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   <DeltaChip current={data.totals.revenue} previous={data.previous.revenue} />
-                  vs {PREV_LABEL[data.range]} ({formatPrice(data.previous.revenue)})
+                  vs prior period ({formatPrice(data.previous.revenue)})
                 </span>
               </div>
             </div>

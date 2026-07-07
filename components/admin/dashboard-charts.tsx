@@ -15,7 +15,7 @@ export function RevenueArea({ data }: { data: Point[] }) {
   if (data.every((d) => d.revenue === 0)) {
     return (
       <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
-        No completed sales in the last 14 days.
+        No completed sales in this range.
       </div>
     );
   }
