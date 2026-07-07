@@ -1,8 +1,9 @@
 import type { Tables } from "@/types/database";
-import type { Order, OrderLine } from "@/types/order";
+import type { Order, OrderAdjustment, OrderLine } from "@/types/order";
 
 export type OrderRow = Tables<"orders">;
 export type OrderItemRow = Tables<"order_items">;
+export type OrderAdjustmentRow = Tables<"order_adjustments">;
 
 // Maps one order_items row to the domain OrderLine. addon_names is never null
 // (DB default '{}'), but guard anyway.
@@ -17,6 +18,21 @@ export function rowToOrderLine(item: OrderItemRow): OrderLine {
     status: item.status,
     isCustom: item.is_custom,
     productId: item.product_id ?? undefined,
+    voidedAt: item.voided_at ?? undefined,
+  };
+}
+
+// Maps one order_adjustments row to the domain OrderAdjustment.
+export function rowToOrderAdjustment(
+  row: OrderAdjustmentRow,
+): OrderAdjustment {
+  return {
+    itemPosition: row.item_position,
+    kind: row.kind === "swap" ? "swap" : "void",
+    fromLabel: row.from_label,
+    toLabel: row.to_label ?? undefined,
+    delta: row.delta,
+    createdAt: row.created_at,
   };
 }
 

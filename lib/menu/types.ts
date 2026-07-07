@@ -1,5 +1,8 @@
 // CMS-facing shapes. Distinct from the storefront `Product` (which hides
 // archived rows and resolves add-ons): admin views need raw flags and ids.
+import type { RecipeEntry } from "@/lib/menu/recipe";
+export type { RecipeEntry };
+
 export type AdminAddon = {
   id: string;
   name: string;
@@ -31,10 +34,21 @@ export type AdminProduct = {
   isAvailable: boolean;
   isArchived: boolean;
   sortOrder: number;
-  recipeSteps: string[] | null;
 };
 
 export type AdminVariant = { id: string; name: string; price: number };
+
+// A raw cost-of-goods item (milk, matcha, packaging…). Price in sen is the flat
+// cost it contributes to a drink; alwaysIncluded items are added to every drink.
+export type AdminCostItem = {
+  id: string;
+  name: string;
+  price: number;
+  alwaysIncluded: boolean;
+  isArchived: boolean;
+  sortOrder: number;
+  prepTemplate: string | null;
+};
 
 export type AdminProductDetail = AdminProduct & {
   description: string;
@@ -43,6 +57,8 @@ export type AdminProductDetail = AdminProduct & {
   variants: AdminVariant[];
   // Per-product override rows keyed by addon id.
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
+  // Ordered, unified recipe list (ingredient steps + free-text steps).
+  recipe: RecipeEntry[];
 };
 
 // Payload the item form submits (server action parses this).
@@ -62,5 +78,6 @@ export type ProductFormData = {
   isFeatured: boolean;
   isAvailable: boolean;
   addonOverrides: { addonId: string; mode: "add" | "remove" }[];
-  recipeSteps: string[];
+  // Ordered unified recipe list the form submits.
+  recipe: RecipeEntry[];
 };

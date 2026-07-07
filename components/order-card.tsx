@@ -54,23 +54,39 @@ export function OrderCard({ order, delay = 0 }: { order: Order; delay?: number }
             const subtitle = [item.sizeName, ...item.addonNames]
               .filter(Boolean)
               .join(", ");
+            const voided = Boolean(item.voidedAt);
             return (
               <li
                 key={`${item.name}-${i}`}
-                className="flex items-start gap-3 py-2.5 text-sm first:pt-0 last:pb-0"
+                className={cn(
+                  "flex items-start gap-3 py-2.5 text-sm first:pt-0 last:pb-0",
+                  voided && "opacity-60",
+                )}
               >
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-black text-[0.6875rem] font-bold tabular-nums text-white">
+                <span
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center rounded-lg text-[0.6875rem] font-bold tabular-nums text-white",
+                    voided ? "bg-neutral-400" : "bg-black",
+                  )}
+                >
                   {item.quantity}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{item.name}</span>
+                  <span className={cn("truncate font-medium", voided && "line-through")}>
+                    {item.name}
+                  </span>
                   {subtitle && (
                     <span className="truncate text-xs text-muted-foreground">
                       {subtitle}
                     </span>
                   )}
                 </div>
-                <span className="shrink-0 font-semibold tabular-nums">
+                <span
+                  className={cn(
+                    "shrink-0 font-semibold tabular-nums",
+                    voided && "text-muted-foreground line-through",
+                  )}
+                >
                   {formatPrice(item.lineTotal)}
                 </span>
               </li>

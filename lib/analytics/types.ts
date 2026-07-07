@@ -1,6 +1,6 @@
 export type DashboardMetrics = {
-  today: { orders: number; revenue: number; inProgress: number; completed: number };
-  month: { orders: number; revenue: number; activeCustomers: number; completed: number };
+  today: { orders: number; revenue: number; profit: number; inProgress: number; completed: number };
+  month: { orders: number; revenue: number; profit: number; activeCustomers: number; completed: number };
   trend14: { date: string; revenue: number }[]; // last 14 KL days, completed revenue
   topSellers: { name: string; quantity: number }[]; // this month, completed, top 5
   statusBreakdown: { status: string; count: number }[]; // current snapshot, all orders
@@ -13,6 +13,8 @@ export type ReportData = {
   totals: {
     orders: number;
     revenue: number;
+    cost: number; // goods cost of completed orders (sen), snapshotted at sale
+    netProfit: number; // revenue - cost (sen)
     redemptionBeans: number;
     rewardLines: number;
     itemsSold: number; // total quantity across completed orders

@@ -21,6 +21,9 @@ export default async function AdminMenuPage() {
         <Button variant="outline" size="sm" asChild className="rounded-full">
           <Link href="/admin/addons">Add-ons</Link>
         </Button>
+        <Button variant="outline" size="sm" asChild className="rounded-full">
+          <Link href="/admin/costs">Cost Goods</Link>
+        </Button>
         <Button size="sm" asChild className="rounded-full">
           <Link href="/admin/menu/new">
             <Plus /> New item

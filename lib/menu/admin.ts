@@ -1,7 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import type { RecipeEntry } from "@/lib/menu/recipe";
 import type {
   AdminAddon,
   AdminCategory,
+  AdminCostItem,
   AdminProduct,
   AdminProductDetail,
 } from "@/lib/menu/types";
@@ -19,6 +21,26 @@ export async function listAdminAddons(): Promise<AdminAddon[]> {
     name: a.name,
     price: a.price,
     isArchived: a.is_archived,
+  }));
+}
+
+// Cost-of-goods items, sorted for display. Admin-only under RLS.
+export async function listAdminCostItems(): Promise<AdminCostItem[]> {
+  const db = await createClient();
+  const { data, error } = await db
+    .from("cost_items")
+    .select("*")
+    .order("sort_order")
+    .order("name");
+  if (error) throw new Error(`listAdminCostItems failed: ${error.message}`);
+  return (data ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    price: c.price,
+    alwaysIncluded: c.is_always_included,
+    isArchived: c.is_archived,
+    sortOrder: c.sort_order,
+    prepTemplate: c.prep_template,
   }));
 }
 
@@ -72,7 +94,6 @@ export async function listAdminProducts(): Promise<AdminProduct[]> {
       isAvailable: p.is_available,
       isArchived: p.is_archived,
       sortOrder: p.sort_order,
-      recipeSteps: p.recipe_steps,
     };
   });
 }
@@ -96,6 +117,8 @@ export async function getAdminProduct(
   if (variants.error) throw new Error(`getAdminProduct failed: ${variants.error.message}`);
   if (overrides.error) throw new Error(`getAdminProduct failed: ${overrides.error.message}`);
   if (cats.error) throw new Error(`getAdminProduct failed: ${cats.error.message}`);
+  // Ordered unified recipe list stored as JSONB on the product.
+  const recipe = ((p.recipe as unknown) as RecipeEntry[] | null) ?? [];
   const catName = new Map((cats.data ?? []).map((c) => [c.id, c.name]));
   const vs = variants.data ?? [];
   return {
@@ -112,7 +135,6 @@ export async function getAdminProduct(
     isAvailable: p.is_available,
     isArchived: p.is_archived,
     sortOrder: p.sort_order,
-    recipeSteps: p.recipe_steps,
     description: p.description,
     basePrice: p.base_price,
     maxAddons: p.max_addons,
@@ -121,5 +143,6 @@ export async function getAdminProduct(
       addonId: o.addon_id,
       mode: o.mode as "add" | "remove",
     })),
+    recipe,
   };
 }
