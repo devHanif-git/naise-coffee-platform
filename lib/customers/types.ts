@@ -22,7 +22,7 @@ export type CustomerLedgerEntry = {
 export type CustomerOrderSummary = {
   id: string;
   orderNumber: string;
-  status: "pending" | "preparing" | "ready" | "completed" | "cancelled";
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled" | "awaiting_payment";
   total: number;
   createdAt: string;
 };

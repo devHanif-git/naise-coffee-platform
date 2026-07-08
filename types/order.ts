@@ -6,7 +6,8 @@ export type OrderStatus =
   | "preparing"
   | "ready"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  | "awaiting_payment";
 
 // Per-drink fulfilment status. A barista works each line through
 // pending -> preparing -> done; when every line is done the order is complete.
