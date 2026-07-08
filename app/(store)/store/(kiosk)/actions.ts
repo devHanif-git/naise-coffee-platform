@@ -2,6 +2,7 @@
 
 import { createOrder } from "@/lib/orders/store";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { inStoreMode } from "@/lib/auth/store-mode";
 import { getStoreAccountEnabled } from "@/lib/settings/store-account";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
@@ -33,7 +34,7 @@ export type PlaceStoreOrderInput = {
 };
 
 export type PlaceStoreOrderResult =
-  | { ok: true; orderNumber: string }
+  | { ok: true; orderNumber: string; token: string }
   | { ok: false; error: string };
 
 export async function placeStoreOrder(
@@ -132,5 +133,50 @@ export async function placeStoreOrder(
     console.error(`Store order ${order.orderNumber} placed but Telegram notice failed: ${reason}`);
   }
 
-  return { ok: true, orderNumber: order.orderNumber };
+  return { ok: true, orderNumber: order.orderNumber, token: order.token };
+}
+
+// Attach a member to a just-placed kiosk order so they earn their loyalty stamp.
+// The kiosk has no staff Supabase session (it authenticates via the store
+// passcode → a signed store-mode cookie on a guest/store session), so it cannot
+// call the staff-gated attach_order_member. Instead we re-enforce the SAME
+// store-mode boundary placeStoreOrder uses, then call the service-role-only
+// attach_order_member_store via the admin client. Returns minimal identity.
+export type AttachStoreMemberResult =
+  | { ok: true; displayName: string; phoneMasked: string | null }
+  | { ok: false; error: string };
+
+export async function attachStoreMember(
+  token: string,
+  identifier: string,
+): Promise<AttachStoreMemberResult> {
+  if (!(await inStoreMode())) return { ok: false, error: "Not authorized." };
+  if (!(await getStoreAccountEnabled())) return { ok: false, error: "Store ordering is off." };
+
+  const trimmed = identifier.trim();
+  if (!trimmed) return { ok: false, error: "Enter a phone number or email." };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("attach_order_member_store", {
+    p_token: token,
+    p_identifier: trimmed,
+  });
+  if (error) return { ok: false, error: "Couldn't add the member. Try again." };
+
+  const row = data as unknown as
+    | { ok: true; display_name: string; avatar_url: string | null; phone_masked: string | null }
+    | { ok: false; error: string };
+  if (!row?.ok) {
+    const code = (row as { error?: string })?.error;
+    const msg =
+      code === "member_not_found"
+        ? "No member found for that phone or email."
+        : code === "different_member_attached"
+          ? "This order already has a different member."
+          : code === "order_not_found"
+            ? "Order not found."
+            : "Couldn't add the member. Try again.";
+    return { ok: false, error: msg };
+  }
+  return { ok: true, displayName: row.display_name, phoneMasked: row.phone_masked };
 }

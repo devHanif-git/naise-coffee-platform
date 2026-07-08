@@ -7,7 +7,7 @@ import { useCart } from "@/store/cart";
 import { formatPrice } from "@/lib/format";
 import { images } from "@/constants/images";
 import { STORE_CONFIRMATION_RESET_MS } from "@/constants/store";
-import { placeStoreOrder } from "@/app/(store)/store/(kiosk)/actions";
+import { placeStoreOrder, attachStoreMember } from "@/app/(store)/store/(kiosk)/actions";
 
 type Method = "cash" | "duitnow-qr" | "unpaid";
 
@@ -28,25 +28,30 @@ export function StoreCheckout({
   const { items, totalPrice, notes, clear } = useCart();
   const [method, setMethod] = useState<Method | null>(cashOk ? "cash" : qrOk ? "duitnow-qr" : null);
   const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<{ orderNumber: string; token: string } | null>(null);
+  // Set true once the customer starts adding member details on the confirmation
+  // screen, so the auto-reset timer doesn't yank the page away mid-entry.
+  const [holdReset, setHoldReset] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  // Confirmation auto-resets to the menu for the next customer.
+  // Confirmation auto-resets to the menu for the next customer — unless the
+  // customer is mid-way through adding their member details for a stamp.
   useEffect(() => {
-    if (!placed) return;
+    if (!placed || holdReset) return;
     const t = setTimeout(() => {
       clear();
       router.push("/store");
     }, STORE_CONFIRMATION_RESET_MS);
     return () => clearTimeout(t);
-  }, [placed, clear, router]);
+  }, [placed, holdReset, clear, router]);
 
   if (placed) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
         <p className="text-sm uppercase tracking-wider text-muted-foreground">Order placed</p>
-        <p className="font-heading text-4xl font-bold">{placed}</p>
+        <p className="font-heading text-4xl font-bold">{placed.orderNumber}</p>
         <p className="text-sm text-muted-foreground">Show this number at the counter.</p>
+        <StoreAttachMember token={placed.token} onInteract={() => setHoldReset(true)} />
         <button type="button" onClick={() => { clear(); router.push("/store"); }} className="mt-4 h-12 rounded-2xl bg-black px-6 text-sm font-semibold text-white">
           Start new order
         </button>
@@ -87,7 +92,7 @@ export function StoreCheckout({
         setError(res.error);
         return;
       }
-      setPlaced(res.orderNumber);
+      setPlaced({ orderNumber: res.orderNumber, token: res.token });
     });
   }
 
@@ -135,6 +140,62 @@ export function StoreCheckout({
       <button type="button" onClick={submit} disabled={pending || !method || items.length === 0} className="h-14 rounded-2xl bg-black text-base font-semibold text-white disabled:opacity-40">
         Place order
       </button>
+    </div>
+  );
+}
+
+// Optional post-order step: staff key in the customer's phone/email to attach
+// their member account so they earn a loyalty stamp. Uses the store-guarded
+// attachStoreMember action (service-role under the store-mode gate). Calling
+// onInteract pauses the confirmation auto-reset so entry isn't interrupted.
+function StoreAttachMember({
+  token,
+  onInteract,
+}: {
+  token: string;
+  onInteract: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  if (done) {
+    return <p className="text-sm font-semibold text-emerald-600">{msg}</p>;
+  }
+
+  function attach() {
+    if (!value.trim()) return;
+    startTransition(async () => {
+      const res = await attachStoreMember(token, value);
+      if (res.ok) {
+        setDone(true);
+        setMsg(`Stamp added for ${res.displayName}.`);
+      } else {
+        setMsg(res.error);
+      }
+    });
+  }
+
+  return (
+    <div className="mt-2 flex w-full max-w-xs flex-col gap-2">
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">Add member for a stamp</p>
+      <input
+        value={value}
+        onChange={(e) => { setValue(e.target.value); onInteract(); }}
+        placeholder="Phone or email"
+        disabled={pending}
+        className="h-12 rounded-2xl border border-border px-4 text-center text-sm"
+      />
+      <button
+        type="button"
+        onClick={attach}
+        disabled={pending || !value.trim()}
+        className="h-12 rounded-2xl border border-black text-sm font-semibold disabled:opacity-40"
+      >
+        {pending ? "Adding" : "Add stamp"}
+      </button>
+      {msg && !done && <p className="text-sm text-rose-600">{msg}</p>}
     </div>
   );
 }

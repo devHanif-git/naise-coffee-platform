@@ -1220,6 +1220,10 @@ export type Database = {
         Args: { p_identifier: string; p_token: string }
         Returns: Json
       }
+      attach_order_member_store: {
+        Args: { p_identifier: string; p_token: string }
+        Returns: Json
+      }
       claim_device_orders: { Args: { p_owner_id: string }; Returns: number }
       current_user_role: {
         Args: never
