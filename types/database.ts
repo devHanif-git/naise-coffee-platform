@@ -1227,7 +1227,12 @@ export type Database = {
       }
       expire_awaiting_payment: { Args: never; Returns: undefined }
       grant_order_stamp: { Args: { p_token: string }; Returns: Json }
+      mark_expired_vouchers: { Args: never; Returns: undefined }
       record_custom_drinks: { Args: { p_drinks: Json }; Returns: undefined }
+      redeem_voucher: {
+        Args: { p_voucher_id: string; p_order_token: string }
+        Returns: Json
+      }
       reverse_order_rewards: { Args: { p_token: string }; Returns: undefined }
       reverse_order_stamp: { Args: { p_token: string }; Returns: undefined }
     }
