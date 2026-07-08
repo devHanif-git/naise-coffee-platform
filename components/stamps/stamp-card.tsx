@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import type { StampCard as StampCardData, StampSettings } from "@/types/reward";
+import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 
-// The 8-slot loyalty card. Subscribes to the member's own stamp_cards row so a
-// stamp granted at the counter animates in live. Milestone slots carry a badge.
+// The loyalty stamp card. Black hero treatment to match the Beans hero at the
+// top of /rewards. Subscribes to the member's own stamp_cards row so a stamp
+// granted at the counter animates in live. Milestone slots carry a gold ring.
 export function StampCard({
   initial,
   settings,
@@ -45,7 +48,7 @@ export function StampCard({
   useEffect(() => {
     if (card.currentCount > prevCount.current) {
       setJustStamped(card.currentCount);
-      const t = setTimeout(() => setJustStamped(null), 400);
+      const t = setTimeout(() => setJustStamped(null), 600);
       prevCount.current = card.currentCount;
       return () => clearTimeout(t);
     }
@@ -54,44 +57,108 @@ export function StampCard({
 
   const slots = Array.from({ length: settings.cardSize }, (_, i) => i + 1);
 
+  // Next milestone + how many stamps away, for the strapline.
+  const nextMilestone =
+    card.currentCount < settings.milestoneSmall
+      ? settings.milestoneSmall
+      : card.currentCount < settings.cardSize
+        ? settings.cardSize
+        : settings.cardSize;
+  const toNext = Math.max(0, nextMilestone - card.currentCount);
+  const rmOff = (settings.rmOffAmount / 100).toFixed(0);
+  const nextRewardLabel =
+    nextMilestone === settings.milestoneSmall ? `RM${rmOff} off` : "a free drink";
+
   return (
-    <section className="rounded-2xl border border-border bg-white p-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-wider">Stamp Card</h2>
-        <span className="text-xs text-muted-foreground">
-          {card.currentCount}/{settings.cardSize}
-          {card.cycle > 0 && <> · Card #{card.cycle + 1}</>}
-        </span>
-      </div>
+    <section
+      aria-labelledby="stamp-card-heading"
+      className="relative overflow-hidden rounded-[1.75rem] bg-black px-6 py-7 text-white naise-rise"
+    >
+      <Image
+        src={images.coffeeWithLogo}
+        alt=""
+        width={320}
+        height={320}
+        aria-hidden
+        className="pointer-events-none absolute -bottom-8 -right-10 z-0 h-auto w-36 object-contain sm:w-40"
+      />
 
-      <div className="mt-4 grid grid-cols-4 gap-3">
-        {slots.map((n) => {
-          const filled = n <= card.currentCount;
-          const isMilestone = n === settings.milestoneSmall || n === settings.cardSize;
-          return (
-            <div
-              key={n}
-              className={cn(
-                "relative flex aspect-square items-center justify-center rounded-full border-2 text-sm font-bold",
-                filled ? "border-foreground bg-foreground text-white" : "border-dashed border-border text-muted-foreground",
-                justStamped === n && "naise-stamp-press",
-              )}
-            >
-              {filled ? "☕" : n}
-              {isMilestone && !filled && (
-                <span className="absolute -right-1 -top-1 rounded-full bg-amber-400 px-1 text-[0.5rem] font-bold text-black">
-                  {n === settings.cardSize ? "FREE" : "RM"}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <div className="relative z-10">
+        <div className="flex items-baseline justify-between">
+          <p
+            id="stamp-card-heading"
+            className="text-[0.625rem] font-semibold uppercase tracking-[0.25em] text-white/60"
+          >
+            Stamp Card
+          </p>
+          <p className="font-heading text-sm font-bold tabular-nums">
+            {card.currentCount}
+            <span className="text-white/50">/{settings.cardSize}</span>
+            {card.cycle > 0 && (
+              <span className="ml-2 font-medium text-white/50">Card #{card.cycle + 1}</span>
+            )}
+          </p>
+        </div>
 
-      <p className="mt-3 text-[0.6875rem] text-muted-foreground">
-        Earn a stamp with every order. {settings.milestoneSmall} stamps = RM
-        {(settings.rmOffAmount / 100).toFixed(0)} off · {settings.cardSize} stamps = a free drink.
-      </p>
+        {/* Stamp grid — filled slots carry the logo badge, empty are dashed
+            rings, milestone slots get a gold ring + tiny label. */}
+        <div className="mt-5 grid max-w-[62%] grid-cols-4 gap-x-3 gap-y-4">
+          {slots.map((n) => {
+            const filled = n <= card.currentCount;
+            const isFree = n === settings.cardSize;
+            const isMilestone = n === settings.milestoneSmall || isFree;
+            return (
+              <div key={n} className="flex flex-col items-center gap-1">
+                <div
+                  className={cn(
+                    "relative flex aspect-square w-full items-center justify-center rounded-full",
+                    filled
+                      ? "bg-white"
+                      : "border-2 border-dashed border-white/25",
+                    isMilestone && !filled && "border-amber-400/70",
+                    isMilestone && "ring-2 ring-amber-400/80 ring-offset-2 ring-offset-black",
+                    justStamped === n && "naise-stamp-press",
+                  )}
+                >
+                  {filled ? (
+                    <Image
+                      src={images.logoTransparent}
+                      alt=""
+                      width={40}
+                      height={40}
+                      aria-hidden
+                      className="size-[62%] object-contain"
+                    />
+                  ) : (
+                    <span className="text-[0.6875rem] font-bold text-white/40 tabular-nums">
+                      {n}
+                    </span>
+                  )}
+                </div>
+                {isMilestone && (
+                  <span className="text-[0.5rem] font-bold uppercase tracking-wide text-amber-400">
+                    {isFree ? "Free" : `RM${rmOff}`}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="mt-5 max-w-[62%] text-[0.8125rem] leading-snug text-white/70">
+          {toNext > 0 ? (
+            <>
+              <span className="font-semibold text-white">{toNext}</span> more{" "}
+              {toNext === 1 ? "stamp" : "stamps"} to{" "}
+              <span className="font-heading font-bold uppercase tracking-wide text-white">
+                {nextRewardLabel}
+              </span>
+            </>
+          ) : (
+            <>Card full — reward unlocked!</>
+          )}
+        </p>
+      </div>
     </section>
   );
 }
