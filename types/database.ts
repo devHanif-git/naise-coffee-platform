@@ -1038,6 +1038,167 @@ export type Database = {
         }
         Relationships: []
       }
+      stamp_cards: {
+        Row: {
+          created_at: string
+          current_count: number
+          cycle: number
+          total_stamps: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_count?: number
+          cycle?: number
+          total_stamps?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_count?: number
+          cycle?: number
+          total_stamps?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stamp_settings: {
+        Row: {
+          card_size: number
+          created_at: string
+          free_drink_max_value: number
+          id: boolean
+          is_enabled: boolean
+          milestone_small: number
+          rm_off_amount: number
+          rm_off_min_spend: number
+          updated_at: string
+          voucher_expiry_days: number
+        }
+        Insert: {
+          card_size?: number
+          created_at?: string
+          free_drink_max_value?: number
+          id?: boolean
+          is_enabled?: boolean
+          milestone_small?: number
+          rm_off_amount?: number
+          rm_off_min_spend?: number
+          updated_at?: string
+          voucher_expiry_days?: number
+        }
+        Update: {
+          card_size?: number
+          created_at?: string
+          free_drink_max_value?: number
+          id?: boolean
+          is_enabled?: boolean
+          milestone_small?: number
+          rm_off_amount?: number
+          rm_off_min_spend?: number
+          updated_at?: string
+          voucher_expiry_days?: number
+        }
+        Relationships: []
+      }
+      stamp_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          is_reversal: boolean
+          order_id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          is_reversal?: boolean
+          order_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          is_reversal?: boolean
+          order_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stamp_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vouchers: {
+        Row: {
+          created_at: string
+          discount_amount: number
+          expires_at: string
+          free_drink_max_value: number
+          id: string
+          min_spend: number
+          redeemed_order_id: string | null
+          source_order_id: string | null
+          status: Database["public"]["Enums"]["voucher_status"]
+          type: Database["public"]["Enums"]["voucher_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          discount_amount?: number
+          expires_at: string
+          free_drink_max_value?: number
+          id?: string
+          min_spend?: number
+          redeemed_order_id?: string | null
+          source_order_id?: string | null
+          status?: Database["public"]["Enums"]["voucher_status"]
+          type: Database["public"]["Enums"]["voucher_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          discount_amount?: number
+          expires_at?: string
+          free_drink_max_value?: number
+          id?: string
+          min_spend?: number
+          redeemed_order_id?: string | null
+          source_order_id?: string | null
+          status?: Database["public"]["Enums"]["voucher_status"]
+          type?: Database["public"]["Enums"]["voucher_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_redeemed_order_id_fkey"
+            columns: ["redeemed_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vouchers_source_order_id_fkey"
+            columns: ["source_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1055,13 +1216,20 @@ export type Database = {
         Returns: undefined
       }
       apply_order_rewards: { Args: { p_token: string }; Returns: Json }
+      attach_order_member: {
+        Args: { p_identifier: string; p_token: string }
+        Returns: Json
+      }
       claim_device_orders: { Args: { p_owner_id: string }; Returns: number }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      expire_awaiting_payment: { Args: never; Returns: undefined }
+      grant_order_stamp: { Args: { p_token: string }; Returns: Json }
       record_custom_drinks: { Args: { p_drinks: Json }; Returns: undefined }
       reverse_order_rewards: { Args: { p_token: string }; Returns: undefined }
+      reverse_order_stamp: { Args: { p_token: string }; Returns: undefined }
     }
     Enums: {
       bean_txn_category:
@@ -1078,7 +1246,10 @@ export type Database = {
         | "ready"
         | "completed"
         | "cancelled"
+        | "awaiting_payment"
       user_role: "admin" | "manager" | "staff" | "customer" | "store"
+      voucher_status: "active" | "redeemed" | "expired"
+      voucher_type: "rm_off" | "free_drink"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1215,8 +1386,17 @@ export const Constants = {
       ],
       item_status: ["pending", "preparing", "done"],
       order_source: ["online", "store", "custom"],
-      order_status: ["pending", "preparing", "ready", "completed", "cancelled"],
+      order_status: [
+        "pending",
+        "preparing",
+        "ready",
+        "completed",
+        "cancelled",
+        "awaiting_payment",
+      ],
       user_role: ["admin", "manager", "staff", "customer", "store"],
+      voucher_status: ["active", "redeemed", "expired"],
+      voucher_type: ["rm_off", "free_drink"],
     },
   },
 } as const
