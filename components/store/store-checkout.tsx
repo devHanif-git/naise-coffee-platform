@@ -51,7 +51,7 @@ export function StoreCheckout({
         <p className="text-sm uppercase tracking-wider text-muted-foreground">Order placed</p>
         <p className="font-heading text-4xl font-bold">{placed.orderNumber}</p>
         <p className="text-sm text-muted-foreground">Show this number at the counter.</p>
-        <StoreAttachMember token={placed.token} onInteract={() => setHoldReset(true)} />
+        <StoreAttachMember token={placed.token} onInteract={() => setHoldReset(true)} onResolved={() => setHoldReset(false)} />
         <button type="button" onClick={() => { clear(); router.push("/store"); }} className="mt-4 h-12 rounded-2xl bg-black px-6 text-sm font-semibold text-white">
           Start new order
         </button>
@@ -146,14 +146,18 @@ export function StoreCheckout({
 
 // Optional post-order step: staff key in the customer's phone/email to attach
 // their member account so they earn a loyalty stamp. Uses the store-guarded
-// attachStoreMember action (service-role under the store-mode gate). Calling
-// onInteract pauses the confirmation auto-reset so entry isn't interrupted.
+// attachStoreMember action (service-role under the store-mode gate). onInteract
+// pauses the confirmation auto-reset while the customer types; onResolved
+// re-arms it once the attach succeeds so the kiosk returns to the menu for the
+// next customer.
 function StoreAttachMember({
   token,
   onInteract,
+  onResolved,
 }: {
   token: string;
   onInteract: () => void;
+  onResolved: () => void;
 }) {
   const [value, setValue] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -171,6 +175,7 @@ function StoreAttachMember({
       if (res.ok) {
         setDone(true);
         setMsg(`Stamp added for ${res.displayName}.`);
+        onResolved();
       } else {
         setMsg(res.error);
       }
