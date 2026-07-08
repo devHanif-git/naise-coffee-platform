@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { canManageOrders } from "@/lib/auth/session";
 import { reverseOrderRewards } from "@/lib/rewards/store";
+import { grantOrderStamp, reverseOrderStamp } from "@/lib/stamps/store";
 import { verifyStorePasscode } from "@/lib/auth/store-passcode";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
@@ -107,6 +108,10 @@ export async function markReadyAndNotify(
   const completed = await completeOrder(token);
   if (!completed) return { ok: false, error: "Could not complete the order." };
 
+  // Grant the loyalty stamp (member orders only; no-ops otherwise). Best-effort:
+  // a failure must not block completion — the RPC is idempotent so a retry is safe.
+  await grantOrderStamp(token);
+
   // Counter-placed orders (in-store kiosk and admin custom orders) are handed to
   // the customer at the counter, so there's nobody to notify — never fire a ready
   // notice for them. For online orders: if we have the customer's number, staff
@@ -142,6 +147,7 @@ export async function cancelOrderAction(
   if (!updated) return { ok: false, error: "Order not found." };
 
   await reverseOrderRewards(token);
+  await reverseOrderStamp(token);
 
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
