@@ -25,6 +25,7 @@ import { OrderFinishedModal } from "@/components/order-finished-modal";
 import { ChangePaymentModal } from "@/components/change-payment-modal";
 import type { Category, Product } from "@/types/menu";
 import type { Order, OrderAdjustment } from "@/types/order";
+import { AttachMember } from "@/components/stamps/attach-member";
 
 // Interactive single-order management view used by the manage page
 // (/manage/[token]). Each drink is advanced individually by swiping
@@ -630,6 +631,13 @@ export function OrderDetail({
             />
           </button>
         </section>
+      )}
+
+      {/* Attach a loyalty member to this order so the stamp is granted. */}
+      {persist && (
+        <div className="mt-5">
+          <AttachMember token={order.token} attached={Boolean(order.userId)} />
+        </div>
       )}
 
       {/* Amendments — the running list of price differences from voids/swaps,
