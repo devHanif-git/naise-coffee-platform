@@ -11,8 +11,10 @@ import {
 import { getStoreSettings } from "@/lib/settings/store";
 import { getStampSettings } from "@/lib/stamps/config-store";
 import { getStampCard } from "@/lib/stamps/store";
+import { listMyVouchers } from "@/lib/stamps/voucher-store";
 import { StampCard } from "@/components/stamps/stamp-card";
 import { MemberQr } from "@/components/stamps/member-qr";
+import { VoucherList } from "@/components/stamps/voucher-list";
 
 export const metadata: Metadata = {
   title: "Rewards",
@@ -41,6 +43,8 @@ export default async function RewardsPage() {
       user ? getStampCard() : Promise.resolve(null),
     ]);
 
+  const vouchers = user && stampSettings.isEnabled ? await listMyVouchers() : [];
+
   return (
     <div className="flex flex-col">
       {stampSettings.isEnabled && (
@@ -51,6 +55,7 @@ export default async function RewardsPage() {
             userId={user?.id ?? null}
           />
           {user && <MemberQr userId={user.id} />}
+          <VoucherList vouchers={vouchers} />
         </div>
       )}
       <RewardsScreen
