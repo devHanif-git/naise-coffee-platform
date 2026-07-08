@@ -177,7 +177,11 @@ export async function placeOrder(
     voucherToRedeem = v.id;
   }
 
-  const discountedTotal = Math.max(0, input.subtotal - voucherDiscount);
+  // Discount off the promo-applied total (input.total), NOT the pre-promo
+  // subtotal — otherwise an active promotion's saving would be silently dropped
+  // and the customer overcharged. voucherDiscount is computed against the same
+  // values the checkout screen displays, so stored total == shown total.
+  const discountedTotal = Math.max(0, input.total - voucherDiscount);
 
   let order;
   try {
@@ -202,13 +206,24 @@ export async function placeOrder(
     return { ok: false, error: `Couldn't save your order: ${reason}` };
   }
 
-  // Mark the voucher redeemed now that the order exists. If this fails we don't
-  // roll back the order — log it; the voucher stays active for a retry. (The
-  // discount was already applied to the total above.)
+  // Consume the voucher now that the order exists. The discounted total above
+  // assumes the voucher is burned, so if the redeem fails (e.g. another order
+  // won the race and already redeemed it) we must NOT keep the discount — roll
+  // the order back and bail, exactly like the rewards failure path below.
+  // Redeem runs BEFORE applyOrderRewards on purpose: a redeem failure here
+  // leaves the voucher untouched (redeem_voucher flips status only on success),
+  // so the plain cancel is clean. (Residual edge: redeem-ok then rewards-fail
+  // cancels the order with the voucher already burned — rare, needs a voucher
+  // and an unaffordable bean-reward in one cart, and costs only the voucher, no
+  // ledger corruption since the reward RPC raises before inserting rows.)
   if (voucherToRedeem) {
     const redeemed = await redeemVoucher(voucherToRedeem, order.token);
     if (!redeemed.ok) {
-      console.error(`redeem_voucher failed for order ${order.token}: ${redeemed.error}`);
+      await cancelOrderAsSystem(order.token);
+      return {
+        ok: false,
+        error: "That voucher is no longer available. Please try again.",
+      };
     }
   }
 
