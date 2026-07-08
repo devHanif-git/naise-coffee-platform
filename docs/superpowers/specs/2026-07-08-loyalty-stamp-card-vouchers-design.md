@@ -29,6 +29,8 @@ not a secret, because scanning it alone grants nothing.
 - New users must register to have a member QR — this is the acquisition
   sell-point ("Register now to get your stamp!").
 - Milestone vouchers at 4 (RM-off) and 8 (free drink); reset at 8.
+- The whole program is CMS-controlled: an admin enable/disable master switch plus
+  editable card/voucher config.
 - A new voucher system: fixed-amount RM-off with admin-set minimum spend, and a
   free-drink voucher; both expire after N days.
 - A satisfying stamp animation and milestone celebration on the customer card.
@@ -140,6 +142,7 @@ customer card updates live.
 | Column | Type | Default | Meaning |
 |---|---|---|---|
 | `id` | uuid PK / singleton | | |
+| `is_enabled` | boolean not null | true | master on/off for the whole program |
 | `card_size` | integer | 8 | slots per card |
 | `milestone_small` | integer | 4 | position of the RM-off milestone |
 | `rm_off_amount` | integer | 500 | RM5 in sen |
@@ -162,6 +165,8 @@ All: `language plpgsql`, `security definer`, `set search_path = ''`, granted to
 
 Called immediately after an order transitions to `completed`.
 
+0. Read `stamp_settings.is_enabled`. If the program is off → **return null** (no
+   stamps granted while disabled).
 1. Load order by token → resolve `user_id`. If order not found or `user_id` is
    null → **return null** (no member / guest = no stamp).
 2. Idempotency: if a non-reversal `stamp_transactions` row exists for
@@ -291,15 +296,33 @@ with their member QR ready.
 
 ## Admin UI (`/admin/promotions`)
 
-A "Stamp Card & Vouchers" settings panel editing the `stamp_settings` row: card
-size, milestone position, RM-off amount, min-spend, free-drink max value, expiry
-days. Save → admin action guarded by `current_user_role() = 'admin'` →
-`revalidateTag` invalidates the cached config. Changes apply to **future**
-voucher issues only (issued vouchers keep their snapshot). Optional read-only
-stamp count on the existing customer detail page.
+The whole program is **CMS-controlled**. A "Stamp Card & Vouchers" settings
+panel edits the `stamp_settings` row:
+
+- **Enable / disable toggle** (`is_enabled`) — the master switch. When off:
+  `grant_order_stamp` grants nothing (step 0), and the customer stamp card + QR
+  entry points are hidden on the storefront. Existing vouchers already issued
+  stay valid and redeemable (disabling stops *new* stamps, it doesn't confiscate
+  earned rewards).
+- **Numeric config** — card size, milestone position, RM-off amount, min-spend,
+  free-drink max value, expiry days.
+
+Save → admin action guarded by `current_user_role() = 'admin'` → `revalidateTag`
+invalidates the cached config. Config changes apply to **future** voucher issues
+only (issued vouchers keep their snapshot).
+
+**Customer view (admin):** the existing customer detail page shows a read-only
+stamp count, current cycle, and the customer's active vouchers, so staff/admin
+can answer "how many stamps do I have?" and see issued rewards.
 
 The existing percent-off `promotions` table is **not** overloaded — the voucher
 config lives in its own `stamp_settings` row surfaced on the same admin page.
+
+**Gating everywhere:** every surface reads `is_enabled` before showing stamp UI
+or calling stamp RPCs — customer `/rewards` card, checkout voucher control,
+kiosk "Add member" step, and the `/manage` scan action. The server RPCs are the
+authoritative gate (`grant_order_stamp` step 0); the UI checks are for hiding
+controls, not security.
 
 ## Error Handling
 
@@ -323,6 +346,8 @@ config lives in its own `stamp_settings` row surfaced on the same admin page.
 - Reaching 4 → issues an `rm_off` voucher with snapshot values.
 - Reaching 8 → issues a `free_drink` voucher, resets `current_count` to 0,
   increments `cycle`.
+- **Disabled program:** with `is_enabled = false`, `grant_order_stamp` grants no
+  stamp; already-issued vouchers stay redeemable.
 - **Qualifying check:** an order whose only line is a free drink → no stamp; the
   same order plus one paid drink → one stamp.
 - `reverse_order_stamp` → decrements cache and revokes an unredeemed
