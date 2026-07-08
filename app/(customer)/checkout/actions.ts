@@ -10,6 +10,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
 import { normalizeMyPhone } from "@/lib/phone";
+import { redeemVoucher } from "@/lib/stamps/voucher-store";
 
 type PlaceOrderItem = {
   // Always present for storefront orders (every line is a menu product); typed
@@ -37,10 +38,13 @@ export type PlaceOrderInput = {
   // Unverified MY phone collected at checkout (member profile value or a number
   // entered in the prompt). Re-normalized server-side; dropped if invalid.
   contactPhone?: string;
+  // Optional loyalty voucher to redeem on this order. Validated + applied
+  // server-side; the client total is advisory only.
+  voucherId?: string;
 };
 
 export type PlaceOrderResult =
-  | { ok: true; orderNumber: string; rewards?: OrderRewardsResult }
+  | { ok: true; orderNumber: string; rewards?: OrderRewardsResult; voucherDiscount?: number }
   | { ok: false; error: string };
 
 export async function placeOrder(
@@ -143,6 +147,38 @@ export async function placeOrder(
     productId: item.productId,
   }));
 
+  // Resolve the voucher discount server-side. We read the voucher row (RLS
+  // scopes it to the caller), validate status/expiry/min-spend against the
+  // SERVER subtotal, and compute the discount. The actual redeem (status flip)
+  // happens after the order row exists, so a failed order never burns a voucher.
+  let voucherDiscount = 0;
+  let voucherToRedeem: string | null = null;
+  if (input.voucherId) {
+    const { data: v } = await supabase
+      .from("vouchers")
+      .select("id, type, status, discount_amount, min_spend, free_drink_max_value, expires_at, user_id")
+      .eq("id", input.voucherId)
+      .maybeSingle();
+    if (!v || v.user_id !== userId || v.status !== "active" || new Date(v.expires_at) <= new Date()) {
+      return { ok: false, error: "That voucher is no longer available." };
+    }
+    if (v.type === "rm_off") {
+      if (input.subtotal < v.min_spend) {
+        return { ok: false, error: `Spend at least RM${(v.min_spend / 100).toFixed(2)} to use this voucher.` };
+      }
+      voucherDiscount = Math.min(v.discount_amount, input.subtotal);
+    } else {
+      // free_drink: discount the priciest single drink up to the cap. The
+      // customer pays any excess; the order must have another paid line, which
+      // the stamp qualifying rule also requires elsewhere.
+      const dearest = Math.max(0, ...input.items.map((i) => i.unitPrice));
+      voucherDiscount = Math.min(v.free_drink_max_value, dearest, input.subtotal);
+    }
+    voucherToRedeem = v.id;
+  }
+
+  const discountedTotal = Math.max(0, input.subtotal - voucherDiscount);
+
   let order;
   try {
     order = await createOrder(
@@ -154,7 +190,7 @@ export async function placeOrder(
         paymentMethod: input.paymentMethod,
         items: lines,
         subtotal: input.subtotal,
-        total: input.total,
+        total: discountedTotal,
         notes: input.notes?.trim() || undefined,
         contactPhone,
         proofOfPaymentUrl,
@@ -164,6 +200,16 @@ export async function placeOrder(
   } catch (err) {
     const reason = err instanceof Error ? err.message : "Unknown error";
     return { ok: false, error: `Couldn't save your order: ${reason}` };
+  }
+
+  // Mark the voucher redeemed now that the order exists. If this fails we don't
+  // roll back the order — log it; the voucher stays active for a retry. (The
+  // discount was already applied to the total above.)
+  if (voucherToRedeem) {
+    const redeemed = await redeemVoucher(voucherToRedeem, order.token);
+    if (!redeemed.ok) {
+      console.error(`redeem_voucher failed for order ${order.token}: ${redeemed.error}`);
+    }
   }
 
   // Settle rewards (earn + redeem + streak). If it fails (e.g. a redemption the
@@ -211,7 +257,7 @@ export async function placeOrder(
     console.error(`Order ${order.orderNumber} placed but Telegram notice failed: ${reason}`);
   }
 
-  return { ok: true, orderNumber: order.orderNumber, rewards };
+  return { ok: true, orderNumber: order.orderNumber, rewards, voucherDiscount };
 }
 
 function isLocalUrl(url: string): boolean {
