@@ -99,7 +99,7 @@ customer card updates live.
 |---|---|---|
 | `id` | uuid PK default gen_random_uuid() | |
 | `user_id` | uuid not null → auth.users | |
-| `order_id` | uuid not null → orders (on delete set null acceptable? see note) | the order that earned it |
+| `order_id` | uuid not null → orders | the order that earned it (see note below) |
 | `amount` | integer not null | +1 normal, -1 reversal |
 | `is_reversal` | boolean not null default false | |
 | `created_at` | timestamptz not null default now() | |
