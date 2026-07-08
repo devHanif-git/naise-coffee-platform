@@ -21,6 +21,8 @@ not a secret, because scanning it alone grants nothing.
 ## Goals
 
 - One stamp per completed order, tied to that order, idempotent, no daily cap.
+  The order must include at least one paid drink — an order that is only a
+  redeemed free drink earns no stamp.
 - Automatic grant for online orders (member already attached).
 - In-store grant: staff attaches a member to the order (scan member QR **or**
   key in phone / username / email), then completes the order.
@@ -164,15 +166,21 @@ Called immediately after an order transitions to `completed`.
    null → **return null** (no member / guest = no stamp).
 2. Idempotency: if a non-reversal `stamp_transactions` row exists for
    `order_id`, return null (the unique index also backs this).
-3. Insert `+1` stamp row. Trigger updates `stamp_cards` cache
+3. **Qualifying check:** the order must contain at least one **paid**
+   (non-free) line. An order whose only line is a redeemed free-drink voucher (or
+   otherwise fully free) does **not** earn a stamp — return null. It qualifies
+   only if it also includes at least one other paid drink. (Check: exists an
+   `order_items` row not made free by a voucher/reward — e.g. `is_reward = false`
+   and effective line price > 0.)
+4. Insert `+1` stamp row. Trigger updates `stamp_cards` cache
    (`current_count + 1`, `total_stamps + 1`).
-4. Read `stamp_settings`. Milestone check on the **new** `current_count`:
+5. Read `stamp_settings`. Milestone check on the **new** `current_count`:
    - `= milestone_small` (4) → issue an `rm_off` voucher, snapshotting
      `rm_off_amount`, `rm_off_min_spend`, and `now() + voucher_expiry_days`.
    - `= card_size` (8) → issue a `free_drink` voucher (snapshot
      `free_drink_max_value` + expiry), then **reset** `current_count` to 0 and
      `cycle + 1`.
-5. Return `{ stamped: true, count, cycle, vouchers_issued: [{type, ...}] }` for
+6. Return `{ stamped: true, count, cycle, vouchers_issued: [{type, ...}] }` for
    the confirmation UI.
 
 ### `reverse_order_stamp(p_token uuid) returns void`
@@ -196,9 +204,14 @@ Staff-only (`current_user_role() in ('staff','manager','admin')`).
 1. Resolve a member from `p_identifier`: member-QR token, phone, username, or
    email (try in that order; exact match).
 2. Guard: refuse if no match, ambiguous match, or the order already has a
-   *different* `user_id`, or the order is already completed+stamped.
+   *different* `user_id`. Attaching to an **already-completed** order is allowed
+   (customer forgot at the counter).
 3. Set `orders.user_id` (and mirror `owner_id` per existing convention).
-4. Return **minimal** identity only: `{ display_name, avatar_url,
+4. **If the order is already `completed`, call `grant_order_stamp` now** so the
+   stamp is granted retroactively. (The idempotency + qualifying checks still
+   apply.) If the order is not yet completed, the stamp lands at completion as
+   usual.
+5. Return **minimal** identity only: `{ display_name, avatar_url,
    phone_masked }`. **Never** return full email or raw phone (PII minimization).
 
 ### `redeem_voucher(p_voucher_id uuid, p_order_token uuid) returns jsonb`
@@ -210,8 +223,10 @@ Called at checkout when the member applies a voucher.
 2. Apply discount:
    - `rm_off`: subtract `discount_amount` from the order total, floored at 0
      (no cash back if order < discount).
-   - `free_drink`: subtract up to `free_drink_max_value` (one drink free; no
-     top-up if the drink is pricier — configurable cap).
+   - `free_drink`: subtract up to `free_drink_max_value` (RM12 cap) from the
+     chosen drink. If the drink costs more, the **customer pays the excess**
+     (RM13 drink − RM12 = RM1 due). The order must also contain at least one
+     other paid drink to qualify for a stamp (see `grant_order_stamp` step 3).
 3. One voucher per order. Mark `redeemed`, set `redeemed_order_id`. Status check
    inside the RPC closes the double-redeem race.
 
@@ -222,9 +237,11 @@ or a lazy check-on-read (both acceptable; lazy check is simplest to start).
 
 ## Grant Flows (trigger points)
 
-Principle: **`grant_order_stamp` always fires on completion; the only variable
-is whether a member is attached by then.** Staff must **attach before
-completion** (no retroactive grant on already-completed orders).
+Principle: **a stamp is granted once the order is both `completed` and has a
+member attached — in whichever order those two happen.** Attach-then-complete
+grants at completion; complete-then-attach grants retroactively at attach time
+(customer forgot at the counter). The `unique(order_id)` guard ensures exactly
+one stamp either way.
 
 **Path 1 — Online order (member logged in).** Order already scoped to `user_id`.
 Staff marks `completed` on `/manage` → completion handler calls
@@ -306,12 +323,17 @@ config lives in its own `stamp_settings` row surfaced on the same admin page.
 - Reaching 4 → issues an `rm_off` voucher with snapshot values.
 - Reaching 8 → issues a `free_drink` voucher, resets `current_count` to 0,
   increments `cycle`.
+- **Qualifying check:** an order whose only line is a free drink → no stamp; the
+  same order plus one paid drink → one stamp.
 - `reverse_order_stamp` → decrements cache and revokes an unredeemed
   source voucher; leaves a redeemed one and notes it.
 - `attach_order_member` → role-gated; returns only minimal identity (no email /
-  raw phone); refuses conflicting/attached/completed orders.
-- `redeem_voucher` → enforces min-spend, expiry, one-per-order; double-redeem
-  race yields a single redemption.
+  raw phone); refuses a conflicting (different-member) order. Attaching to an
+  **already-completed** order retroactively grants the stamp (once, via the
+  idempotency guard).
+- `redeem_voucher` → enforces min-spend, expiry, one-per-order; free-drink cap
+  bills the excess (RM13 − RM12 = RM1); double-redeem race yields a single
+  redemption.
 
 **App:**
 - Attach flow (scan + manual) on `/manage` and `/store`.
