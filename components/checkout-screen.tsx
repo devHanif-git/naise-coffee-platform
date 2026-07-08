@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
 import { useBeans } from "@/store/beans";
-import type { StreakAward } from "@/types/reward";
+import type { StreakAward, Voucher } from "@/types/reward";
 import type { PaymentMethod, PaymentMethodId } from "@/types/payment";
 import type { BankDetails } from "@/lib/settings/payments";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
@@ -59,11 +59,13 @@ export function CheckoutScreen({
   methods,
   bank,
   duitnowQrUrl,
+  vouchers,
 }: {
   closedMessage?: string | null;
   methods: PaymentMethod[];
   bank: BankDetails;
   duitnowQrUrl: string | null;
+  vouchers: Voucher[];
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
@@ -89,6 +91,7 @@ export function CheckoutScreen({
   const [enteredPhone, setEnteredPhone] = useState<string | null>(null);
   // Controls the phone prompt sheet shown before placing when no number is known.
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
+  const [selectedVoucherId, setSelectedVoucherId] = useState<string | null>(null);
 
   const hasItems = items.length > 0;
 
@@ -109,6 +112,19 @@ export function CheckoutScreen({
   const featured = methods.filter((m) => m.featured);
   const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
+
+  const selectedVoucher = vouchers.find((v) => v.id === selectedVoucherId) ?? null;
+  // Mirror the server discount rule (checkout/actions.ts). Display-only; the
+  // server recomputes authoritatively.
+  const dearestUnit = items.reduce((m, i) => Math.max(m, i.unitPrice), 0);
+  const voucherDiscount = !selectedVoucher
+    ? 0
+    : selectedVoucher.type === "rm_off"
+      ? totalOriginal >= selectedVoucher.minSpend
+        ? Math.min(selectedVoucher.discountAmount, totalOriginal)
+        : 0
+      : Math.min(selectedVoucher.freeDrinkMaxValue, dearestUnit, totalOriginal);
+  const totalAfterVoucher = Math.max(0, totalPrice - voucherDiscount);
 
   // Every checkout visitor is signed in (the route is gated), so any enabled
   // method — including members-only ones like Cash — is selectable.
@@ -198,6 +214,7 @@ export function CheckoutScreen({
         ownerId,
         proofOfPaymentPath,
         contactPhone: phoneOverride ?? resolveContactPhone(),
+        voucherId: selectedVoucherId ?? undefined,
       });
 
       if (!result.ok) {
@@ -548,6 +565,38 @@ export function CheckoutScreen({
       <section
         className="mt-6 flex flex-col gap-3 border-t border-border pt-4 naise-rise [animation-delay:120ms]"
       >
+        {vouchers.length > 0 && (
+          <div className="flex flex-col gap-2 border-t border-border pt-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Voucher</span>
+            {vouchers.map((v) => {
+              const eligible =
+                v.type === "free_drink" || totalOriginal >= v.minSpend;
+              const label =
+                v.type === "rm_off"
+                  ? `RM${(v.discountAmount / 100).toFixed(0)} off (min RM${(v.minSpend / 100).toFixed(0)})`
+                  : `Free drink (up to RM${(v.freeDrinkMaxValue / 100).toFixed(0)})`;
+              const checked = selectedVoucherId === v.id;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  disabled={!eligible}
+                  onClick={() => setSelectedVoucherId(checked ? null : v.id)}
+                  className={cn(
+                    "flex items-center justify-between rounded-xl border px-3 py-2 text-sm",
+                    checked ? "border-foreground bg-foreground text-white" : "border-border",
+                    !eligible && "opacity-50",
+                  )}
+                >
+                  <span>{label}</span>
+                  <span className="text-xs">
+                    {checked ? "Applied" : eligible ? "Apply" : "Spend more"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground">Subtotal</span>
           <span className="tabular-nums">{formatPrice(totalOriginal)}</span>
@@ -558,13 +607,19 @@ export function CheckoutScreen({
             <span className="tabular-nums">−{formatPrice(totalSaving)}</span>
           </div>
         )}
+        {voucherDiscount > 0 && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Voucher</span>
+            <span className="tabular-nums">−{formatPrice(voucherDiscount)}</span>
+          </div>
+        )}
         <div className="flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground">Delivery/Pick-up</span>
           <span className="tabular-nums">{formatPrice(0)}</span>
         </div>
         <div className="flex items-baseline justify-between text-sm font-bold">
           <span>Total</span>
-          <span className="tabular-nums">{formatPrice(totalPrice)}</span>
+          <span className="tabular-nums">{formatPrice(totalAfterVoucher)}</span>
         </div>
       </section>
 
@@ -608,7 +663,7 @@ export function CheckoutScreen({
               Place Order
             </span>
             <span className="text-xs font-bold tabular-nums">
-              {formatPrice(totalPrice)}
+              {formatPrice(totalAfterVoucher)}
             </span>
           </>
         )}
