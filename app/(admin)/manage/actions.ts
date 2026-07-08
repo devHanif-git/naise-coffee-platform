@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { canManageOrders } from "@/lib/auth/session";
 import { reverseOrderRewards } from "@/lib/rewards/store";
 import { grantOrderStamp, reverseOrderStamp } from "@/lib/stamps/store";
+import { attachOrderMember } from "@/lib/stamps/member";
 import { verifyStorePasscode } from "@/lib/auth/store-passcode";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
@@ -32,6 +33,10 @@ import type { ItemStatus, Order, OrderStatus } from "@/types/order";
 
 export type OrderActionResult =
   | { ok: true; orderStatus: OrderStatus }
+  | { ok: false; error: string };
+
+export type AttachActionResult =
+  | { ok: true; displayName: string; phoneMasked: string | null }
   | { ok: false; error: string };
 
 // Amendment actions (void/swap) return the fully refreshed order so the client
@@ -295,4 +300,29 @@ export async function changeOrderPaymentAction(
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
   return { ok: true, orderStatus: updated.status };
+}
+
+// Staff attach a member to an order by scanned QR (uuid) / phone / email. Grants
+// retroactively if the order is already completed (handled in the RPC).
+export async function attachMemberAction(
+  token: string,
+  identifier: string,
+): Promise<AttachActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  const res = await attachOrderMember(token, identifier.trim());
+  if (!res.ok) {
+    const msg =
+      res.error === "member_not_found"
+        ? "No member found for that QR, phone, or email."
+        : res.error === "different_member_attached"
+          ? "This order already has a different member."
+          : res.error === "order_not_found"
+            ? "Order not found."
+            : "Couldn't attach the member. Try again.";
+    return { ok: false, error: msg };
+  }
+  revalidatePath(`/manage/${token}`);
+  return { ok: true, displayName: res.displayName, phoneMasked: res.phoneMasked };
 }
