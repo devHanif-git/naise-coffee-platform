@@ -30,7 +30,7 @@ export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean
     case "all":
       return true;
     case "pending":
-      return status === "pending";
+      return status === "pending" || status === "awaiting_payment";
     case "in_progress":
       return status === "preparing" || status === "ready";
     case "completed":
@@ -57,7 +57,7 @@ export function statusesForFilter(filter: OrderFilter): OrderStatus[] | null {
     case "all":
       return null;
     case "pending":
-      return ["pending"];
+      return ["pending", "awaiting_payment"];
     case "in_progress":
       return ["preparing", "ready"];
     case "completed":
@@ -98,6 +98,11 @@ export const statusDisplay: Record<
     dot: "bg-rose-500",
     pill: "bg-rose-50 text-rose-700",
   },
+  awaiting_payment: {
+    label: "Awaiting Payment",
+    dot: "bg-yellow-500",
+    pill: "bg-yellow-50 text-yellow-700",
+  },
 };
 
 // The three steps of the linear fulfilment flow, used by the progress tracker.
@@ -119,6 +124,7 @@ export function progressIndex(status: OrderStatus): number {
     case "completed":
       return 2;
     case "cancelled":
+    case "awaiting_payment":
       return -1;
   }
 }

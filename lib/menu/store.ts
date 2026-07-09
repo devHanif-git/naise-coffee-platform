@@ -93,6 +93,16 @@ export async function listProducts(): Promise<Product[]> {
   return fetchCatalog();
 }
 
+// Uncached catalogue read for price-authoritative paths (cart re-pricing and the
+// checkout server actions). listProducts() is fine for the storefront — a ~60s
+// stale window there is harmless — but re-pricing exists specifically to catch a
+// promotion an admin just toggled, so it MUST see the live DB, not the cached
+// catalogue. Reads directly from Postgres every call; use only where correctness
+// beats the cache (never in hot storefront render paths).
+export async function listProductsFresh(): Promise<Product[]> {
+  return buildCatalog();
+}
+
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   const all = await fetchCatalog();
   return all.find((p) => p.slug === slug) ?? null;

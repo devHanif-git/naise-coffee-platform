@@ -217,11 +217,22 @@ export function DrinkRow({
                 Voided
               </span>
             ) : (
-              item.isCustom && (
-                <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
-                  Custom
-                </span>
-              )
+              <>
+                {item.isCustom && (
+                  <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                    Custom
+                  </span>
+                )}
+                {/* Promo flag: the line was sold below its menu price. Amount is
+                    shown in the order totals, not here (this is a prep sheet). */}
+                {!item.isReward &&
+                  item.unitOriginalPrice != null &&
+                  item.unitOriginalPrice > item.unitPrice && (
+                    <span className="shrink-0 rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-rose-700">
+                      Promo
+                    </span>
+                  )}
+              </>
             )}
           </span>
           {subtitle && (

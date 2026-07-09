@@ -14,6 +14,7 @@ export function rowToOrderLine(item: OrderItemRow): OrderLine {
     sizeName: item.size_name ?? undefined,
     addonNames: item.addon_names ?? [],
     unitPrice: item.unit_price,
+    unitOriginalPrice: item.unit_original_price ?? undefined,
     lineTotal: item.line_total,
     status: item.status,
     isCustom: item.is_custom,

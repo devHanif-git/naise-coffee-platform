@@ -26,6 +26,16 @@ export function CustomerOrderDetail({
   const [showReceipt, setShowReceipt] = useState(false);
   const status = statusDisplay[order.status];
 
+  // Discount breakdown, derived from the order as stored (same rule as the staff
+  // view): subtotal = pre-promo; sum of active line totals = promo-applied;
+  // total = after voucher too. The two gaps give the promo and voucher amounts.
+  // Works for old orders since it only reads subtotal/total/line totals.
+  const activeLineSum = order.items
+    .filter((i) => !i.voidedAt)
+    .reduce((sum, i) => sum + i.lineTotal, 0);
+  const promoSavings = Math.max(0, order.subtotal - activeLineSum);
+  const voucherDiscount = Math.max(0, activeLineSum - order.total);
+
   return (
     <div className="flex flex-col">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-background px-5 pb-3 pt-4">
@@ -179,7 +189,19 @@ export function CustomerOrderDetail({
             <span>Subtotal</span>
             <span className="tabular-nums">{formatPrice(order.subtotal)}</span>
           </div>
-          <div className="flex items-baseline justify-between text-base font-bold">
+          {promoSavings > 0 && (
+            <div className="flex items-baseline justify-between text-sm font-medium text-rose-600">
+              <span>Promo savings</span>
+              <span className="tabular-nums">−{formatPrice(promoSavings)}</span>
+            </div>
+          )}
+          {voucherDiscount > 0 && (
+            <div className="flex items-baseline justify-between text-sm font-medium text-rose-600">
+              <span>{order.voucherLabel ? `Voucher · ${order.voucherLabel}` : "Voucher"}</span>
+              <span className="tabular-nums">−{formatPrice(voucherDiscount)}</span>
+            </div>
+          )}
+          <div className="mt-1 flex items-baseline justify-between text-base font-bold">
             <span>Total</span>
             <span className="tabular-nums">{formatPrice(order.total)}</span>
           </div>

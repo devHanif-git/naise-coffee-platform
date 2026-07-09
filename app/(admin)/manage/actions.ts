@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { canManageOrders } from "@/lib/auth/session";
 import { reverseOrderRewards } from "@/lib/rewards/store";
+import { grantOrderStamp, reverseOrderStamp } from "@/lib/stamps/store";
+import { attachOrderMember, searchMembers } from "@/lib/stamps/member";
 import { verifyStorePasscode } from "@/lib/auth/store-passcode";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
@@ -28,9 +30,18 @@ import {
 } from "@/lib/orders/status";
 import { isDateRangeKey, type DateRangeKey } from "@/lib/orders/range";
 import type { ItemStatus, Order, OrderStatus } from "@/types/order";
+import type { MemberSearchResult } from "@/types/reward";
 
 export type OrderActionResult =
   | { ok: true; orderStatus: OrderStatus }
+  | { ok: false; error: string };
+
+export type AttachActionResult =
+  | { ok: true; displayName: string; phoneMasked: string | null }
+  | { ok: false; error: string };
+
+export type SearchMembersResult =
+  | { ok: true; members: MemberSearchResult[] }
   | { ok: false; error: string };
 
 // Amendment actions (void/swap) return the fully refreshed order so the client
@@ -107,6 +118,10 @@ export async function markReadyAndNotify(
   const completed = await completeOrder(token);
   if (!completed) return { ok: false, error: "Could not complete the order." };
 
+  // Grant the loyalty stamp (member orders only; no-ops otherwise). Best-effort:
+  // a failure must not block completion — the RPC is idempotent so a retry is safe.
+  await grantOrderStamp(token);
+
   // Counter-placed orders (in-store kiosk and admin custom orders) are handed to
   // the customer at the counter, so there's nobody to notify — never fire a ready
   // notice for them. For online orders: if we have the customer's number, staff
@@ -142,6 +157,7 @@ export async function cancelOrderAction(
   if (!updated) return { ok: false, error: "Order not found." };
 
   await reverseOrderRewards(token);
+  await reverseOrderStamp(token);
 
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
@@ -289,4 +305,42 @@ export async function changeOrderPaymentAction(
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
   return { ok: true, orderStatus: updated.status };
+}
+
+// Staff attach a member to an order by scanned QR (uuid) / phone / email. Grants
+// retroactively if the order is already completed (handled in the RPC).
+export async function attachMemberAction(
+  token: string,
+  identifier: string,
+): Promise<AttachActionResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  const res = await attachOrderMember(token, identifier.trim());
+  if (!res.ok) {
+    const msg =
+      res.error === "member_not_found"
+        ? "No member found for that QR, phone, or email."
+        : res.error === "different_member_attached"
+          ? "This order already has a different member."
+          : res.error === "order_not_found"
+            ? "Order not found."
+            : "Couldn't attach the member. Try again.";
+    return { ok: false, error: msg };
+  }
+  revalidatePath(`/manage/${token}`);
+  return { ok: true, displayName: res.displayName, phoneMasked: res.phoneMasked };
+}
+
+// Staff wildcard member search for the attach flow. Returns up to 10 candidates
+// matching partial name / phone / email; staff then pick one to attach. The RPC
+// enforces the staff gate + a 2-char minimum, so a short query returns empty.
+export async function searchMembersAction(
+  query: string,
+): Promise<SearchMembersResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  const members = await searchMembers(query.trim());
+  return { ok: true, members };
 }
