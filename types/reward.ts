@@ -106,3 +106,12 @@ export type GrantStampResult = {
 export type AttachMemberResult =
   | { ok: true; displayName: string; avatarUrl: string | null; phoneMasked: string | null }
   | { ok: false; error: string };
+
+// One candidate from the staff member search (search_members RPC). Staff-facing,
+// so full contact details are included to positively identify the right person.
+export type MemberSearchResult = {
+  id: string;
+  displayName: string;
+  phone: string | null;
+  email: string | null;
+};

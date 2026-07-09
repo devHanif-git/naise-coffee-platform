@@ -25,7 +25,7 @@ not a secret, because scanning it alone grants nothing.
   redeemed free drink earns no stamp.
 - Automatic grant for online orders (member already attached).
 - In-store grant: staff attaches a member to the order (scan member QR **or**
-  key in phone / username / email), then completes the order.
+  key in phone or email), then completes the order.
 - New users must register to have a member QR — this is the acquisition
   sell-point ("Register now to get your stamp!").
 - Milestone vouchers at 4 (RM-off) and 8 (free drink); reset at 8.
@@ -206,8 +206,10 @@ Called on order cancel (wired into the `/manage` cancel action next to
 
 Staff-only (`current_user_role() in ('staff','manager','admin')`).
 
-1. Resolve a member from `p_identifier`: member-QR token, phone, username, or
-   email (try in that order; exact match).
+1. Resolve a member from `p_identifier`: member-QR token (the member's
+   `user_id`), `profiles.phone`, or `auth.users.email` (try in that order; exact
+   match). Note: the schema has **no username** column — email lookup works
+   because this RPC is SECURITY DEFINER and can read `auth.users`.
 2. Guard: refuse if no match, ambiguous match, or the order already has a
    *different* `user_id`. Attaching to an **already-completed** order is allowed
    (customer forgot at the counter).
@@ -254,13 +256,13 @@ Staff marks `completed` on `/manage` → completion handler calls
 live via realtime. No new staff action.
 
 **Path 2 — Kiosk order (`/store`).** Guest by default. Add an optional "Add
-member" step in kiosk checkout: enter phone/username/email → `attach_order_member`
+member" step in kiosk checkout: enter phone or email → `attach_order_member`
 → confirm the returned display name. Order now has `user_id` → completion grants
 the stamp. Skipped → guest order, no stamp (acceptable).
 
 **Path 3 — Walk-in / cash sale.** Staff opens the member-attach action on
 `/manage`: **scan the member QR** (browser camera) or key in
-phone/username/email. Attach to the order, then complete → stamp lands. New
+phone or email. Attach to the order, then complete → stamp lands. New
 customer → registers in the app (gains a member QR), then staff attaches.
 
 **Member QR.** Static, per-user, shown in the customer app (`/rewards` or
@@ -326,7 +328,7 @@ controls, not security.
 
 ## Error Handling
 
-- Attach: no match / ambiguous → "No member found for that phone/username",
+- Attach: no match / ambiguous → "No member found for that phone or email",
   retry; order stays guest. Order already has a different member → refused with a
   clear message.
 - Grant on completion is **best-effort** (like Beans): if `grant_order_stamp`

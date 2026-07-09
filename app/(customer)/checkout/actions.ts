@@ -11,6 +11,8 @@ import type { OrderLine } from "@/types/order";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
 import { normalizeMyPhone } from "@/lib/phone";
 import { redeemVoucher } from "@/lib/stamps/voucher-store";
+import { listProductsFresh } from "@/lib/menu/store";
+import { repriceLine } from "@/lib/promotions/reprice";
 
 type PlaceOrderItem = {
   // Always present for storefront orders (every line is a menu product); typed
@@ -18,9 +20,15 @@ type PlaceOrderItem = {
   productId?: string;
   name: string;
   quantity: number;
+  // Size + add-on ids drive the authoritative server-side re-price against the
+  // live catalogue — the client-sent prices below are advisory (display) only.
+  sizeId?: string;
+  addonIds?: string[];
   sizeName?: string;
   addonNames: string[];
   unitPrice: number;
+  // Per-unit price before any promo. Lets the manage view flag promo drinks.
+  unitOriginalPrice?: number;
   isReward?: boolean;
   rewardCost?: number;
 };
@@ -134,18 +142,50 @@ export async function placeOrder(
     ? (normalizeMyPhone(input.contactPhone) ?? undefined)
     : undefined;
 
-  const lines: OrderLine[] = input.items.map((item) => ({
-    name: item.name,
-    quantity: item.quantity,
-    sizeName: item.sizeName,
-    addonNames: item.addonNames,
-    unitPrice: item.unitPrice,
-    lineTotal: item.unitPrice * item.quantity,
-    status: "pending",
-    isReward: item.isReward,
-    rewardCost: item.rewardCost,
-    productId: item.productId,
-  }));
+  // Re-price every menu line against the live catalogue — never trust the price
+  // the client sent. A promotion may have started or ended after the item was
+  // added to the (localStorage) cart, so the snapshot can be stale. A line we
+  // can't faithfully re-price (custom/off-menu, or a size/add-on that changed)
+  // falls back to its sent price; archived/sold-out products are already blocked
+  // by the availability check above. The catalogue read is cache-backed.
+  const catalog = await listProductsFresh();
+  const lines: OrderLine[] = input.items.map((item) => {
+    const repriced = repriceLine(
+      {
+        productId: item.productId,
+        sizeId: item.sizeId,
+        addonIds: item.addonIds ?? [],
+        isReward: item.isReward,
+      },
+      catalog,
+    );
+    const unitPrice = repriced?.unitPrice ?? item.unitPrice;
+    const unitOriginalPrice =
+      repriced?.unitOriginalPrice ?? item.unitOriginalPrice ?? item.unitPrice;
+    return {
+      name: item.name,
+      quantity: item.quantity,
+      sizeName: item.sizeName,
+      addonNames: item.addonNames,
+      unitPrice,
+      unitOriginalPrice,
+      lineTotal: unitPrice * item.quantity,
+      status: "pending",
+      isReward: item.isReward,
+      rewardCost: item.rewardCost,
+      productId: item.productId,
+    };
+  });
+
+  // Authoritative money, recomputed from the re-priced lines — this is what the
+  // order stores and the customer is charged. subtotal is the pre-promo sum;
+  // total is the promo-applied sum. The client-sent input.subtotal/input.total
+  // are ignored for charging (they only informed the optimistic UI).
+  const subtotal = lines.reduce(
+    (sum, l) => sum + (l.unitOriginalPrice ?? l.unitPrice) * l.quantity,
+    0,
+  );
+  const total = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
   // Resolve the voucher discount server-side. We read the voucher row (RLS
   // scopes it to the caller), validate status/expiry/min-spend against the
@@ -153,6 +193,8 @@ export async function placeOrder(
   // happens after the order row exists, so a failed order never burns a voucher.
   let voucherDiscount = 0;
   let voucherToRedeem: string | null = null;
+  // Human label for the applied voucher, for the Telegram "NEW ORDER!" note.
+  let voucherLabel: string | undefined;
   if (input.voucherId) {
     const { data: v } = await supabase
       .from("vouchers")
@@ -163,25 +205,31 @@ export async function placeOrder(
       return { ok: false, error: "That voucher is no longer available." };
     }
     if (v.type === "rm_off") {
-      if (input.subtotal < v.min_spend) {
+      if (subtotal < v.min_spend) {
         return { ok: false, error: `Spend at least RM${(v.min_spend / 100).toFixed(2)} to use this voucher.` };
       }
-      voucherDiscount = Math.min(v.discount_amount, input.subtotal);
+      voucherDiscount = Math.min(v.discount_amount, subtotal);
     } else {
-      // free_drink: discount the priciest single drink up to the cap. The
-      // customer pays any excess; the order must have another paid line, which
-      // the stamp qualifying rule also requires elsewhere.
-      const dearest = Math.max(0, ...input.items.map((i) => i.unitPrice));
-      voucherDiscount = Math.min(v.free_drink_max_value, dearest, input.subtotal);
+      // free_drink: discount the cheapest single drink up to the cap. The
+      // customer pays for the rest, so the free drink is the lowest-value line
+      // (e.g. RM9 + RM10 → the RM9 is free). The order must have another paid
+      // line, which the stamp qualifying rule also requires elsewhere. Uses the
+      // re-priced unit prices so a promo can't shift which line is "cheapest".
+      const cheapest =
+        lines.length > 0 ? Math.min(...lines.map((l) => l.unitPrice)) : 0;
+      voucherDiscount = Math.min(v.free_drink_max_value, cheapest, subtotal);
     }
     voucherToRedeem = v.id;
+    voucherLabel =
+      v.type === "free_drink"
+        ? "Free Drink"
+        : `RM${(v.discount_amount / 100).toFixed(0)} Off`;
   }
 
-  // Discount off the promo-applied total (input.total), NOT the pre-promo
-  // subtotal — otherwise an active promotion's saving would be silently dropped
-  // and the customer overcharged. voucherDiscount is computed against the same
-  // values the checkout screen displays, so stored total == shown total.
-  const discountedTotal = Math.max(0, input.total - voucherDiscount);
+  // Discount off the promo-applied total (server-recomputed `total`), NOT the
+  // pre-promo subtotal — otherwise an active promotion's saving would be
+  // silently dropped and the customer overcharged.
+  const discountedTotal = Math.max(0, total - voucherDiscount);
 
   let order;
   try {
@@ -193,7 +241,7 @@ export async function placeOrder(
         ownerId: userId,
         paymentMethod: input.paymentMethod,
         items: lines,
-        subtotal: input.subtotal,
+        subtotal,
         total: discountedTotal,
         notes: input.notes?.trim() || undefined,
         contactPhone,
@@ -253,7 +301,13 @@ export async function placeOrder(
   const manageUrl = `${baseUrl}/manage/${order.token}`;
 
   const canUseButton = /^https:\/\//i.test(manageUrl) && !isLocalUrl(manageUrl);
-  const message = buildOrderMessage(order, manageUrl, !canUseButton);
+  // Name the voucher in the order note (the order object from createOrder doesn't
+  // carry it; the manage read path sets it separately).
+  const message = buildOrderMessage(
+    { ...order, voucherLabel },
+    manageUrl,
+    !canUseButton,
+  );
 
   // The order is already persisted (and rewards settled). The Telegram alert is
   // a supplemental staff notice — the manage board shows the order live via

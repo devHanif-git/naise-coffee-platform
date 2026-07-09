@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { RewardsScreen } from "@/components/rewards-screen";
 import {
   getLoyaltySettings,
@@ -9,12 +8,6 @@ import {
   listRewardCatalog,
 } from "@/lib/rewards/config-store";
 import { getStoreSettings } from "@/lib/settings/store";
-import { getStampSettings } from "@/lib/stamps/config-store";
-import { getStampCard } from "@/lib/stamps/store";
-import { listMyVouchers } from "@/lib/stamps/voucher-store";
-import { StampCard } from "@/components/stamps/stamp-card";
-import { MemberQr } from "@/components/stamps/member-qr";
-import { VoucherList } from "@/components/stamps/voucher-list";
 
 export const metadata: Metadata = {
   title: "Rewards",
@@ -22,42 +15,19 @@ export const metadata: Metadata = {
     "Earn Beans on every Naise Coffee order and redeem them for free drinks.",
 };
 
-export const dynamic = "force-dynamic";
-
 export default async function RewardsPage() {
   const store = await getStoreSettings();
   if (!store.rewardsEnabled) redirect("/menu"); // no home for now redirect to menu
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const [settings, tiers, milestones, catalog, stampSettings, stampCard] =
-    await Promise.all([
-      getLoyaltySettings(),
-      listTiers(),
-      listStreakMilestones(),
-      listRewardCatalog(),
-      getStampSettings(),
-      user ? getStampCard() : Promise.resolve(null),
-    ]);
-
-  const vouchers = user && stampSettings.isEnabled ? await listMyVouchers() : [];
+  const [settings, tiers, milestones, catalog] = await Promise.all([
+    getLoyaltySettings(),
+    listTiers(),
+    listStreakMilestones(),
+    listRewardCatalog(),
+  ]);
 
   return (
     <div className="flex flex-col">
-      {stampSettings.isEnabled && (
-        <div className="flex flex-col gap-4 px-5 pt-4">
-          <StampCard
-            initial={stampCard}
-            settings={stampSettings}
-            userId={user?.id ?? null}
-          />
-          {user && <MemberQr userId={user.id} />}
-          <VoucherList vouchers={vouchers} />
-        </div>
-      )}
       <RewardsScreen
         tiers={tiers}
         catalog={catalog}

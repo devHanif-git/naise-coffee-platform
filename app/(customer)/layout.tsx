@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { TabBar } from "@/components/tab-bar";
 import { CartFab } from "@/components/cart-fab";
+import { CartRepricer } from "@/components/cart-repricer";
 import { AuthProvider } from "@/store/auth";
 import { CartProvider } from "@/store/cart";
 import { BeansProvider } from "@/store/beans";
@@ -28,6 +29,7 @@ export default async function CustomerLayout({
       <ProfileProvider>
         <BeansProvider earnRate={beansPerRinggit}>
           <CartProvider>
+            <CartRepricer />
             <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background pb-[calc(4rem+env(safe-area-inset-bottom))]">
               <RouteTracker menuBase="/menu" />
               {children}

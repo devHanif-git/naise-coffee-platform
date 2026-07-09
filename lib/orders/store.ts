@@ -103,6 +103,7 @@ export async function createOrder(
     size_name: item.sizeName ?? null,
     addon_names: item.addonNames,
     unit_price: item.unitPrice,
+    unit_original_price: item.unitOriginalPrice ?? null,
     line_total: item.lineTotal,
     unit_cost: item.productId ? costByProduct.get(item.productId) ?? null : null,
     status: item.status,
@@ -136,18 +137,42 @@ export async function getOrderByToken(token: string): Promise<Order | null> {
     .maybeSingle();
   if (!orderRow) return null;
 
-  const [{ data: itemRows }, { data: adjustmentRows }] = await Promise.all([
-    db.from("order_items").select().eq("order_id", orderRow.id),
-    db
-      .from("order_adjustments")
-      .select()
-      .eq("order_id", orderRow.id)
-      .order("created_at", { ascending: true }),
-  ]);
+  const [{ data: itemRows }, { data: adjustmentRows }, { data: redeemedVoucher }] =
+    await Promise.all([
+      db.from("order_items").select().eq("order_id", orderRow.id),
+      db
+        .from("order_adjustments")
+        .select()
+        .eq("order_id", orderRow.id)
+        .order("created_at", { ascending: true }),
+      // The voucher redeemed against this order (if any), for naming the
+      // voucher row in the manage totals breakdown.
+      db
+        .from("vouchers")
+        .select("type, discount_amount")
+        .eq("redeemed_order_id", orderRow.id)
+        .maybeSingle(),
+    ]);
   const order = rowToOrder(orderRow, (itemRows as OrderItemRow[]) ?? []);
   order.adjustments = ((adjustmentRows as OrderAdjustmentRow[]) ?? []).map(
     rowToOrderAdjustment,
   );
+  if (redeemedVoucher) {
+    order.voucherLabel =
+      redeemedVoucher.type === "free_drink"
+        ? "Free Drink"
+        : `RM${(redeemedVoucher.discount_amount / 100).toFixed(0)} Off`;
+  }
+  // Resolve the attached member's display name so the manage view can show who
+  // the stamp goes to. Best-effort — a missing profile just leaves it unset.
+  if (orderRow.user_id) {
+    const { data: profile } = await db
+      .from("profiles")
+      .select("display_name")
+      .eq("id", orderRow.user_id)
+      .maybeSingle();
+    order.memberName = profile?.display_name ?? undefined;
+  }
   return order;
 }
 
@@ -248,9 +273,37 @@ export async function listOrdersFor(
 
   const { data: orderRows, error } = await query;
   if (error || !orderRows) return [];
-  return orderRows.map((row) =>
+
+  const orders = orderRows.map((row) =>
     rowToOrder(row, (row.order_items as OrderItemRow[]) ?? []),
   );
+
+  // Name the voucher on each order that redeemed one, so the history cards can
+  // label the discount ("Voucher · Free Drink") like the detail view. One
+  // batched lookup keyed by redeemed_order_id; orders without a voucher are
+  // simply absent from the map. `orders` mirrors `orderRows` positionally, so we
+  // match each order to its DB row id by index.
+  const orderIds = orderRows.map((row) => row.id);
+  if (orderIds.length > 0) {
+    const { data: voucherRows } = await db
+      .from("vouchers")
+      .select("redeemed_order_id, type, discount_amount")
+      .in("redeemed_order_id", orderIds);
+    const labelByOrderId = new Map(
+      (voucherRows ?? []).map((v) => [
+        v.redeemed_order_id as string,
+        v.type === "free_drink"
+          ? "Free Drink"
+          : `RM${(v.discount_amount / 100).toFixed(0)} Off`,
+      ]),
+    );
+    orders.forEach((order, i) => {
+      const label = labelByOrderId.get(orderRows[i].id);
+      if (label) order.voucherLabel = label;
+    });
+  }
+
+  return orders;
 }
 
 // Set one drink's status, re-derive the order status, and (when it flips to
@@ -464,6 +517,9 @@ export async function swapOrderItem(
       size_name: next.sizeName ?? null,
       addon_names: next.addonNames,
       unit_price: next.unitPrice,
+      // Staff swaps have no promo concept — original equals the resolved price,
+      // so the swapped line never shows a promo flag on the manage view.
+      unit_original_price: next.unitPrice,
       line_total: newLineTotal,
       unit_cost: costByProduct.get(next.productId) ?? null,
       product_id: next.productId,

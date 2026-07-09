@@ -4,9 +4,10 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SmartImage } from "@/components/ui/smart-image";
 import { useCart } from "@/store/cart";
+import { useRepriceCart } from "@/hooks/use-reprice-cart";
 import { formatPrice } from "@/lib/format";
 import { images } from "@/constants/images";
-import { STORE_CONFIRMATION_RESET_MS } from "@/constants/store";
+import { STORE_CONFIRMATION_RESET_MS, STORE_CONFIRMATION_RESET_HOLD_MS } from "@/constants/store";
 import { placeStoreOrder, attachStoreMember } from "@/app/(store)/store/(kiosk)/actions";
 
 type Method = "cash" | "duitnow-qr" | "unpaid";
@@ -26,24 +27,40 @@ export function StoreCheckout({
 }) {
   const router = useRouter();
   const { items, totalPrice, notes, clear } = useCart();
+  const reprice = useRepriceCart();
   const [method, setMethod] = useState<Method | null>(cashOk ? "cash" : qrOk ? "duitnow-qr" : null);
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<{ orderNumber: string; token: string } | null>(null);
-  // Set true once the customer starts adding member details on the confirmation
-  // screen, so the auto-reset timer doesn't yank the page away mid-entry.
-  const [holdReset, setHoldReset] = useState(false);
+  // Bumps on every keystroke while the customer types their member details. null
+  // means they haven't started — the confirmation uses the short idle reset. Once
+  // they start, it holds a value and each keystroke restarts the long window so
+  // the kiosk only resets after ~3 min of no typing (not the instant 15s).
+  const [typingAt, setTypingAt] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // Confirmation auto-resets to the menu for the next customer — unless the
-  // customer is mid-way through adding their member details for a stamp.
+  // Re-price against the live catalogue once on mount, so a promotion toggled in
+  // the CMS since a drink was added shows the current price here without a page
+  // refresh. Mount-only (empty deps): reprice() reads the current cart itself and
+  // no-ops when nothing changed, so we don't need it in the deps. The server
+  // re-prices authoritatively at placement regardless.
   useEffect(() => {
-    if (!placed || holdReset) return;
+    void reprice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Confirmation auto-resets to the menu for the next customer. If the customer
+  // is mid-way through adding member details, use the long hold window and let
+  // each keystroke (via typingAt changing) restart it.
+  useEffect(() => {
+    if (!placed) return;
+    const delay =
+      typingAt === null ? STORE_CONFIRMATION_RESET_MS : STORE_CONFIRMATION_RESET_HOLD_MS;
     const t = setTimeout(() => {
       clear();
       router.push("/store");
-    }, STORE_CONFIRMATION_RESET_MS);
+    }, delay);
     return () => clearTimeout(t);
-  }, [placed, holdReset, clear, router]);
+  }, [placed, typingAt, clear, router]);
 
   if (placed) {
     return (
@@ -51,7 +68,11 @@ export function StoreCheckout({
         <p className="text-sm uppercase tracking-wider text-muted-foreground">Order placed</p>
         <p className="font-heading text-4xl font-bold">{placed.orderNumber}</p>
         <p className="text-sm text-muted-foreground">Show this number at the counter.</p>
-        <StoreAttachMember token={placed.token} onInteract={() => setHoldReset(true)} onResolved={() => setHoldReset(false)} />
+        <StoreAttachMember
+          token={placed.token}
+          onType={() => setTypingAt((n) => (n === null ? 0 : n + 1))}
+          onResolved={() => setTypingAt(null)}
+        />
         <button type="button" onClick={() => { clear(); router.push("/store"); }} className="mt-4 h-12 rounded-2xl bg-black px-6 text-sm font-semibold text-white">
           Start new order
         </button>
@@ -78,6 +99,10 @@ export function StoreCheckout({
           productId: i.isCustom ? undefined : i.productId,
           name: i.name,
           quantity: i.quantity,
+          // Sent so the server can re-price menu lines against the live
+          // catalogue. Omitted for custom (off-menu) lines — they have no product.
+          sizeId: i.isCustom ? undefined : i.sizeId,
+          addonIds: i.isCustom ? undefined : i.addonIds,
           sizeName: i.sizeName,
           addonNames: i.addonNames,
           unitPrice: i.unitPrice,
@@ -152,11 +177,11 @@ export function StoreCheckout({
 // next customer.
 function StoreAttachMember({
   token,
-  onInteract,
+  onType,
   onResolved,
 }: {
   token: string;
-  onInteract: () => void;
+  onType: () => void;
   onResolved: () => void;
 }) {
   const [value, setValue] = useState("");
@@ -187,7 +212,7 @@ function StoreAttachMember({
       <p className="text-xs uppercase tracking-wider text-muted-foreground">Add member for a stamp</p>
       <input
         value={value}
-        onChange={(e) => { setValue(e.target.value); onInteract(); }}
+        onChange={(e) => { setValue(e.target.value); onType(); }}
         placeholder="Phone or email"
         disabled={pending}
         className="h-12 rounded-2xl border border-border px-4 text-center text-sm"

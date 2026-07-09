@@ -30,7 +30,7 @@ export function VoucherList({ vouchers }: { vouchers: Voucher[] }) {
           const isFree = v.type === "free_drink";
           const headline = isFree ? "Free Drink" : `${formatPrice(v.discountAmount)} Off`;
           const sub = isFree
-            ? `Up to ${formatPrice(v.freeDrinkMaxValue)}`
+            ? `Cheapest drink free · up to ${formatPrice(v.freeDrinkMaxValue)}`
             : `Min spend ${formatPrice(v.minSpend)}`;
           return (
             <li

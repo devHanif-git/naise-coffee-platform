@@ -301,6 +301,7 @@ export type Database = {
           size_name: string | null
           status: Database["public"]["Enums"]["item_status"]
           unit_cost: number | null
+          unit_original_price: number | null
           unit_price: number
           voided_at: string | null
         }
@@ -319,6 +320,7 @@ export type Database = {
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           unit_cost?: number | null
+          unit_original_price?: number | null
           unit_price: number
           voided_at?: string | null
         }
@@ -337,6 +339,7 @@ export type Database = {
           size_name?: string | null
           status?: Database["public"]["Enums"]["item_status"]
           unit_cost?: number | null
+          unit_original_price?: number | null
           unit_price?: number
           voided_at?: string | null
         }
@@ -1239,6 +1242,15 @@ export type Database = {
       }
       reverse_order_rewards: { Args: { p_token: string }; Returns: undefined }
       reverse_order_stamp: { Args: { p_token: string }; Returns: undefined }
+      search_members: {
+        Args: { p_query: string }
+        Returns: {
+          id: string
+          display_name: string
+          phone: string | null
+          email: string | null
+        }[]
+      }
     }
     Enums: {
       bean_txn_category:

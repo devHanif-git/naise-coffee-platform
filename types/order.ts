@@ -20,6 +20,10 @@ export type OrderLine = {
   addonNames: string[];
   // Per-unit price in sen.
   unitPrice: number;
+  // Per-unit price before any promo, in sen. Equals unitPrice when no promotion
+  // applied. Absent for orders placed before this was persisted (older rows), so
+  // the manage view only flags a promo when this is present and exceeds unitPrice.
+  unitOriginalPrice?: number;
   // unitPrice * quantity, in sen.
   lineTotal: number;
   // Fulfilment progress for this drink. New lines start "pending".
@@ -96,6 +100,14 @@ export type Order = {
   // Staff amendments (voids/swaps) to this order, newest last. Populated on the
   // manage read path; absent elsewhere. Drives the amendments panel + recalced total.
   adjustments?: OrderAdjustment[];
+  // Human label for the voucher redeemed against this order, e.g. "Free Drink"
+  // or "RM5 Off". Set on the manage read path from the redeemed vouchers row so
+  // the totals breakdown can name the voucher. Absent when none was used. (Room
+  // for manager-issued custom voucher names later.)
+  voucherLabel?: string;
+  // Display name of the attached member (userId), resolved on the manage read
+  // path so staff see who the stamp goes to. Absent for guest orders.
+  memberName?: string;
 };
 
 // The fields a caller supplies when placing an order. The store fills in the

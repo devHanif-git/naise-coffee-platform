@@ -106,16 +106,10 @@ export function OrderDetail({
   const [, startTransition] = useTransition();
   const router = useRouter();
 
-  // Counter orders (kiosk + admin custom) are handed over at the counter, so the
-  // confirm-and-notify step is wasted movement: completion runs automatically and
-  // we show a success/error state instead.
-  const isCounterOrder = order.source === "store" || order.source === "custom";
-  // Drives the post-completion modal. null = not shown. For counter orders this
-  // opens in "loading" while markReadyAndNotify runs; online orders open it in
-  // "success" after the confirm modal.
-  const [finishState, setFinishState] = useState<
-    "loading" | "success" | "error" | null
-  >(null);
+  // Drives the post-completion WhatsApp handoff modal. Set to "success" after a
+  // confirmed completion when the order has a contact number to notify; orders
+  // with no number skip it and route straight back to the board.
+  const [finishState, setFinishState] = useState<"success" | null>(null);
 
   // Progress is measured over ACTIVE (non-voided) drinks only — a voided line has
   // left the order, so it neither counts toward completion nor blocks it.
@@ -124,6 +118,17 @@ export function OrderDetail({
   const allDone = activeCount > 0 && doneCount === activeCount;
   // wa.me deep link for the manual ready handoff; null when no number on file.
   const waReadyLink = buildWhatsAppReadyLink(order);
+
+  // Discount breakdown, derived from the order as stored (not the live amended
+  // state — the amendment panel + struck total below handle in-session edits).
+  // subtotal = pre-promo; sum of active line totals = promo-applied; total =
+  // after voucher too. So the two gaps give the promo and voucher amounts.
+  // Works for old orders too, since it only reads subtotal/total/line totals.
+  const activeLineSum = order.items
+    .filter((i) => !i.voidedAt)
+    .reduce((sum, i) => sum + i.lineTotal, 0);
+  const promoSavings = Math.max(0, order.subtotal - activeLineSum);
+  const voucherDiscount = Math.max(0, activeLineSum - order.total);
 
   // Whether staff can still amend individual drinks: a persisted, in-progress
   // order with the catalog loaded. Terminal orders (completed/cancelled) are
@@ -163,32 +168,21 @@ export function OrderDetail({
     setCompletedAt((prev) =>
       nowAllDone ? (prev ?? new Date().toISOString()) : undefined,
     );
-    // The moment the last drink turns done on a real, not-yet-complete order:
-    // counter orders auto-complete (no confirm); online orders open the confirm
-    // modal. Guard on persist so a read-only render never fires completion.
-    const autoComplete =
-      nowAllDone && status === "done" && persist && isCounterOrder;
+    // The moment the last drink turns done on a real, not-yet-complete order,
+    // open the confirm modal — for every order, counter or online. Guard on
+    // persist so a read-only render never fires completion.
     if (nowAllDone && status === "done" && persist) {
       setLastDoneIndex(index);
-      if (isCounterOrder) {
-        // Surface the completing state now; the actual completion runs below,
-        // after the drink write lands (see the transition).
-        setCompleteError(null);
-        setFinishState("loading");
-      } else {
-        setShowComplete(true);
-      }
+      setCompleteError(null);
+      setShowComplete(true);
     }
 
     if (persist) {
       startTransition(async () => {
-        // Persist the drink status FIRST. This write derives the order status
-        // from the drinks — "ready" once every drink is done — and clears
-        // completed_at. Completing before it lands would be overwritten, leaving
-        // the order stuck in "ready" even though all drinks are done. So for a
-        // counter order we auto-complete only after this write finishes.
+        // Persist the drink status. This write derives the order status from the
+        // drinks — "ready" once every drink is done — and clears completed_at.
+        // The explicit confirm modal (opened above) drives completion after this.
         await updateDrinkStatus(order.token, index, status);
-        if (autoComplete) completeCounterOrder();
       });
     }
   }
@@ -264,12 +258,8 @@ export function OrderDetail({
   // automatic flow: counter orders complete directly; online orders open the
   // confirm modal so staff still get the notify step.
   function completeNow() {
-    if (isCounterOrder) {
-      completeCounterOrder();
-    } else {
-      setCompleteError(null);
-      setShowComplete(true);
-    }
+    setCompleteError(null);
+    setShowComplete(true);
   }
 
   // True once every drink is done.
@@ -279,24 +269,6 @@ export function OrderDetail({
   // staff never have to hit Back on a finished order.
   function goToBoard() {
     router.push(backHref);
-  }
-
-  // Counter-order completion: no confirm step. Runs markReadyAndNotify and shows
-  // the finished modal. On failure (almost always an unpaid order) we surface the
-  // error in the modal; dismissing it leaves staff on the page to set payment,
-  // after which resolvePayment auto-resumes this.
-  function completeCounterOrder() {
-    setCompleteError(null);
-    setFinishState("loading");
-    startTransition(async () => {
-      const res = await markReadyAndNotify(order.token);
-      if (!res.ok) {
-        setCompleteError(res.error);
-        setFinishState("error");
-        return;
-      }
-      setFinishState("success");
-    });
   }
 
   function confirmComplete() {
@@ -316,10 +288,15 @@ export function OrderDetail({
         setCompleting(false);
       }
       setShowComplete(false);
-      // Order is complete. Show the success state, where staff send the WhatsApp
-      // ready notice from a real anchor tap (not popup-blocked) that also routes
-      // back to the board. No same-tab jump here, so staff land on /manage.
-      setFinishState("success");
+      // Order is complete. When it has a contact number, show the WhatsApp
+      // handoff modal (a real anchor tap, not popup-blocked, that also routes
+      // back to the board). With no number there's nobody to message, so skip
+      // the extra tap and go straight back to /manage.
+      if (waReadyLink) {
+        setFinishState("success");
+      } else {
+        goToBoard();
+      }
     });
   }
 
@@ -362,11 +339,11 @@ export function OrderDetail({
         return;
       }
       setPaymentMethod(method);
-      // If this was a counter order blocked on payment with every drink already
-      // done, finish it now so staff don't re-trigger completion by hand.
-      if (isCounterOrder && allDone) {
-        setFinishState(null);
-        completeCounterOrder();
+      // If the order was blocked on payment with every drink already done, open
+      // the confirm modal so staff can complete it now without re-swiping.
+      if (allDone) {
+        setCompleteError(null);
+        setShowComplete(true);
       }
     });
   }
@@ -633,10 +610,16 @@ export function OrderDetail({
         </section>
       )}
 
-      {/* Attach a loyalty member to this order so the stamp is granted. */}
+      {/* Attach a loyalty member to this order so the stamp is granted. When a
+          member already came with the order, this is a slim confirmation; when
+          not, staff can scan the member QR or key in phone/email to bind one. */}
       {persist && (
         <div className="mt-5">
-          <AttachMember token={order.token} attached={Boolean(order.userId)} />
+          <AttachMember
+            token={order.token}
+            attached={Boolean(order.userId)}
+            memberName={order.memberName}
+          />
         </div>
       )}
 
@@ -689,10 +672,43 @@ export function OrderDetail({
         </section>
       )}
 
+      {/* Discount breakdown — only when a promo and/or voucher applied. Carries
+          the divider above the totals when there are no amendments (which supply
+          their own). Negatives in rose, matching the customer checkout. */}
+      {(promoSavings > 0 || voucherDiscount > 0) && (
+        <section
+          className={
+            "mt-5 flex flex-col gap-2 " +
+            (adjustments.length > 0 ? "" : "mt-7 border-t border-border pt-5")
+          }
+        >
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="tabular-nums">{formatPrice(order.subtotal)}</span>
+          </div>
+          {promoSavings > 0 && (
+            <div className="flex items-baseline justify-between text-xs font-medium text-rose-600">
+              <span>Promo savings</span>
+              <span className="tabular-nums">−{formatPrice(promoSavings)}</span>
+            </div>
+          )}
+          {voucherDiscount > 0 && (
+            <div className="flex items-baseline justify-between text-xs font-medium text-rose-600">
+              <span>{order.voucherLabel ? `Voucher · ${order.voucherLabel}` : "Voucher"}</span>
+              <span className="tabular-nums">−{formatPrice(voucherDiscount)}</span>
+            </div>
+          )}
+        </section>
+      )}
+
       <section
         className={
-          "mt-5 flex items-baseline justify-between text-base font-bold " +
-          (adjustments.length > 0 ? "" : "mt-7 border-t border-border pt-5")
+          "flex items-baseline justify-between text-base font-bold " +
+          // The breakdown block (when shown) already supplies the divider +
+          // top spacing; amendments do too. Only add our own when neither is present.
+          (adjustments.length > 0 || promoSavings > 0 || voucherDiscount > 0
+            ? "mt-3"
+            : "mt-7 border-t border-border pt-5")
         }
       >
         <span>Total</span>
@@ -832,15 +848,11 @@ export function OrderDetail({
           onClose={() => setShowChangePayment(false)}
         />
       )}
-      {finishState && (
+      {finishState === "success" && waReadyLink && (
         <OrderFinishedModal
           orderNumber={order.orderNumber}
-          state={finishState}
-          variant={isCounterOrder ? "counter" : "online"}
           waReadyLink={waReadyLink}
-          error={completeError}
           onDone={goToBoard}
-          onClose={() => setFinishState(null)}
         />
       )}
 

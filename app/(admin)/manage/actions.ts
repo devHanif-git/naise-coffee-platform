@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { canManageOrders } from "@/lib/auth/session";
 import { reverseOrderRewards } from "@/lib/rewards/store";
 import { grantOrderStamp, reverseOrderStamp } from "@/lib/stamps/store";
-import { attachOrderMember } from "@/lib/stamps/member";
+import { attachOrderMember, searchMembers } from "@/lib/stamps/member";
 import { verifyStorePasscode } from "@/lib/auth/store-passcode";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
@@ -30,6 +30,7 @@ import {
 } from "@/lib/orders/status";
 import { isDateRangeKey, type DateRangeKey } from "@/lib/orders/range";
 import type { ItemStatus, Order, OrderStatus } from "@/types/order";
+import type { MemberSearchResult } from "@/types/reward";
 
 export type OrderActionResult =
   | { ok: true; orderStatus: OrderStatus }
@@ -37,6 +38,10 @@ export type OrderActionResult =
 
 export type AttachActionResult =
   | { ok: true; displayName: string; phoneMasked: string | null }
+  | { ok: false; error: string };
+
+export type SearchMembersResult =
+  | { ok: true; members: MemberSearchResult[] }
   | { ok: false; error: string };
 
 // Amendment actions (void/swap) return the fully refreshed order so the client
@@ -325,4 +330,17 @@ export async function attachMemberAction(
   }
   revalidatePath(`/manage/${token}`);
   return { ok: true, displayName: res.displayName, phoneMasked: res.phoneMasked };
+}
+
+// Staff wildcard member search for the attach flow. Returns up to 10 candidates
+// matching partial name / phone / email; staff then pick one to attach. The RPC
+// enforces the staff gate + a 2-char minimum, so a short query returns empty.
+export async function searchMembersAction(
+  query: string,
+): Promise<SearchMembersResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  const members = await searchMembers(query.trim());
+  return { ok: true, members };
 }

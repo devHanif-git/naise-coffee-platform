@@ -49,6 +49,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# CHIP payment gateway credentials — never commit
+chip.env
+
+# CHIP sandbox scratch scripts — local exploration only, never commit/deploy
+chip-sandbox/
+
 # local MCP config (may contain tokens)
 .mcp.json
 

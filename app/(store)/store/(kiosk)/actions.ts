@@ -12,11 +12,17 @@ import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 import { STORE_OWNER_ID } from "@/constants/store";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
+import { listProductsFresh } from "@/lib/menu/store";
+import { repriceLine } from "@/lib/promotions/reprice";
 
 type StoreOrderItem = {
   productId?: string;
   name: string;
   quantity: number;
+  // Size + add-on ids drive the authoritative server-side re-price against the
+  // live catalogue. Absent on custom (off-menu) lines.
+  sizeId?: string;
+  addonIds?: string[];
   sizeName?: string;
   addonNames: string[];
   unitPrice: number;
@@ -88,17 +94,46 @@ export async function placeStoreOrder(
       return { ok: false, error: `No longer available: ${blocked.join(", ")}.` };
   }
 
-  const lines: OrderLine[] = input.items.map((item) => ({
-    name: item.name,
-    quantity: item.quantity,
-    sizeName: item.sizeName,
-    addonNames: item.addonNames,
-    unitPrice: item.unitPrice,
-    lineTotal: item.unitPrice * item.quantity,
-    status: "pending",
-    isCustom: item.isCustom ?? false,
-    productId: item.isCustom ? null : item.productId,
-  }));
+  // Re-price menu lines against the live catalogue — the kiosk shares the
+  // customer product page, so a promotion applies to in-store drinks too. Never
+  // trust the price the client sent; a promo may have started or ended after the
+  // drink was added to the kiosk cart. Custom (off-menu) lines have no product
+  // to re-price against, so they keep their staff-entered price.
+  const catalog = await listProductsFresh();
+  const lines: OrderLine[] = input.items.map((item) => {
+    const repriced = item.isCustom
+      ? null
+      : repriceLine(
+          {
+            productId: item.productId,
+            sizeId: item.sizeId,
+            addonIds: item.addonIds ?? [],
+          },
+          catalog,
+        );
+    const unitPrice = repriced?.unitPrice ?? item.unitPrice;
+    const unitOriginalPrice = repriced?.unitOriginalPrice ?? item.unitPrice;
+    return {
+      name: item.name,
+      quantity: item.quantity,
+      sizeName: item.sizeName,
+      addonNames: item.addonNames,
+      unitPrice,
+      unitOriginalPrice,
+      lineTotal: unitPrice * item.quantity,
+      status: "pending",
+      isCustom: item.isCustom ?? false,
+      productId: item.isCustom ? null : item.productId,
+    };
+  });
+
+  // Authoritative money from the re-priced lines. subtotal is the pre-promo sum,
+  // total the promo-applied sum; the client-sent values are ignored for charging.
+  const subtotal = lines.reduce(
+    (sum, l) => sum + (l.unitOriginalPrice ?? l.unitPrice) * l.quantity,
+    0,
+  );
+  const total = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
   let order;
   try {
@@ -107,8 +142,8 @@ export async function placeStoreOrder(
         ownerId: STORE_OWNER_ID,
         paymentMethod: input.paymentMethod,
         items: lines,
-        subtotal: input.subtotal,
-        total: input.total,
+        subtotal,
+        total,
         notes: input.notes?.trim() || undefined,
         source: "store",
       },

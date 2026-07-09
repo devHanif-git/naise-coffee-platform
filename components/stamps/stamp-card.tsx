@@ -113,7 +113,7 @@ export function StampCard({
                   className={cn(
                     "relative flex aspect-square w-full items-center justify-center rounded-full",
                     filled
-                      ? "bg-white"
+                      ? "" // stamp art has white lettering; sits on the black card so it reads
                       : "border-2 border-dashed border-white/25",
                     isMilestone && !filled && "border-amber-400/70",
                     isMilestone && "ring-2 ring-amber-400/80 ring-offset-2 ring-offset-black",
@@ -122,16 +122,33 @@ export function StampCard({
                 >
                   {filled ? (
                     <Image
-                      src={images.logoTransparent}
+                      src={images.stamp}
                       alt=""
-                      width={40}
-                      height={40}
+                      width={48}
+                      height={48}
                       aria-hidden
-                      className="size-[62%] object-contain"
+                      className="size-[118%] max-w-none object-contain"
                     />
                   ) : (
                     <span className="text-[0.6875rem] font-bold text-white/40 tabular-nums">
                       {n}
+                    </span>
+                  )}
+
+                  {/* Milestone celebration — a gold ring pulse + specks flying
+                      out, fired once when this milestone slot is the one just
+                      stamped. Sits outside the clipped image wrapper so the
+                      specks can travel past the slot edge. */}
+                  {isMilestone && justStamped === n && (
+                    <span aria-hidden className="pointer-events-none absolute inset-0">
+                      <span className="naise-burst-ring absolute inset-0 rounded-full ring-2 ring-amber-400/90" />
+                      {Array.from({ length: 8 }, (_, i) => (
+                        <span
+                          key={i}
+                          className="naise-burst-speck absolute left-1/2 top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-400"
+                          style={{ ["--a" as string]: `${i * 45}deg` }}
+                        />
+                      ))}
                     </span>
                   )}
                 </div>

@@ -71,6 +71,21 @@ type CartContextValue = {
   // redeemed drink disappeared, then acknowledges to reset it.
   rewardsRemoved: number;
   acknowledgeRewardsRemoved: () => void;
+  // Overwrites the price fields of lines by key with authoritative values
+  // recomputed from the live catalogue (see CartRepricer). Silently corrects a
+  // stale promo snapshot. A no-op — returning the same array — when every patch
+  // already matches, so it never triggers a needless re-render or a loop.
+  repriceItems: (patches: Record<string, LineRepricePatch>) => void;
+};
+
+// The price fields CartRepricer overwrites on a line after re-pricing it against
+// the live catalogue. discountLabel/discountPercentOff are cleared (undefined)
+// when a promotion has ended.
+export type LineRepricePatch = {
+  unitPrice: number;
+  unitOriginalPrice: number;
+  discountLabel?: string;
+  discountPercentOff?: number;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -153,6 +168,38 @@ export function CartProvider({
   }, [hydrated, authHydrated, authUserId]);
 
   const acknowledgeRewardsRemoved = useCallback(() => setRewardsRemoved(0), []);
+
+  const repriceItems = useCallback(
+    (patches: Record<string, LineRepricePatch>) => {
+      setItems((prev) => {
+        let changed = false;
+        const next = prev.map((i) => {
+          const patch = patches[i.key];
+          if (!patch) return i;
+          if (
+            i.unitPrice === patch.unitPrice &&
+            i.unitOriginalPrice === patch.unitOriginalPrice &&
+            i.discountLabel === patch.discountLabel &&
+            i.discountPercentOff === patch.discountPercentOff
+          ) {
+            return i;
+          }
+          changed = true;
+          return {
+            ...i,
+            unitPrice: patch.unitPrice,
+            unitOriginalPrice: patch.unitOriginalPrice,
+            discountLabel: patch.discountLabel,
+            discountPercentOff: patch.discountPercentOff,
+          };
+        });
+        // Returning the same reference when nothing changed keeps React from
+        // re-rendering (and the persist effect from re-running) on every poll.
+        return changed ? next : prev;
+      });
+    },
+    [],
+  );
 
   const addItem = useCallback((input: AddInput) => {
     const key = buildKey(input.productId, input.sizeId, input.addonIds, input.rewardId);
@@ -251,8 +298,9 @@ export function CartProvider({
       clear,
       rewardsRemoved,
       acknowledgeRewardsRemoved,
+      repriceItems,
     };
-  }, [items, hydrated, notes, addItem, updateItem, incrementItem, decrementItem, removeItem, clear, rewardsRemoved, acknowledgeRewardsRemoved]);
+  }, [items, hydrated, notes, addItem, updateItem, incrementItem, decrementItem, removeItem, clear, rewardsRemoved, acknowledgeRewardsRemoved, repriceItems]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }
