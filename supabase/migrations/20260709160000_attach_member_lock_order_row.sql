@@ -7,8 +7,11 @@
 -- Fix: lock the order row with SELECT ... FOR UPDATE so the read/check/update is
 -- atomic per transaction. A concurrent attach blocks until the first commits,
 -- then reads the now-set user_id and hits the different_member_attached guard.
--- Only the locking select changes; all other behaviour is identical to
--- 20260709140000_attach_member_fills_contact_phone.sql.
+--
+-- This rebuilds on the NORMALIZED bodies from
+-- 20260709150000_attach_member_normalize_phone.sql (canonicalised phone lookup
+-- via normalize_my_phone) — the ONLY change here is adding `for update` to the
+-- order select. Do not drop the v_phone fallback.
 
 create or replace function public.attach_order_member(p_token uuid, p_identifier text)
  returns jsonb
@@ -21,6 +24,7 @@ declare
   v_order  public.orders%rowtype;
   v_uid    uuid;
   v_ident  text := btrim(p_identifier);
+  v_phone  text := public.normalize_my_phone(p_identifier);
   v_prof   public.profiles%rowtype;
 begin
   if v_role not in ('admin','manager','staff') then
@@ -38,8 +42,13 @@ begin
     if not exists (select 1 from public.profiles where id = v_uid) then v_uid := null; end if;
   exception when invalid_text_representation then v_uid := null;
   end;
+  -- Phone: exact first, then canonicalised (so 011…, 6011…, +6011… all match).
   if v_uid is null then
     select id into v_uid from public.profiles where phone = v_ident limit 1;
+  end if;
+  if v_uid is null and v_phone is not null then
+    select id into v_uid from public.profiles
+      where public.normalize_my_phone(phone) = v_phone limit 1;
   end if;
   if v_uid is null then
     select id into v_uid from auth.users where lower(email) = lower(v_ident) limit 1;
@@ -85,6 +94,7 @@ declare
   v_order  public.orders%rowtype;
   v_uid    uuid;
   v_ident  text := btrim(p_identifier);
+  v_phone  text := public.normalize_my_phone(p_identifier);
   v_prof   public.profiles%rowtype;
 begin
   -- Lock the order row (see attach_order_member above).
@@ -98,6 +108,10 @@ begin
   end;
   if v_uid is null then
     select id into v_uid from public.profiles where phone = v_ident limit 1;
+  end if;
+  if v_uid is null and v_phone is not null then
+    select id into v_uid from public.profiles
+      where public.normalize_my_phone(phone) = v_phone limit 1;
   end if;
   if v_uid is null then
     select id into v_uid from auth.users where lower(email) = lower(v_ident) limit 1;
