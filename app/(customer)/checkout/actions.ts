@@ -147,7 +147,8 @@ export async function placeOrder(
   // added to the (localStorage) cart, so the snapshot can be stale. A line we
   // can't faithfully re-price (custom/off-menu, or a size/add-on that changed)
   // falls back to its sent price; archived/sold-out products are already blocked
-  // by the availability check above. The catalogue read is cache-backed.
+  // by the availability check above. The catalogue read is fresh (uncached) so a
+  // promo toggled moments ago is seen immediately, not through the 60s cache.
   const catalog = await listProductsFresh();
   const lines: OrderLine[] = input.items.map((item) => {
     const repriced = repriceLine(
@@ -210,13 +211,20 @@ export async function placeOrder(
       }
       voucherDiscount = Math.min(v.discount_amount, subtotal);
     } else {
-      // free_drink: discount the cheapest single drink up to the cap. The
-      // customer pays for the rest, so the free drink is the lowest-value line
-      // (e.g. RM9 + RM10 → the RM9 is free). The order must have another paid
-      // line, which the stamp qualifying rule also requires elsewhere. Uses the
-      // re-priced unit prices so a promo can't shift which line is "cheapest".
-      const cheapest =
-        lines.length > 0 ? Math.min(...lines.map((l) => l.unitPrice)) : 0;
+      // free_drink: discount the cheapest PAID drink up to the cap. Reward lines
+      // are already free (unitPrice 0), so including them would peg "cheapest" at
+      // 0 and waste the voucher — exclude them. The customer pays for the rest,
+      // so the free drink is the lowest-value paid line (e.g. RM9 + RM10 → the
+      // RM9 is free). Uses re-priced unit prices so a promo can't shift which
+      // line is "cheapest". No paid line means nothing for the voucher to apply
+      // to, so reject rather than burn it for zero.
+      const paidUnitPrices = lines
+        .filter((l) => !l.isReward)
+        .map((l) => l.unitPrice);
+      if (paidUnitPrices.length === 0) {
+        return { ok: false, error: "Add a paid drink to use this voucher." };
+      }
+      const cheapest = Math.min(...paidUnitPrices);
       voucherDiscount = Math.min(v.free_drink_max_value, cheapest, subtotal);
     }
     voucherToRedeem = v.id;

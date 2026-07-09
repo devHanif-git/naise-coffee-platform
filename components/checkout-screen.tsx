@@ -133,9 +133,12 @@ export function CheckoutScreen({
 
   const selectedVoucher = vouchers.find((v) => v.id === selectedVoucherId) ?? null;
   // Mirror the server discount rule (checkout/actions.ts). Display-only; the
-  // server recomputes authoritatively. free_drink applies to the cheapest line.
+  // server recomputes authoritatively. free_drink applies to the cheapest PAID
+  // line — reward lines are already free (unitPrice 0), so including them would
+  // wrongly show a 0.00 discount when a paid drink should be the free one.
+  const paidUnitPrices = items.filter((i) => !i.isReward).map((i) => i.unitPrice);
   const cheapestUnit =
-    items.length > 0 ? Math.min(...items.map((i) => i.unitPrice)) : 0;
+    paidUnitPrices.length > 0 ? Math.min(...paidUnitPrices) : 0;
   const voucherDiscount = !selectedVoucher
     ? 0
     : selectedVoucher.type === "rm_off"
