@@ -502,7 +502,17 @@ export async function swapOrderItem(
   }
 
   const newLineTotal = next.unitPrice * target.quantity;
+  // `total` tracks the charged amount, so its delta is against the charged
+  // line_total. `subtotal` tracks the PRE-promo sum (unit_original_price * qty),
+  // so if the swapped-out line was promo'd, its subtotal contribution was the
+  // original price, not line_total — using `delta` there would leave subtotal
+  // inflated and overstate promo savings in the breakdown. The swapped-in line
+  // has no promo (original == unitPrice), so its subtotal contribution is
+  // newLineTotal.
   const delta = newLineTotal - target.line_total;
+  const oldSubtotalContribution =
+    (target.unit_original_price ?? target.unit_price) * target.quantity;
+  const subtotalDelta = newLineTotal - oldSubtotalContribution;
 
   // Re-snapshot goods cost for the new product (admin-only tables → admin client).
   const costByProduct = await getProductCosts(createAdminClient(), [
@@ -550,7 +560,7 @@ export async function swapOrderItem(
   const { error: ordErr } = await db
     .from("orders")
     .update({
-      subtotal: Math.max(0, orderRow.subtotal + delta),
+      subtotal: Math.max(0, orderRow.subtotal + subtotalDelta),
       total: Math.max(0, orderRow.total + delta),
       status: deriveOrderStatus(nextItems),
       completed_at: null,

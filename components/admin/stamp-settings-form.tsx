@@ -25,7 +25,12 @@ export function StampSettingsForm({ initial }: { initial: StampSettings }) {
   }
 
   const rm = (sen: number) => (sen / 100).toFixed(2);
-  const toSen = (rm: string) => Math.round(parseFloat(rm || "0") * 100);
+  // parseFloat("abc") is NaN and "abc" is truthy, so `|| "0"` won't catch it —
+  // fall back to 0 for any non-finite parse so form state never holds NaN.
+  const toSen = (rm: string) => {
+    const n = parseFloat(rm);
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  };
 
   return (
     <section className="rounded-2xl border border-border bg-white p-4">

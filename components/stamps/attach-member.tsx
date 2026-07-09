@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import { BadgeCheck, Loader2, QrCode, Search, UserPlus, X } from "lucide-react";
 import { attachMemberAction, searchMembersAction } from "@/app/(admin)/manage/actions";
@@ -33,6 +33,11 @@ export function AttachMember({
   const [attaching, startAttach] = useTransition();
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+
+  // Release the camera if the component unmounts mid-scan (navigation, order
+  // refresh, or the parent hiding this control). Otherwise stop() only runs on
+  // Cancel or a successful decode, leaving the camera track live.
+  useEffect(() => () => controlsRef.current?.stop(), []);
 
   function runSearch() {
     const q = query.trim();
