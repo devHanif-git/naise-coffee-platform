@@ -9,9 +9,11 @@ import {
   Banknote,
   Check,
   ChevronLeft,
+  Coffee,
   Copy,
   CreditCard,
   Flame,
+  Ticket,
   Landmark,
   Loader2,
   QrCode,
@@ -29,15 +31,17 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
 import { useBeans } from "@/store/beans";
-import type { StreakAward } from "@/types/reward";
+import type { StreakAward, Voucher } from "@/types/reward";
 import type { PaymentMethod, PaymentMethodId } from "@/types/payment";
 import type { BankDetails } from "@/lib/settings/payments";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { StoreClosedBanner } from "@/components/store-closed-banner";
 import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
+import { VoucherApplyModal } from "@/components/stamps/voucher-apply-modal";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { uploadReceipt } from "@/lib/orders/receipt";
 import { useProfile } from "@/store/profile";
+import { useRepriceCart } from "@/hooks/use-reprice-cart";
 
 // Icons live in the UI layer so the data file stays pure content. Branded
 // wallets use a representative lucide glyph (no official logos shipped yet);
@@ -59,15 +63,18 @@ export function CheckoutScreen({
   methods,
   bank,
   duitnowQrUrl,
+  vouchers,
 }: {
   closedMessage?: string | null;
   methods: PaymentMethod[];
   bank: BankDetails;
   duitnowQrUrl: string | null;
+  vouchers: Voucher[];
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
     useCart();
+  const reprice = useRepriceCart();
   const { user } = useAuth();
   const { canAfford } = useBeans();
   const { profile, updateProfile } = useProfile();
@@ -89,6 +96,10 @@ export function CheckoutScreen({
   const [enteredPhone, setEnteredPhone] = useState<string | null>(null);
   // Controls the phone prompt sheet shown before placing when no number is known.
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
+  const [selectedVoucherId, setSelectedVoucherId] = useState<string | null>(null);
+  // Voucher pending a one-time-use confirmation. Applying opens the modal;
+  // deselecting an already-applied voucher skips it (no warning to remove).
+  const [voucherToConfirm, setVoucherToConfirm] = useState<string | null>(null);
 
   const hasItems = items.length > 0;
 
@@ -100,6 +111,16 @@ export function CheckoutScreen({
     if (hydrated && !hasItems && !placedNumber) router.replace("/menu");  // no cart for now redirect to menu
   }, [hydrated, hasItems, placedNumber, router]);
 
+  // Re-price against the live catalogue when checkout mounts, so a promo toggled
+  // in the CMS since the item was added is reflected here without a page refresh.
+  // Fires once hydrated; reprice() reads the current cart itself and no-ops when
+  // nothing changed, so it needn't be in the deps. The server re-prices
+  // authoritatively at placement anyway — this just keeps the displayed total honest.
+  useEffect(() => {
+    if (hydrated) void reprice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
   // Avoid a flash of the empty/redirecting state before localStorage loads.
   if (!placedNumber && (!hydrated || !hasItems)) return null;
 
@@ -109,6 +130,23 @@ export function CheckoutScreen({
   const featured = methods.filter((m) => m.featured);
   const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
+
+  const selectedVoucher = vouchers.find((v) => v.id === selectedVoucherId) ?? null;
+  // Mirror the server discount rule (checkout/actions.ts). Display-only; the
+  // server recomputes authoritatively. free_drink applies to the cheapest PAID
+  // line — reward lines are already free (unitPrice 0), so including them would
+  // wrongly show a 0.00 discount when a paid drink should be the free one.
+  const paidUnitPrices = items.filter((i) => !i.isReward).map((i) => i.unitPrice);
+  const cheapestUnit =
+    paidUnitPrices.length > 0 ? Math.min(...paidUnitPrices) : 0;
+  const voucherDiscount = !selectedVoucher
+    ? 0
+    : selectedVoucher.type === "rm_off"
+      ? totalOriginal >= selectedVoucher.minSpend
+        ? Math.min(selectedVoucher.discountAmount, totalOriginal)
+        : 0
+      : Math.min(selectedVoucher.freeDrinkMaxValue, cheapestUnit, totalOriginal);
+  const totalAfterVoucher = Math.max(0, totalPrice - voucherDiscount);
 
   // Every checkout visitor is signed in (the route is gated), so any enabled
   // method — including members-only ones like Cash — is selectable.
@@ -182,9 +220,13 @@ export function CheckoutScreen({
           productId: item.productId,
           name: item.name,
           quantity: item.quantity,
+          // Sent so the server can re-price the line against the live catalogue.
+          sizeId: item.sizeId,
+          addonIds: item.addonIds,
           sizeName: item.sizeName,
           addonNames: item.addonNames,
           unitPrice: item.unitPrice,
+          unitOriginalPrice: item.unitOriginalPrice,
           isReward: item.isReward,
           rewardCost: item.rewardCost,
         })),
@@ -198,6 +240,7 @@ export function CheckoutScreen({
         ownerId,
         proofOfPaymentPath,
         contactPhone: phoneOverride ?? resolveContactPhone(),
+        voucherId: selectedVoucherId ?? undefined,
       });
 
       if (!result.ok) {
@@ -501,6 +544,8 @@ export function CheckoutScreen({
               .filter(Boolean)
               .join(", ");
             const lineTotal = item.unitPrice * item.quantity;
+            const lineOriginal = item.unitOriginalPrice * item.quantity;
+            const onSale = lineOriginal > lineTotal && !item.isReward;
             return (
               <li
                 key={item.key}
@@ -522,10 +567,27 @@ export function CheckoutScreen({
                       {item.rewardCost ? ` · ${item.rewardCost.toLocaleString()} Beans` : ""}
                     </span>
                   )}
+                  {onSale && (
+                    <span className="text-[0.6875rem] font-semibold text-rose-600">
+                      Save {formatPrice(lineOriginal - lineTotal)}
+                      {item.discountPercentOff ? ` · ${item.discountPercentOff}% off` : ""}
+                    </span>
+                  )}
                 </div>
-                <span className="shrink-0 font-semibold tabular-nums">
-                  {item.isReward && lineTotal === 0 ? "RM 0.00" : formatPrice(lineTotal)}
-                </span>
+                {onSale ? (
+                  <div className="flex shrink-0 flex-col items-end">
+                    <span className="font-semibold tabular-nums text-rose-600">
+                      {formatPrice(lineTotal)}
+                    </span>
+                    <span className="text-[0.6875rem] font-medium tabular-nums text-muted-foreground line-through">
+                      {formatPrice(lineOriginal)}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="shrink-0 font-semibold tabular-nums">
+                    {item.isReward && lineTotal === 0 ? "RM 0.00" : formatPrice(lineTotal)}
+                  </span>
+                )}
               </li>
             );
           })}
@@ -545,9 +607,90 @@ export function CheckoutScreen({
         )}
       </section>
 
-      <section
-        className="mt-6 flex flex-col gap-3 border-t border-border pt-4 naise-rise [animation-delay:120ms]"
-      >
+      {vouchers.length > 0 && (
+        <section className="mt-6 flex flex-col gap-2.5 border-t border-border pt-4 naise-rise [animation-delay:120ms]">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Voucher
+          </span>
+          {vouchers.map((v) => {
+            const eligible = v.type === "free_drink" || totalOriginal >= v.minSpend;
+            const isFree = v.type === "free_drink";
+            const headline = isFree ? "Free Drink" : `${formatPrice(v.discountAmount)} Off`;
+            const sub = isFree
+              ? `Cheapest drink free · up to ${formatPrice(v.freeDrinkMaxValue)}`
+              : `Min spend ${formatPrice(v.minSpend)}`;
+            const checked = selectedVoucherId === v.id;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                disabled={!eligible}
+                onClick={() =>
+                  checked ? setSelectedVoucherId(null) : setVoucherToConfirm(v.id)
+                }
+                className={cn(
+                  // Ticket: icon stub + body split by a notched seam, matching
+                  // the My Vouchers list on the profile screen.
+                  "relative flex items-stretch overflow-hidden rounded-2xl text-left outline-none transition-transform focus-visible:ring-3 focus-visible:ring-ring/50",
+                  checked
+                    ? "bg-black text-white"
+                    : "border border-border bg-white text-foreground",
+                  eligible ? "hover:scale-[1.01] active:scale-[0.99]" : "opacity-50",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex w-14 shrink-0 items-center justify-center",
+                    checked ? "bg-white/10" : "bg-neutral-100",
+                  )}
+                >
+                  {isFree ? (
+                    <Coffee className="size-5" strokeWidth={2} aria-hidden />
+                  ) : (
+                    <Ticket className="size-5" strokeWidth={2} aria-hidden />
+                  )}
+                </div>
+
+                {/* Notches on the divider seam */}
+                <span
+                  aria-hidden
+                  className="absolute left-[3.25rem] top-0 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background"
+                />
+                <span
+                  aria-hidden
+                  className="absolute bottom-0 left-[3.25rem] size-3 -translate-x-1/2 translate-y-1/2 rounded-full bg-background"
+                />
+
+                <div className="flex flex-1 items-center justify-between gap-2 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-heading text-base font-bold uppercase tracking-wide">
+                      {headline}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-[0.6875rem]",
+                        checked ? "text-white/60" : "text-muted-foreground",
+                      )}
+                    >
+                      {sub}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide",
+                      checked ? "text-white" : eligible ? "text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {checked ? "Applied" : eligible ? "Apply" : "Spend more"}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </section>
+      )}
+
+      <section className="mt-6 flex flex-col gap-3 border-t border-border pt-4 naise-rise [animation-delay:120ms]">
         <div className="flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground">Subtotal</span>
           <span className="tabular-nums">{formatPrice(totalOriginal)}</span>
@@ -558,13 +701,19 @@ export function CheckoutScreen({
             <span className="tabular-nums">−{formatPrice(totalSaving)}</span>
           </div>
         )}
+        {voucherDiscount > 0 && (
+          <div className="flex items-baseline justify-between text-xs font-medium text-rose-600">
+            <span>Voucher</span>
+            <span className="tabular-nums">−{formatPrice(voucherDiscount)}</span>
+          </div>
+        )}
         <div className="flex items-baseline justify-between text-xs">
           <span className="text-muted-foreground">Delivery/Pick-up</span>
           <span className="tabular-nums">{formatPrice(0)}</span>
         </div>
         <div className="flex items-baseline justify-between text-sm font-bold">
           <span>Total</span>
-          <span className="tabular-nums">{formatPrice(totalPrice)}</span>
+          <span className="tabular-nums">{formatPrice(totalAfterVoucher)}</span>
         </div>
       </section>
 
@@ -608,7 +757,7 @@ export function CheckoutScreen({
               Place Order
             </span>
             <span className="text-xs font-bold tabular-nums">
-              {formatPrice(totalPrice)}
+              {formatPrice(totalAfterVoucher)}
             </span>
           </>
         )}
@@ -630,6 +779,16 @@ export function CheckoutScreen({
             // Pass the number explicitly — setEnteredPhone hasn't re-rendered yet.
             void placeOrder(phone);
           }}
+        />
+      )}
+
+      {voucherToConfirm && (
+        <VoucherApplyModal
+          onConfirm={() => {
+            setSelectedVoucherId(voucherToConfirm);
+            setVoucherToConfirm(null);
+          }}
+          onClose={() => setVoucherToConfirm(null)}
         />
       )}
     </main>

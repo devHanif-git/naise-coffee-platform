@@ -8,6 +8,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import { useCart } from "@/store/cart";
 import { useOrderRoutes } from "@/store/order-mode";
+import { useRepriceCart } from "@/hooks/use-reprice-cart";
 import { CustomLineBuilder } from "@/components/store/custom-line-builder";
 import type { CartItem } from "@/types/cart";
 
@@ -33,6 +34,8 @@ function SheetRow({
     .filter(Boolean)
     .join(", ");
   const lineTotal = item.unitPrice * item.quantity;
+  const lineOriginal = item.unitOriginalPrice * item.quantity;
+  const onSale = lineOriginal > lineTotal && !item.isReward;
   const lastOne = item.quantity <= 1;
 
   // Removing the last unit of the only line empties the cart — confirm first.
@@ -79,9 +82,26 @@ function SheetRow({
             <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
           )
         )}
-        <span className="mt-0.5 text-sm font-bold tabular-nums">
-          {formatPrice(lineTotal)}
-        </span>
+        {onSale ? (
+          <div className="mt-0.5 flex flex-col gap-0.5">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-sm font-bold tabular-nums text-rose-600">
+                {formatPrice(lineTotal)}
+              </span>
+              <span className="text-[0.6875rem] font-medium tabular-nums text-muted-foreground line-through">
+                {formatPrice(lineOriginal)}
+              </span>
+            </div>
+            <span className="text-[0.6875rem] font-semibold text-rose-600">
+              Save {formatPrice(lineOriginal - lineTotal)}
+              {item.discountPercentOff ? ` · ${item.discountPercentOff}% off` : ""}
+            </span>
+          </div>
+        ) : (
+          <span className="mt-0.5 text-sm font-bold tabular-nums">
+            {formatPrice(lineTotal)}
+          </span>
+        )}
         {/* Edit link — navigates to the product page to re-customize. Custom
             lines have no product page, so they aren't editable here (change via
             quantity, or remove and re-add). */}
@@ -139,7 +159,18 @@ function SheetRow({
 export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () => void }) {
   const { items, totalItems, clear } = useCart();
   const routes = useOrderRoutes();
+  const reprice = useRepriceCart();
   const [confirmingClear, setConfirmingClear] = useState(false);
+
+  // Re-price against the live catalogue when the sheet opens. The sheet is only
+  // mounted while open, so this mount-only effect fires on every open — catching
+  // a promotion toggled in the CMS since the item was added, without a page
+  // refresh. reprice() reads the current cart itself and no-ops when nothing
+  // changed, so it needn't be in the deps.
+  useEffect(() => {
+    void reprice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isStore = routes.mode === "store";
   // Where the floating bar's top edge sits above the viewport bottom: kiosk has

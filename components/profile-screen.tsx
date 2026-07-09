@@ -17,7 +17,12 @@ import {
   User,
 } from "lucide-react";
 import type { Order } from "@/types/order";
-import type { RewardTier } from "@/types/reward";
+import type {
+  RewardTier,
+  StampCard as StampCardData,
+  StampSettings,
+  Voucher,
+} from "@/types/reward";
 import { MANAGE_ROLES, type Role } from "@/types/auth";
 import { getTierProgress } from "@/lib/rewards/tiers";
 import { useAuth } from "@/store/auth";
@@ -26,6 +31,9 @@ import { useProfile } from "@/store/profile";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { CustomerOrderCard } from "@/components/customer-order-card";
 import { SignOutConfirmModal } from "@/components/signout-confirm-modal";
+import { StampCard } from "@/components/stamps/stamp-card";
+import { MemberQr } from "@/components/stamps/member-qr";
+import { VoucherList } from "@/components/stamps/voucher-list";
 
 // Member-since label, e.g. "Member since Sep 2025". Locale/timeZone pinned so
 // the edge server (UTC) and client render identical text (no hydration drift).
@@ -175,10 +183,18 @@ export function ProfileScreen({
   recentOrders,
   tiers,
   role,
+  userId,
+  stampSettings,
+  stampCard,
+  vouchers,
 }: {
   recentOrders: Order[];
   tiers: RewardTier[];
   role: Role | null;
+  userId: string | null;
+  stampSettings: StampSettings;
+  stampCard: StampCardData | null;
+  vouchers: Voucher[];
 }) {
   // Staff tooling is gated on the server-fetched role (authoritative, no
   // hydration drift), so it renders consistently on first paint. Manage is for
@@ -309,6 +325,19 @@ export function ProfileScreen({
               aria-hidden
             />
           </Link>
+        )}
+
+        {/* Loyalty stamp card + member QR + vouchers — members only, and only
+            when the stamp program is enabled. Lives between the Beans card and
+            the account rows. The card subscribes to the member's stamp_cards row
+            so a stamp granted at the counter animates in live. Gated on `ready`
+            so it reveals with the rest of the screen instead of popping in. */}
+        {ready && isAuthenticated && stampSettings.isEnabled && (
+          <section aria-label="Stamp card" className="-mt-3 flex flex-col gap-4">
+            {userId && <MemberQr userId={userId} />}
+            <StampCard initial={stampCard} settings={stampSettings} userId={userId} />
+            <VoucherList vouchers={vouchers} />
+          </section>
         )}
 
         {/* Staff tools — only for accounts with a manage-capable role. Sits

@@ -40,13 +40,30 @@ export function buildOrderMessage(
     parts.push(`Contact: ${order.contactPhone}`);
   }
 
-  parts.push(
-    "",
-    "Items:",
-    ...itemLines,
-    "",
-    `Total: ${formatPrice(order.total)}`,
-  );
+  parts.push("", "Items:", ...itemLines, "");
+
+  // Discount breakdown, derived from the order's own fields (same rule as the
+  // manage totals): subtotal is pre-promo, the active line totals are promo-
+  // applied, and total is after the voucher too. Only shown when non-zero, so a
+  // plain order still reads as a single Total line.
+  const activeLineSum = order.items
+    .filter((i) => !i.voidedAt)
+    .reduce((sum, i) => sum + i.lineTotal, 0);
+  const promoSavings = Math.max(0, order.subtotal - activeLineSum);
+  const voucherDiscount = Math.max(0, activeLineSum - order.total);
+
+  if (promoSavings > 0 || voucherDiscount > 0) {
+    parts.push(`Subtotal: ${formatPrice(order.subtotal)}`);
+    if (promoSavings > 0) {
+      parts.push(`Promo savings: -${formatPrice(promoSavings)}`);
+    }
+    if (voucherDiscount > 0) {
+      const voucherName = order.voucherLabel ? ` (${order.voucherLabel})` : "";
+      parts.push(`Voucher${voucherName}: -${formatPrice(voucherDiscount)}`);
+    }
+  }
+
+  parts.push(`Total: ${formatPrice(order.total)}`);
 
   if (order.notes?.trim()) {
     parts.push("", `Note: ${order.notes.trim()}`);

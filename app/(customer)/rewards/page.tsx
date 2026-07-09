@@ -15,26 +15,28 @@ export const metadata: Metadata = {
     "Earn Beans on every Naise Coffee order and redeem them for free drinks.",
 };
 
-export const dynamic = "force-dynamic";
-
 export default async function RewardsPage() {
   const store = await getStoreSettings();
   if (!store.rewardsEnabled) redirect("/menu"); // no home for now redirect to menu
+
   const [settings, tiers, milestones, catalog] = await Promise.all([
     getLoyaltySettings(),
     listTiers(),
     listStreakMilestones(),
     listRewardCatalog(),
   ]);
+
   return (
-    <RewardsScreen
-      tiers={tiers}
-      catalog={catalog}
-      milestones={milestones}
-      beansPerRinggit={settings.beansPerRinggit}
-      referral={{ beans: settings.referralBeans, voucher: settings.referralVoucherLabel }}
-      streakEnabled={store.streakEnabled}
-      referralEnabled={store.referralEnabled}
-    />
+    <div className="flex flex-col">
+      <RewardsScreen
+        tiers={tiers}
+        catalog={catalog}
+        milestones={milestones}
+        beansPerRinggit={settings.beansPerRinggit}
+        referral={{ beans: settings.referralBeans, voucher: settings.referralVoucherLabel }}
+        streakEnabled={store.streakEnabled}
+        referralEnabled={store.referralEnabled}
+      />
+    </div>
   );
 }

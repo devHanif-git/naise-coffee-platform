@@ -18,6 +18,9 @@ function revalidateAll() {
   revalidatePath("/menu");
   revalidatePath("/menu/[slug]", "page");
   revalidatePath("/home");
+  // Invalidate the cached storefront catalogue. Price-authoritative paths (cart
+  // re-price, checkout) read fresh via listProductsFresh(), so stale-while-
+  // revalidate ("max") is fine here — the menu can refresh in the background.
   revalidateTag(CATALOG_TAG, "max");
 }
 

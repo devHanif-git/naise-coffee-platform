@@ -28,6 +28,17 @@ export function CustomerOrderCard({
     ? `/profile/orders/${order.token}?from=${from}`
     : `/profile/orders/${order.token}`;
 
+  // Discount breakdown, derived from the order as stored (same rule as the
+  // detail + staff views): subtotal = pre-promo; sum of active line totals =
+  // promo-applied; total = after voucher too. The two gaps give the promo and
+  // voucher amounts. Only shown when something actually discounted the order.
+  const activeLineSum = order.items
+    .filter((i) => !i.voidedAt)
+    .reduce((sum, i) => sum + i.lineTotal, 0);
+  const promoSavings = Math.max(0, order.subtotal - activeLineSum);
+  const voucherDiscount = Math.max(0, activeLineSum - order.total);
+  const hasBreakdown = promoSavings > 0 || voucherDiscount > 0;
+
   return (
     <li className="naise-rise" style={{ animationDelay: `${delay}ms` }}>
       <Link
@@ -86,15 +97,39 @@ export function CustomerOrderCard({
           })}
         </ul>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-          <span className="flex items-center gap-2 text-sm font-bold">
-            <span>Total</span>
-            <span className="tabular-nums">{formatPrice(order.total)}</span>
-          </span>
-          <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-            View
-            <ChevronRight className="size-4" strokeWidth={2.5} aria-hidden />
-          </span>
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          {/* Discount breakdown — only when a promo and/or voucher applied, so a
+              plain order stays a single Total line. Matches the detail view. */}
+          {hasBreakdown && (
+            <>
+              <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+                <span>Subtotal</span>
+                <span className="tabular-nums">{formatPrice(order.subtotal)}</span>
+              </div>
+              {promoSavings > 0 && (
+                <div className="flex items-baseline justify-between text-xs font-medium text-rose-600">
+                  <span>Promo savings</span>
+                  <span className="tabular-nums">−{formatPrice(promoSavings)}</span>
+                </div>
+              )}
+              {voucherDiscount > 0 && (
+                <div className="flex items-baseline justify-between text-xs font-medium text-rose-600">
+                  <span>{order.voucherLabel ? `Voucher · ${order.voucherLabel}` : "Voucher"}</span>
+                  <span className="tabular-nums">−{formatPrice(voucherDiscount)}</span>
+                </div>
+              )}
+            </>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-sm font-bold">
+              <span>Total</span>
+              <span className="tabular-nums">{formatPrice(order.total)}</span>
+            </span>
+            <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+              View
+              <ChevronRight className="size-4" strokeWidth={2.5} aria-hidden />
+            </span>
+          </div>
         </div>
       </Link>
     </li>

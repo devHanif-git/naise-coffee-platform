@@ -2,6 +2,7 @@
 
 import { createOrder } from "@/lib/orders/store";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { inStoreMode } from "@/lib/auth/store-mode";
 import { getStoreAccountEnabled } from "@/lib/settings/store-account";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
@@ -11,11 +12,17 @@ import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 import { STORE_OWNER_ID } from "@/constants/store";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
+import { listProductsFresh } from "@/lib/menu/store";
+import { repriceLine } from "@/lib/promotions/reprice";
 
 type StoreOrderItem = {
   productId?: string;
   name: string;
   quantity: number;
+  // Size + add-on ids drive the authoritative server-side re-price against the
+  // live catalogue. Absent on custom (off-menu) lines.
+  sizeId?: string;
+  addonIds?: string[];
   sizeName?: string;
   addonNames: string[];
   unitPrice: number;
@@ -33,7 +40,7 @@ export type PlaceStoreOrderInput = {
 };
 
 export type PlaceStoreOrderResult =
-  | { ok: true; orderNumber: string }
+  | { ok: true; orderNumber: string; token: string }
   | { ok: false; error: string };
 
 export async function placeStoreOrder(
@@ -87,17 +94,46 @@ export async function placeStoreOrder(
       return { ok: false, error: `No longer available: ${blocked.join(", ")}.` };
   }
 
-  const lines: OrderLine[] = input.items.map((item) => ({
-    name: item.name,
-    quantity: item.quantity,
-    sizeName: item.sizeName,
-    addonNames: item.addonNames,
-    unitPrice: item.unitPrice,
-    lineTotal: item.unitPrice * item.quantity,
-    status: "pending",
-    isCustom: item.isCustom ?? false,
-    productId: item.isCustom ? null : item.productId,
-  }));
+  // Re-price menu lines against the live catalogue — the kiosk shares the
+  // customer product page, so a promotion applies to in-store drinks too. Never
+  // trust the price the client sent; a promo may have started or ended after the
+  // drink was added to the kiosk cart. Custom (off-menu) lines have no product
+  // to re-price against, so they keep their staff-entered price.
+  const catalog = await listProductsFresh();
+  const lines: OrderLine[] = input.items.map((item) => {
+    const repriced = item.isCustom
+      ? null
+      : repriceLine(
+          {
+            productId: item.productId,
+            sizeId: item.sizeId,
+            addonIds: item.addonIds ?? [],
+          },
+          catalog,
+        );
+    const unitPrice = repriced?.unitPrice ?? item.unitPrice;
+    const unitOriginalPrice = repriced?.unitOriginalPrice ?? item.unitPrice;
+    return {
+      name: item.name,
+      quantity: item.quantity,
+      sizeName: item.sizeName,
+      addonNames: item.addonNames,
+      unitPrice,
+      unitOriginalPrice,
+      lineTotal: unitPrice * item.quantity,
+      status: "pending",
+      isCustom: item.isCustom ?? false,
+      productId: item.isCustom ? null : item.productId,
+    };
+  });
+
+  // Authoritative money from the re-priced lines. subtotal is the pre-promo sum,
+  // total the promo-applied sum; the client-sent values are ignored for charging.
+  const subtotal = lines.reduce(
+    (sum, l) => sum + (l.unitOriginalPrice ?? l.unitPrice) * l.quantity,
+    0,
+  );
+  const total = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
   let order;
   try {
@@ -106,8 +142,8 @@ export async function placeStoreOrder(
         ownerId: STORE_OWNER_ID,
         paymentMethod: input.paymentMethod,
         items: lines,
-        subtotal: input.subtotal,
-        total: input.total,
+        subtotal,
+        total,
         notes: input.notes?.trim() || undefined,
         source: "store",
       },
@@ -132,5 +168,50 @@ export async function placeStoreOrder(
     console.error(`Store order ${order.orderNumber} placed but Telegram notice failed: ${reason}`);
   }
 
-  return { ok: true, orderNumber: order.orderNumber };
+  return { ok: true, orderNumber: order.orderNumber, token: order.token };
+}
+
+// Attach a member to a just-placed kiosk order so they earn their loyalty stamp.
+// The kiosk has no staff Supabase session (it authenticates via the store
+// passcode → a signed store-mode cookie on a guest/store session), so it cannot
+// call the staff-gated attach_order_member. Instead we re-enforce the SAME
+// store-mode boundary placeStoreOrder uses, then call the service-role-only
+// attach_order_member_store via the admin client. Returns minimal identity.
+export type AttachStoreMemberResult =
+  | { ok: true; displayName: string; phoneMasked: string | null }
+  | { ok: false; error: string };
+
+export async function attachStoreMember(
+  token: string,
+  identifier: string,
+): Promise<AttachStoreMemberResult> {
+  if (!(await inStoreMode())) return { ok: false, error: "Not authorized." };
+  if (!(await getStoreAccountEnabled())) return { ok: false, error: "Store ordering is off." };
+
+  const trimmed = identifier.trim();
+  if (!trimmed) return { ok: false, error: "Enter a phone number or email." };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc("attach_order_member_store", {
+    p_token: token,
+    p_identifier: trimmed,
+  });
+  if (error) return { ok: false, error: "Couldn't add the member. Try again." };
+
+  const row = data as unknown as
+    | { ok: true; display_name: string; avatar_url: string | null; phone_masked: string | null }
+    | { ok: false; error: string };
+  if (!row?.ok) {
+    const code = (row as { error?: string })?.error;
+    const msg =
+      code === "member_not_found"
+        ? "No member found for that phone or email."
+        : code === "different_member_attached"
+          ? "This order already has a different member."
+          : code === "order_not_found"
+            ? "Order not found."
+            : "Couldn't add the member. Try again.";
+    return { ok: false, error: msg };
+  }
+  return { ok: true, displayName: row.display_name, phoneMasked: row.phone_masked };
 }

@@ -15,4 +15,8 @@ export const STORE_CART_NOTES_KEY = "naise-store-cart-notes";
 
 // Self-serve reset timings.
 export const STORE_IDLE_TIMEOUT_MS = 180_000; // clear an abandoned cart after 3 min idle
-export const STORE_CONFIRMATION_RESET_MS = 6_000; // confirmation → back to menu
+export const STORE_CONFIRMATION_RESET_MS = 15_000; // confirmation → back to menu (idle)
+// While the customer is mid-way through typing their member phone/email for a
+// stamp, give them a long window before the kiosk resets — every keystroke
+// restarts this timer, so it only fires after ~3 min of no typing.
+export const STORE_CONFIRMATION_RESET_HOLD_MS = 180_000;

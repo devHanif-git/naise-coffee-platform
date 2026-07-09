@@ -4,6 +4,9 @@ import { getOwnerIdFromCookie } from "@/lib/auth/owner-id-server";
 import { createClient } from "@/lib/supabase/server";
 import { getSessionRole } from "@/lib/auth/session";
 import { listTiers } from "@/lib/rewards/config-store";
+import { getStampSettings } from "@/lib/stamps/config-store";
+import { getStampCard } from "@/lib/stamps/store";
+import { listMyVouchers } from "@/lib/stamps/voucher-store";
 import { ProfileScreen } from "@/components/profile-screen";
 import { ProfileOrdersLive } from "@/components/profile-orders-live";
 
@@ -22,15 +25,27 @@ export default async function ProfilePage() {
   const ownerId = await getOwnerIdFromCookie();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const [recentOrders, tiers, role] = await Promise.all([
+  const [recentOrders, tiers, role, stampSettings, stampCard] = await Promise.all([
     listOrdersFor(ownerId, user?.id ?? null).then((o) => o.slice(0, RECENT_ORDERS_LIMIT)),
     listTiers(),
     getSessionRole(),
+    getStampSettings(),
+    user ? getStampCard() : Promise.resolve(null),
   ]);
+
+  const vouchers = user && stampSettings.isEnabled ? await listMyVouchers() : [];
 
   return (
     <>
-      <ProfileScreen recentOrders={recentOrders} tiers={tiers} role={role} />
+      <ProfileScreen
+        recentOrders={recentOrders}
+        tiers={tiers}
+        role={role}
+        userId={user?.id ?? null}
+        stampSettings={stampSettings}
+        stampCard={stampCard}
+        vouchers={vouchers}
+      />
       <ProfileOrdersLive tokens={recentOrders.map((order) => order.token)} />
     </>
   );

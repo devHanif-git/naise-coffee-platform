@@ -372,6 +372,29 @@
   transform: translateY(0);
 }
 
+@keyframes naise-stamp-press {
+  0% { transform: scale(1.7) rotate(-14deg); opacity: 0; }
+  45% { transform: scale(0.86) rotate(3deg); opacity: 1; }
+  70% { transform: scale(1.06) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.naise-stamp-press { animation: naise-stamp-press 560ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* Milestone celebration — a ring pulse + gold specks flying radially outward.
+   Each speck is rotated by its own --a angle, then translated outward and faded.
+   Fires once when a milestone slot (4, 8) gets stamped. */
+@keyframes naise-burst-ring {
+  0% { transform: scale(0.65); opacity: 0.9; }
+  100% { transform: scale(2); opacity: 0; }
+}
+.naise-burst-ring { animation: naise-burst-ring 640ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes naise-burst-speck {
+  0% { transform: rotate(var(--a)) translateY(0) scale(1); opacity: 1; }
+  100% { transform: rotate(var(--a)) translateY(-18px) scale(0.2); opacity: 0; }
+}
+.naise-burst-speck { animation: naise-burst-speck 620ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .naise-rise,
   .naise-pop,
@@ -392,4 +415,7 @@
     transform: none;
     transition: none;
   }
+  .naise-stamp-press { animation: naise-fade 200ms ease both; }
+  .naise-burst-ring,
+  .naise-burst-speck { animation: none; opacity: 0; }
 }

@@ -59,3 +59,59 @@ export type OrderRewardsResult = {
 // Matches the shape of OrderRewardsResult.bonuses entries; shown on the checkout
 // confirmation.
 export type StreakAward = { label: string; beans: number };
+
+// --- Stamp card + vouchers (loyalty program #2, separate from streak) ---
+
+export type VoucherType = "rm_off" | "free_drink";
+export type VoucherStatus = "active" | "redeemed" | "expired";
+
+// Cached per-member stamp state (mirrors the DB stamp_cards row, camelCased).
+export type StampCard = {
+  currentCount: number;
+  cycle: number;
+  totalStamps: number;
+};
+
+// A voucher issued at a stamp milestone.
+export type Voucher = {
+  id: string;
+  type: VoucherType;
+  status: VoucherStatus;
+  discountAmount: number;   // sen
+  minSpend: number;         // sen
+  freeDrinkMaxValue: number; // sen
+  expiresAt: string;        // ISO
+};
+
+// Admin-editable stamp/voucher config.
+export type StampSettings = {
+  isEnabled: boolean;
+  cardSize: number;
+  milestoneSmall: number;
+  rmOffAmount: number;
+  rmOffMinSpend: number;
+  freeDrinkMaxValue: number;
+  voucherExpiryDays: number;
+};
+
+// Result of grant_order_stamp.
+export type GrantStampResult = {
+  stamped: boolean;
+  count: number;
+  cycle: number;
+  vouchersIssued: { type: VoucherType }[];
+} | null;
+
+// Result of attach_order_member (minimal identity only).
+export type AttachMemberResult =
+  | { ok: true; displayName: string; avatarUrl: string | null; phoneMasked: string | null }
+  | { ok: false; error: string };
+
+// One candidate from the staff member search (search_members RPC). Staff-facing,
+// so full contact details are included to positively identify the right person.
+export type MemberSearchResult = {
+  id: string;
+  displayName: string;
+  phone: string | null;
+  email: string | null;
+};
