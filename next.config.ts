@@ -23,7 +23,13 @@ const nextConfig: NextConfig = {
       // Behind Cloudflare/reverse proxy the forwarded host differs from the
       // request Origin, so Next's CSRF check rejects Server Actions with 403.
       // Allow the production domain (and any subdomain) so uploads/toggles work.
-      allowedOrigins: ["naisecoffee.utemride.my", "*.utemride.my"],
+      allowedOrigins: [
+        "naisecoffee.bizje.my",
+        "*.bizje.my",
+        // Kept during the domain cutover; remove once utemride.my is decommissioned.
+        "naisecoffee.utemride.my",
+        "*.utemride.my",
+      ],
       // Product image uploads run through a Server Action; raise the default
       // 1 MB body cap to match the uploader's 5 MB limit (actions.ts).
       bodySizeLimit: "5mb",
