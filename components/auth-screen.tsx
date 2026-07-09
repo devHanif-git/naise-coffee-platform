@@ -56,18 +56,29 @@ export function AuthScreen() {
   async function onGoogle() {
     setPending("google");
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
+    // `skipBrowserRedirect` stops the SDK from doing the redirect itself. In a
+    // standalone PWA the SDK's redirect to an out-of-scope origin (Supabase →
+    // Google) gets handed off to a new/system browser tab, so the PKCE verifier
+    // written here (PWA context) and the session cookies set at /auth/callback
+    // land in different browser contexts — the PWA stays logged out and the
+    // user has to sign in twice. Driving the navigation ourselves as a
+    // top-level nav in THIS window keeps the whole round-trip in the PWA
+    // context so the verifier and session cookies share one cookie jar.
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
+        skipBrowserRedirect: true,
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirect)}`,
       },
     });
-    if (error) {
+    if (error || !data?.url) {
       setPending(null);
       // TODO: surface a toast; for now log so failures aren't silent.
       console.error("Google sign-in failed", error);
+      return;
     }
-    // On success the browser navigates away to Google — no further work here.
+    window.location.href = data.url;
+    // The browser now navigates away to Google — no further work here.
   }
 
   return (

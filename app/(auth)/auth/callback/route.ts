@@ -32,6 +32,11 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${publicOrigin}/login?error=auth`);
+  // Exchange failed (missing code, or the PKCE verifier isn't in this browser
+  // context). Bounce back to the login screen preserving the intended
+  // destination as `redirect` — the value the login screen actually reads — so
+  // a retry lands the user where they were headed rather than dropping it.
+  const retry = new URLSearchParams({ redirect: next, error: "auth" });
+  return NextResponse.redirect(`${publicOrigin}/login?${retry.toString()}`);
 }
 
