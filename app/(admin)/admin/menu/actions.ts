@@ -122,10 +122,10 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   if (!slug)
     return { ok: false, error: "Enter a slug or name with letters or numbers." };
 
-  // Drop blank free steps; keep ingredient steps (they render from a template
-  // even with empty text).
+  // Drop blank free steps; keep ingredient + directive steps (ingredients
+  // render from a template even with empty text; exclude/override have no text).
   const cleanRecipe = data.recipe.filter((e) =>
-    e.kind === "ingredient" ? true : e.text.trim().length > 0,
+    e.kind === "free" ? e.text.trim().length > 0 : true,
   );
 
   const payload = {

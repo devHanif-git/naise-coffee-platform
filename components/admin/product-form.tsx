@@ -790,7 +790,11 @@ function RecipeStepRow({
   // Untouched ingredient step shows its rendered template as the input value;
   // editing it freezes to custom. Custom/free show their own text.
   const shownText =
-    isIngredient && !custom ? renderStep(entry, templateById) : entry.text ?? "";
+    isIngredient && !custom
+      ? renderStep(entry, templateById)
+      : "text" in entry
+        ? entry.text ?? ""
+        : "";
 
   return (
     <li
