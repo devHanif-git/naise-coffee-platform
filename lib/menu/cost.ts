@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
-import { deriveGoodsCost, type RecipeEntry } from "@/lib/menu/recipe";
+import { deriveGoodsCost, mergeRecipe, type RecipeEntry } from "@/lib/menu/recipe";
 
 type Db = SupabaseClient<Database>;
 
@@ -20,10 +20,31 @@ export async function getProductCosts(
 
   const [items, prods] = await Promise.all([
     db.from("cost_items").select("id, price, is_always_included, is_archived"),
-    db.from("products").select("id, recipe").in("id", productIds),
+    db.from("products").select("id, recipe, category_id").in("id", productIds),
   ]);
   if (items.error) throw new Error(`getProductCosts failed: ${items.error.message}`);
   if (prods.error) throw new Error(`getProductCosts failed: ${prods.error.message}`);
+
+  // Each product's cost is its category base recipe merged with its own recipe
+  // (see mergeRecipe): inherited ingredients count once, per-drink
+  // exclude/override apply, duplicates resolve to the base.
+  const categoryIds = [
+    ...new Set(
+      (prods.data ?? [])
+        .map((p) => p.category_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const cats = categoryIds.length
+    ? await db.from("categories").select("id, recipe").in("id", categoryIds)
+    : { data: [], error: null };
+  if (cats.error) throw new Error(`getProductCosts failed: ${cats.error.message}`);
+  const categoryRecipeById = new Map(
+    (cats.data ?? []).map((c) => [
+      c.id,
+      ((c.recipe as unknown) as RecipeEntry[] | null) ?? null,
+    ]),
+  );
 
   const costItems = (items.data ?? []).map((i) => ({
     id: i.id,
@@ -31,15 +52,23 @@ export async function getProductCosts(
     alwaysIncluded: i.is_always_included,
     isArchived: i.is_archived,
   }));
-  const recipeById = new Map(
+  const prodById = new Map(
     (prods.data ?? []).map((p) => [
       p.id,
-      ((p.recipe as unknown) as RecipeEntry[] | null) ?? null,
+      {
+        recipe: ((p.recipe as unknown) as RecipeEntry[] | null) ?? null,
+        categoryId: p.category_id,
+      },
     ]),
   );
 
   for (const id of productIds) {
-    costs.set(id, deriveGoodsCost(recipeById.get(id) ?? null, costItems));
+    const p = prodById.get(id);
+    const merged = mergeRecipe(
+      p?.categoryId ? categoryRecipeById.get(p.categoryId) ?? null : null,
+      p?.recipe ?? null,
+    );
+    costs.set(id, deriveGoodsCost(merged, costItems));
   }
   return costs;
 }

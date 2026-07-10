@@ -7,7 +7,7 @@ import { getOrderByToken } from "@/lib/orders/store";
 import { listCategories, listProducts } from "@/lib/menu/store";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveRecipeStrings, type RecipeEntry } from "@/lib/menu/recipe";
+import { resolveRecipeStrings, mergeRecipe, type RecipeEntry } from "@/lib/menu/recipe";
 
 // Management view is internal — keep it out of search results.
 export const metadata: Metadata = {
@@ -57,17 +57,36 @@ export default async function ManageOrderPage({
   if (productIds.length > 0) {
     const db = createAdminClient();
     const [prods, items] = await Promise.all([
-      db.from("products").select("id, recipe").in("id", productIds),
+      db.from("products").select("id, recipe, category_id").in("id", productIds),
       db.from("cost_items").select("id, prep_template"),
     ]);
+    // Merge each product's recipe with its category base so the prep sheet lists
+    // inherited steps (milk, matcha…) plus drink-specific ones, once each.
+    const categoryIds = [
+      ...new Set(
+        (prods.data ?? [])
+          .map((p) => p.category_id)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const cats = categoryIds.length
+      ? await db.from("categories").select("id, recipe").in("id", categoryIds)
+      : { data: [] };
+    const categoryRecipeById = new Map(
+      (cats.data ?? []).map((c) => [
+        c.id,
+        ((c.recipe as unknown) as RecipeEntry[] | null) ?? null,
+      ]),
+    );
     const templateById = new Map(
       (items.data ?? []).map((c) => [c.id, c.prep_template]),
     );
     for (const p of prods.data ?? []) {
-      const strings = resolveRecipeStrings(
+      const merged = mergeRecipe(
+        p.category_id ? categoryRecipeById.get(p.category_id) ?? null : null,
         ((p.recipe as unknown) as RecipeEntry[] | null) ?? null,
-        templateById,
       );
+      const strings = resolveRecipeStrings(merged, templateById);
       if (strings.length > 0) recipeMap.set(p.id, strings);
     }
   }
