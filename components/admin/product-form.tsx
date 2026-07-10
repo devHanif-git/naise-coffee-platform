@@ -71,16 +71,70 @@ export function ProductForm({
   const [isFeatured] = useState(product?.isFeatured ?? false);
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
 
-  // Ordered, unified recipe list (ingredient steps + free-text steps).
+  // Ordered, unified recipe list. Holds the drink's own ingredient/free steps
+  // AND its directives (exclude/override) against the inherited category base.
   const [recipe, setRecipe] = useState<RecipeEntry[]>(product?.recipe ?? []);
 
   const activeCostItems = costItems.filter((c) => !c.isArchived);
 
-  // Live goods cost (sen): recipe ingredients + every always-included item.
-  // (Category-base inheritance is wired in a later step; mergeRecipe(null, …)
-  // is the drink's own recipe until then.)
+  const selectedCategory = categories.find((c) => c.id === categoryId);
+  // The category base flows into every drink in the category (live inheritance).
+  const inheritedBase: RecipeEntry[] = selectedCategory?.recipe ?? [];
+
+  // Controls for inherited ingredients, derived from the exclude/override
+  // directives currently in `recipe`.
+  const inheritedControls = new Map<
+    string,
+    { excluded: boolean; overrideGrams: number | null }
+  >();
+  for (const e of recipe) {
+    if (e.kind === "exclude")
+      inheritedControls.set(e.costItemId, {
+        excluded: true,
+        overrideGrams: inheritedControls.get(e.costItemId)?.overrideGrams ?? null,
+      });
+    else if (e.kind === "override")
+      inheritedControls.set(e.costItemId, {
+        excluded: inheritedControls.get(e.costItemId)?.excluded ?? false,
+        overrideGrams: e.grams,
+      });
+  }
+
+  // The plain ingredient/free entries the builder edits (directives filtered out).
+  const ownEntries = recipe.filter(
+    (e) => e.kind === "ingredient" || e.kind === "free",
+  );
+
+  // Builder edits own entries; keep the directives untouched alongside them.
+  function setOwnEntries(next: RecipeEntry[]) {
+    const directives = recipe.filter(
+      (e) => e.kind === "exclude" || e.kind === "override",
+    );
+    setRecipe([...directives, ...next]);
+  }
+
+  // Toggle skip / set grams override on an inherited ingredient. Rebuilds all
+  // directive entries (one per inherited ingredient that's excluded or
+  // overridden) and keeps the drink's own entries after them.
+  function setInheritedControl(
+    costItemId: string,
+    ctrl: { excluded: boolean; overrideGrams: number | null },
+  ) {
+    const merged = new Map(inheritedControls);
+    merged.set(costItemId, ctrl);
+    const directives: RecipeEntry[] = [];
+    for (const [id, c] of merged) {
+      if (c.excluded) directives.push({ kind: "exclude", costItemId: id });
+      else if (c.overrideGrams != null)
+        directives.push({ kind: "override", costItemId: id, grams: c.overrideGrams });
+    }
+    setRecipe([...directives, ...ownEntries]);
+  }
+
+  // Live goods cost (sen): merged (category base + drink) ingredients + every
+  // always-included item.
   const goodsCost = deriveGoodsCost(
-    mergeRecipe(null, recipe),
+    mergeRecipe(inheritedBase, recipe),
     activeCostItems.map((c) => ({
       id: c.id,
       price: c.price,
@@ -88,8 +142,6 @@ export function ProductForm({
       isArchived: c.isArchived,
     })),
   );
-
-  const selectedCategory = categories.find((c) => c.id === categoryId);
   const [overrides, setOverrides] = useState<Map<string, "add" | "remove">>(
     new Map(product?.addonOverrides.map((o) => [o.addonId, o.mode]) ?? []),
   );
@@ -118,6 +170,17 @@ export function ProductForm({
 
   function submit() {
     setError(null);
+    // Dedupe against the category base: drop own-ingredients already in the base
+    // (base wins), and drop stale directives for cost items no longer in the
+    // base (e.g. after the category changed). Free steps pass through.
+    const baseIds = new Set(
+      inheritedBase.flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
+    );
+    const cleanedRecipe = recipe.filter((e) => {
+      if (e.kind === "ingredient") return !baseIds.has(e.costItemId);
+      if (e.kind === "exclude" || e.kind === "override") return baseIds.has(e.costItemId);
+      return true; // free
+    });
     const data: ProductFormData = {
       id: product?.id,
       name,
@@ -140,7 +203,7 @@ export function ProductForm({
         addonId,
         mode,
       })),
-      recipe,
+      recipe: cleanedRecipe,
     };
     startTransition(async () => {
       try {
@@ -289,8 +352,11 @@ export function ProductForm({
             ) : (
               <RecipeBuilder
                 costItems={activeCostItems}
-                value={recipe}
-                onChange={setRecipe}
+                value={ownEntries}
+                onChange={setOwnEntries}
+                inherited={inheritedBase}
+                inheritedControls={inheritedControls}
+                onInheritedControlChange={setInheritedControl}
               />
             )}
           </Panel>
