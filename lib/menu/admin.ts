@@ -62,6 +62,7 @@ export async function listAdminCategories(): Promise<AdminCategory[]> {
     addonIds: (links.data ?? [])
       .filter((l) => l.category_id === c.id)
       .map((l) => l.addon_id),
+    recipe: ((c.recipe as unknown) as RecipeEntry[] | null) ?? [],
   }));
 }
 

@@ -18,6 +18,7 @@ export type AdminCategory = {
   maxAddons: number;
   isArchived: boolean;
   addonIds: string[]; // category default add-on set
+  recipe: RecipeEntry[]; // category base recipe (empty when none)
 };
 
 export type AdminProduct = {

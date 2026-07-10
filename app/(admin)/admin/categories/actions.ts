@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/auth/session";
 import { CATALOG_TAG } from "@/lib/menu/store";
+import type { RecipeEntry } from "@/lib/menu/recipe";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -110,6 +111,42 @@ export async function setCategoryAddons(
     const { error } = await db.from("category_addons").insert(rows);
     if (error) return { ok: false, error: error.message };
   }
+  revalidateAll();
+  return { ok: true };
+}
+
+// Replace a category's base recipe. Validates each entry; stores null when the
+// list is empty. Mirrors setCategoryAddons' replace-all shape. The category
+// base only carries ingredient/free entries — never exclude/override (those are
+// per-drink directives).
+export async function saveCategoryRecipe(
+  categoryId: string,
+  recipe: RecipeEntry[],
+): Promise<ActionResult> {
+  if (!(await isAdmin())) return { ok: false, error: "Not authorized." };
+  for (const entry of recipe) {
+    if (entry.kind === "ingredient") {
+      if (!entry.costItemId)
+        return { ok: false, error: "A recipe ingredient is missing its cost item." };
+      if (
+        entry.grams != null &&
+        (!Number.isInteger(entry.grams) || entry.grams < 0)
+      )
+        return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
+    } else if (entry.kind !== "free") {
+      return { ok: false, error: "Invalid recipe step." };
+    }
+  }
+  // Drop blank free steps; keep ingredient steps (they render from a template).
+  const clean = recipe.filter((e) =>
+    e.kind === "ingredient" ? true : e.kind === "free" && e.text.trim().length > 0,
+  );
+  const db = await createClient();
+  const { error } = await db
+    .from("categories")
+    .update({ recipe: clean.length > 0 ? clean : null })
+    .eq("id", categoryId);
+  if (error) return { ok: false, error: error.message };
   revalidateAll();
   return { ok: true };
 }
