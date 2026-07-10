@@ -9,6 +9,7 @@ import {
   Banknote,
   Check,
   ChevronLeft,
+  ChevronRight,
   Coffee,
   Copy,
   CreditCard,
@@ -22,6 +23,7 @@ import {
   StickyNote,
   TriangleAlert,
   Wallet,
+  X,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -37,7 +39,7 @@ import type { BankDetails } from "@/lib/settings/payments";
 import { DuitnowQrCard } from "@/components/duitnow-qr-card";
 import { StoreClosedBanner } from "@/components/store-closed-banner";
 import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
-import { VoucherApplyModal } from "@/components/stamps/voucher-apply-modal";
+import { VoucherPickerSheet } from "@/components/stamps/voucher-picker-sheet";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
 import { uploadReceipt } from "@/lib/orders/receipt";
 import { useProfile } from "@/store/profile";
@@ -97,9 +99,9 @@ export function CheckoutScreen({
   // Controls the phone prompt sheet shown before placing when no number is known.
   const [showPhonePrompt, setShowPhonePrompt] = useState(false);
   const [selectedVoucherId, setSelectedVoucherId] = useState<string | null>(null);
-  // Voucher pending a one-time-use confirmation. Applying opens the modal;
-  // deselecting an already-applied voucher skips it (no warning to remove).
-  const [voucherToConfirm, setVoucherToConfirm] = useState<string | null>(null);
+  // Whether the voucher picker sheet is open. Selecting + confirming there is
+  // the one-time-use step; the inline warning lives in the sheet.
+  const [voucherSheetOpen, setVoucherSheetOpen] = useState(false);
 
   const hasItems = items.length > 0;
 
@@ -612,81 +614,74 @@ export function CheckoutScreen({
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Voucher
           </span>
-          {vouchers.map((v) => {
-            const eligible = v.type === "free_drink" || totalOriginal >= v.minSpend;
-            const isFree = v.type === "free_drink";
-            const headline = isFree ? "Free Drink" : `${formatPrice(v.discountAmount)} Off`;
-            const sub = isFree
-              ? `Cheapest drink free · up to ${formatPrice(v.freeDrinkMaxValue)}`
-              : `Min spend ${formatPrice(v.minSpend)}`;
-            const checked = selectedVoucherId === v.id;
-            return (
-              <button
-                key={v.id}
-                type="button"
-                disabled={!eligible}
-                onClick={() =>
-                  checked ? setSelectedVoucherId(null) : setVoucherToConfirm(v.id)
-                }
-                className={cn(
-                  // Ticket: icon stub + body split by a notched seam, matching
-                  // the My Vouchers list on the profile screen.
-                  "relative flex items-stretch overflow-hidden rounded-2xl text-left outline-none transition-transform focus-visible:ring-3 focus-visible:ring-ring/50",
-                  checked
-                    ? "bg-black text-white"
-                    : "border border-border bg-white text-foreground",
-                  eligible ? "hover:scale-[1.01] active:scale-[0.99]" : "opacity-50",
+          {selectedVoucher ? (
+            // Applied voucher — compact ticket summary with a Change control that
+            // reopens the picker. Removing clears the selection.
+            <div className="relative flex items-stretch overflow-hidden rounded-2xl bg-black text-white">
+              <div className="flex w-14 shrink-0 items-center justify-center bg-white/10">
+                {selectedVoucher.type === "free_drink" ? (
+                  <Coffee className="size-5" strokeWidth={2} aria-hidden />
+                ) : (
+                  <Ticket className="size-5" strokeWidth={2} aria-hidden />
                 )}
-              >
-                <div
-                  className={cn(
-                    "flex w-14 shrink-0 items-center justify-center",
-                    checked ? "bg-white/10" : "bg-neutral-100",
-                  )}
-                >
-                  {isFree ? (
-                    <Coffee className="size-5" strokeWidth={2} aria-hidden />
-                  ) : (
-                    <Ticket className="size-5" strokeWidth={2} aria-hidden />
-                  )}
+              </div>
+              <span
+                aria-hidden
+                className="absolute left-[3.25rem] top-0 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background"
+              />
+              <span
+                aria-hidden
+                className="absolute bottom-0 left-[3.25rem] size-3 -translate-x-1/2 translate-y-1/2 rounded-full bg-background"
+              />
+              <div className="flex flex-1 items-center justify-between gap-2 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="font-heading text-base font-bold uppercase tracking-wide">
+                    {selectedVoucher.type === "free_drink"
+                      ? "Free Drink"
+                      : `${formatPrice(selectedVoucher.discountAmount)} Off`}
+                  </p>
+                  <p className="text-[0.6875rem] text-white/60">Applied</p>
                 </div>
-
-                {/* Notches on the divider seam */}
-                <span
-                  aria-hidden
-                  className="absolute left-[3.25rem] top-0 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background"
-                />
-                <span
-                  aria-hidden
-                  className="absolute bottom-0 left-[3.25rem] size-3 -translate-x-1/2 translate-y-1/2 rounded-full bg-background"
-                />
-
-                <div className="flex flex-1 items-center justify-between gap-2 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="font-heading text-base font-bold uppercase tracking-wide">
-                      {headline}
-                    </p>
-                    <p
-                      className={cn(
-                        "text-[0.6875rem]",
-                        checked ? "text-white/60" : "text-muted-foreground",
-                      )}
-                    >
-                      {sub}
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      "shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide",
-                      checked ? "text-white" : eligible ? "text-foreground" : "text-muted-foreground",
-                    )}
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setVoucherSheetOpen(true)}
+                    className="rounded-lg px-2 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-white/80 outline-none transition-colors hover:text-white focus-visible:ring-3 focus-visible:ring-white/40"
                   >
-                    {checked ? "Applied" : eligible ? "Apply" : "Spend more"}
-                  </span>
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedVoucherId(null)}
+                    aria-label="Remove voucher"
+                    className="flex size-7 items-center justify-center rounded-full text-white/70 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-3 focus-visible:ring-white/40"
+                  >
+                    <X className="size-4" strokeWidth={2.5} aria-hidden />
+                  </button>
                 </div>
-              </button>
-            );
-          })}
+              </div>
+            </div>
+          ) : (
+            // Nothing applied — a single "Add voucher" row that opens the picker.
+            <button
+              type="button"
+              onClick={() => setVoucherSheetOpen(true)}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-white px-4 py-3.5 text-left outline-none transition-colors hover:border-foreground/40 hover:bg-neutral-50 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="flex items-center gap-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-foreground">
+                  <Ticket className="size-4.5" strokeWidth={2} aria-hidden />
+                </span>
+                <span className="flex flex-col">
+                  <span className="text-sm font-semibold">Add voucher</span>
+                  <span className="text-[0.6875rem] text-muted-foreground">
+                    {vouchers.length} available
+                  </span>
+                </span>
+              </span>
+              <ChevronRight className="size-5 shrink-0 text-muted-foreground" strokeWidth={2.5} aria-hidden />
+            </button>
+          )}
         </section>
       )}
 
@@ -782,13 +777,14 @@ export function CheckoutScreen({
         />
       )}
 
-      {voucherToConfirm && (
-        <VoucherApplyModal
-          onConfirm={() => {
-            setSelectedVoucherId(voucherToConfirm);
-            setVoucherToConfirm(null);
-          }}
-          onClose={() => setVoucherToConfirm(null)}
+      {vouchers.length > 0 && (
+        <VoucherPickerSheet
+          open={voucherSheetOpen}
+          onOpenChange={setVoucherSheetOpen}
+          vouchers={vouchers}
+          cartTotal={totalOriginal}
+          selectedVoucherId={selectedVoucherId}
+          onApply={setSelectedVoucherId}
         />
       )}
     </main>
