@@ -345,6 +345,30 @@ Be concise. Explain what changed and how to test it.
 
 ---
 
+## Git Workflow
+
+Two long-lived branches:
+
+- `development` — integration/staging. This is where we work day to day. It is **not** PR-protected, so push features straight to it. No PR needed to land on development.
+- `master` — live/deploy (the production server deploys from here). It **is** PR-protected, so the only way onto it is a pull request.
+
+Rules:
+
+1. **Build features on `development`.** Push directly, again and again, until happy. For a risky or reviewable feature, use a short-lived branch off `development`, then merge it back into `development` (still no PR required) — this gives isolation and a rollback point. Small changes can go straight to `development`.
+2. **Never open a feature-branch PR into `master`.** That skips staging, so `development` never receives the feature and would need a back-merge. The only PR we open is `development → master`, and only when shipping.
+3. **Deploy PRs** (`development → master`) get a title like `Deploy: <summary>` so master's history reads as a clean deploy log.
+4. **Before starting or finishing work, `git fetch --prune origin`** so local matches remote. The repo owner merges and deletes branches out of band — check whether the last task's PR is open, merged, or deleted rather than assuming. If a prior PR is still **open**, ask before acting; the new work most likely combines into that same effort rather than a fresh PR.
+5. **Always end on `development`.** After any push, PR, or cleanup, `git checkout development` — that is the working branch.
+6. **Prune merged local branches** periodically: fetch, confirm the branch is merged (`git branch --merged origin/development`), show the list, then delete with `git branch -d` (safe flag).
+
+### Verification (this repo)
+
+- `npm run build` (EXIT 0) is the real type-check/integration gate — always run it before pushing.
+- Scope lint to changed files (`npx eslint <path>`). Whole-repo `npm run lint` reports pre-existing unrelated errors, so it is not a reliable gate.
+- There is **no JS test framework** by design — do not add one, and do not treat its absence as a defect. Scripts are only `dev`, `build`, `start`, `lint`.
+
+---
+
 ## Final Reminder
 
 Before every feature:
