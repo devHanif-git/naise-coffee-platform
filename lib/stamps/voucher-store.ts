@@ -1,14 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Voucher } from "@/types/reward";
 
-// The caller's own vouchers (RLS-scoped), active first then by expiry. Marks
-// past-date active rows expired first so the list never shows a stale "active".
+// The caller's own vouchers, active first then by expiry. Marks past-date active
+// rows expired first so the list never shows a stale "active". Scoped to the
+// authenticated user explicitly: the vouchers read policy lets staff/admin read
+// EVERY member's vouchers, so relying on RLS alone would show a staff viewer
+// another customer's vouchers on their own profile/checkout (and they'd fail to
+// redeem, since placeOrder rejects a voucher whose user_id isn't the caller's).
 export async function listMyVouchers(): Promise<Voucher[]> {
   const db = await createClient();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return [];
   await db.rpc("mark_expired_vouchers");
   const { data } = await db
     .from("vouchers")
     .select("id, type, status, discount_amount, min_spend, free_drink_max_value, expires_at")
+    .eq("user_id", user.id)
     .order("status", { ascending: true })
     .order("expires_at", { ascending: true });
   return (data ?? []).map((v) => ({
