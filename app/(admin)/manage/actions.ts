@@ -7,7 +7,7 @@ import { grantOrderStamp, reverseOrderStamp } from "@/lib/stamps/store";
 import { attachOrderMember, searchMembers } from "@/lib/stamps/member";
 import { verifyStorePasscode } from "@/lib/auth/store-passcode";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
-import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
+import { UNPAID_PAYMENT_METHOD, isKnownPaymentValue } from "@/data/payment-methods";
 import {
   cancelOrder,
   completeOrder,
@@ -61,6 +61,9 @@ export async function loadOrdersAction(opts: {
   filter: OrderFilter;
   range: DateRangeKey;
   offset: number;
+  // Payment filter: "all" (or anything unrecognized) means no payment
+  // constraint; otherwise a canonical method id / the `unpaid` sentinel.
+  payment?: string;
 }): Promise<LoadOrdersResult> {
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
@@ -68,10 +71,14 @@ export async function loadOrdersAction(opts: {
   const filter = isOrderFilter(opts.filter) ? opts.filter : "pending";
   const range = isDateRangeKey(opts.range) ? opts.range : "all";
   const offset = Number.isFinite(opts.offset) ? Math.max(opts.offset, 0) : 0;
+  // Only pass a payment constraint for a known method value; "all"/unknown
+  // degrades to undefined (no filter) so a stale chip never yields an empty board.
+  const payment =
+    opts.payment && isKnownPaymentValue(opts.payment) ? opts.payment : undefined;
 
   const [{ orders, hasMore }, counts] = await Promise.all([
-    listOrdersPage({ filter, range, offset }),
-    countOrdersByGroup(range),
+    listOrdersPage({ filter, range, offset, payment }),
+    countOrdersByGroup(range, payment),
   ]);
   return { ok: true, orders, hasMore, counts };
 }

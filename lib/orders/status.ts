@@ -25,6 +25,12 @@ export const ORDERS_PAGE_SIZE = 20;
 // Per-tab order counts for the current date range.
 export type OrderGroupCounts = Record<OrderFilter, number>;
 
+// A payment-method quick-filter chip on the manage board. `value` is "all" (no
+// constraint) or a canonical payment_method value (method id / `unpaid`). The
+// available chips are derived from the CMS payment settings, so a method the
+// store has disabled never appears here.
+export type PaymentFilterOption = { value: string; label: string };
+
 export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean {
   switch (filter) {
     case "all":

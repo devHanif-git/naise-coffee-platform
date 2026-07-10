@@ -100,6 +100,13 @@ export function normalizePaymentMethod(value: string): string {
   return idByName.get(value.trim().toLowerCase()) ?? value;
 }
 
+// True for any value that is a real, storable payment_method: a catalog method
+// id or the `unpaid` sentinel. Used to sanity-check the manage board's payment
+// filter before it reaches a query — an unknown value falls back to "all".
+export function isKnownPaymentValue(value: string): boolean {
+  return value === UNPAID_PAYMENT_METHOD || methodById.has(value);
+}
+
 // Human-readable label for a stored payment_method value. Falls back to a
 // prettified form for any value not in the catalogue (legacy/removed methods).
 export function paymentMethodLabel(value: string): string {
