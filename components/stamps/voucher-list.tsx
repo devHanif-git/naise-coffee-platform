@@ -1,12 +1,31 @@
-import { Ticket, Coffee } from "lucide-react";
+import Link from "next/link";
+import { Ticket, Coffee, ChevronRight } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import type { Voucher } from "@/types/reward";
 import { cn } from "@/lib/utils";
 
+// How many vouchers to show on the profile before the rest fold behind a
+// "See all" link, so a long list doesn't push the profile off-screen.
+const COLLAPSED_COUNT = 3;
+
 // A member's vouchers, rendered as tickets. Active ones are solid black with a
-// notched edge; redeemed/expired are dimmed and lined-through. Server component.
-export function VoucherList({ vouchers }: { vouchers: Voucher[] }) {
+// notched edge; redeemed/expired are dimmed and lined-through. By default shows
+// the first few with a "See all" link to /profile/vouchers; pass `showAll` (used
+// by that route) to render every voucher, and `heading={false}` to drop the
+// section header when the page already has its own.
+export function VoucherList({
+  vouchers,
+  showAll = false,
+  heading = true,
+}: {
+  vouchers: Voucher[];
+  showAll?: boolean;
+  heading?: boolean;
+}) {
   if (vouchers.length === 0) return null;
+
+  const canCollapse = !showAll && vouchers.length > COLLAPSED_COUNT;
+  const visible = showAll ? vouchers : vouchers.slice(0, COLLAPSED_COUNT);
 
   const fmtExpiry = (iso: string) =>
     new Intl.DateTimeFormat("en-GB", {
@@ -17,15 +36,17 @@ export function VoucherList({ vouchers }: { vouchers: Voucher[] }) {
 
   return (
     <section aria-labelledby="my-vouchers-heading" className="naise-rise [animation-delay:80ms]">
-      <h2
-        id="my-vouchers-heading"
-        className="text-xs font-bold uppercase tracking-wide"
-      >
-        My Vouchers
-      </h2>
+      {heading && (
+        <h2
+          id="my-vouchers-heading"
+          className="text-xs font-bold uppercase tracking-wide"
+        >
+          My Vouchers
+        </h2>
+      )}
 
-      <ul className="mt-3 flex flex-col gap-2.5">
-        {vouchers.map((v) => {
+      <ul className={cn("flex flex-col gap-2.5", heading && "mt-3")}>
+        {visible.map((v) => {
           const active = v.status === "active";
           const isFree = v.type === "free_drink";
           const headline = isFree ? "Free Drink" : `${formatPrice(v.discountAmount)} Off`;
@@ -92,6 +113,16 @@ export function VoucherList({ vouchers }: { vouchers: Voucher[] }) {
           );
         })}
       </ul>
+
+      {canCollapse && (
+        <Link
+          href="/profile/vouchers"
+          className="mt-2.5 flex w-full items-center justify-center gap-1 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted-foreground outline-none hover:text-foreground focus-visible:underline"
+        >
+          See all {vouchers.length}
+          <ChevronRight className="size-3.5" strokeWidth={2.5} aria-hidden />
+        </Link>
+      )}
     </section>
   );
 }

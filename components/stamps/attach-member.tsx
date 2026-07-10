@@ -33,11 +33,7 @@ export function AttachMember({
   const [attaching, startAttach] = useTransition();
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
-
-  // Release the camera if the component unmounts mid-scan (navigation, order
-  // refresh, or the parent hiding this control). Otherwise stop() only runs on
-  // Cancel or a successful decode, leaving the camera track live.
-  useEffect(() => () => controlsRef.current?.stop(), []);
+  const attachRef = useRef<(identifier: string) => void>(() => {});
 
   function runSearch() {
     const q = query.trim();
@@ -74,33 +70,57 @@ export function AttachMember({
       }
     });
   }
+  // Keep the latest attach() reachable from the scan effect without making the
+  // effect depend on it (which would re-run the camera on every render).
+  useEffect(() => {
+    attachRef.current = attach;
+  });
 
-  async function startScan() {
+  // Start the camera only once the <video> is actually in the DOM. Reading
+  // videoRef.current inside startScan() would see null, because setScanning(true)
+  // hasn't committed the render yet — zxing would then decode into its own
+  // detached video and the visible preview would stay black. Running here, after
+  // the mount, gives zxing the real element so the preview shows.
+  useEffect(() => {
+    if (!scanning) return;
+    let cancelled = false;
+    const reader = new BrowserQRCodeReader();
+    reader
+      .decodeFromVideoDevice(undefined, videoRef.current!, (result) => {
+        if (result) {
+          controlsRef.current?.stop();
+          setScanning(false);
+          attachRef.current(result.getText());
+        }
+      })
+      .then((controls) => {
+        if (cancelled) {
+          controls.stop();
+          return;
+        }
+        controlsRef.current = controls;
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setScanning(false);
+        setErr(true);
+        setMsg("Couldn't open the camera. Search by phone, email, or name instead.");
+      });
+    // Release the camera when scanning ends (cancel, decode, unmount).
+    return () => {
+      cancelled = true;
+      controlsRef.current?.stop();
+      controlsRef.current = null;
+    };
+  }, [scanning]);
+
+  function startScan() {
     setMsg(null);
     setErr(false);
     setScanning(true);
-    try {
-      const reader = new BrowserQRCodeReader();
-      controlsRef.current = await reader.decodeFromVideoDevice(
-        undefined,
-        videoRef.current!,
-        (result) => {
-          if (result) {
-            controlsRef.current?.stop();
-            setScanning(false);
-            attach(result.getText());
-          }
-        },
-      );
-    } catch {
-      setScanning(false);
-      setErr(true);
-      setMsg("Couldn't open the camera. Search by phone, email, or name instead.");
-    }
   }
 
   function stopScan() {
-    controlsRef.current?.stop();
     setScanning(false);
   }
 
