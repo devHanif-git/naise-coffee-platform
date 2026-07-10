@@ -41,7 +41,15 @@ export function RecipeBuilder({
 
   const activeCostItems = costItems.filter((c) => !c.isArchived);
   const alwaysItems = activeCostItems.filter((c) => c.alwaysIncluded);
-  const optionalItems = activeCostItems.filter((c) => !c.alwaysIncluded);
+  // Items already in the category base are shown (with skip/override) in the
+  // "From category" zone, so keep them out of the picker to avoid a confusing
+  // double-appearance (and a transient double-count in the live preview).
+  const inheritedIds = new Set(
+    (inherited ?? []).flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
+  );
+  const optionalItems = activeCostItems.filter(
+    (c) => !c.alwaysIncluded && !inheritedIds.has(c.id),
+  );
   const templateById = new Map(costItems.map((c) => [c.id, c.prepTemplate]));
 
   // Which optional cost items are currently in the list (as ingredient steps).
