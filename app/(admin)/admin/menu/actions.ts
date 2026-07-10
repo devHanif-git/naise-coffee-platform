@@ -120,6 +120,10 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
     } else if (entry.kind === "override") {
       if (!entry.costItemId || !Number.isInteger(entry.grams) || entry.grams < 0)
         return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
+    } else if (entry.kind === "inherited") {
+      // Position marker for a pinned inherited base ingredient; carries an id.
+      if (!entry.costItemId)
+        return { ok: false, error: "Invalid recipe step." };
     } else if (entry.kind !== "free") {
       return { ok: false, error: "Invalid recipe step." };
     }

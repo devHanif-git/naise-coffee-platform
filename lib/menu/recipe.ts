@@ -18,7 +18,12 @@ export type RecipeEntry =
   // Per-drink directives against an inherited category-base ingredient. They
   // carry no cost/step themselves — mergeRecipe resolves them against the base.
   | { kind: "exclude"; costItemId: string }
-  | { kind: "override"; costItemId: string; grams: number };
+  | { kind: "override"; costItemId: string; grams: number }
+  // Position marker for an inherited base ingredient inside the drink's own
+  // ordered list. Its presence means the drink has PINNED its step order, so
+  // category order changes no longer re-flow (ingredients/cost still do). Only
+  // written once a drink rearranges; a drink at the default order stores none.
+  | { kind: "inherited"; costItemId: string };
 
 // Replace {g}g / {g} with the grams value. Empty grams removes the token and
 // any leftover double space, so no stray placeholder shows.
@@ -74,18 +79,53 @@ export function deriveGoodsCost(
   return base + fromRecipe;
 }
 
+// Resolve one inherited base ingredient into its effective entry given the
+// drink's directives, or null if the drink excluded it. Applies grams override.
+function resolveInherited(
+  baseById: Map<string, Extract<RecipeEntry, { kind: "ingredient" }>>,
+  costItemId: string,
+  excluded: Set<string>,
+  overrides: Map<string, number>,
+): Extract<RecipeEntry, { kind: "ingredient" }> | null {
+  const base = baseById.get(costItemId);
+  if (!base || excluded.has(costItemId)) return null;
+  const g = overrides.get(costItemId);
+  return g === undefined ? base : { ...base, grams: g };
+}
+
 // Resolve a drink's effective recipe from its category base + its own entries.
 // Returns an ordered list of ONLY ingredient/free entries (the shape every
-// downstream consumer — cost, prep sheet — already understands):
-//   1. category base, in order, with per-drink exclude/override applied;
-//   2. the drink's own ingredient/free entries appended, in order.
-// Dedupe: an own-ingredient whose costItemId is already in the base is dropped
-// (the base wins). exclude beats override beats a duplicate own-ingredient.
+// downstream consumer — cost, prep sheet — already understands).
+//
+// Two ordering modes, chosen by whether the drink has PINNED its order (i.e.
+// its recipe contains any `inherited` position markers):
+//
+//   Default (no markers): category base first (in category order, with
+//   exclude/override applied), then the drink's own ingredient/free entries.
+//   Category order re-flows to the drink automatically.
+//
+//   Pinned (markers present): walk the drink's own list in its saved order,
+//   expanding each `inherited` marker to its resolved base entry in place; the
+//   drink's own steps interleave exactly where placed. Any base ingredient the
+//   drink has NOT pinned (e.g. added to the category after this drink pinned)
+//   is appended after, so new base ingredients/cost still flow in — only their
+//   ORDER isn't guaranteed.
+//
+// Dedupe (both modes): an own-ingredient whose costItemId is in the base is
+// dropped (base wins). exclude beats override beats a duplicate own-ingredient.
 export function mergeRecipe(
   categoryRecipe: RecipeEntry[] | null,
   productRecipe: RecipeEntry[] | null,
 ): RecipeEntry[] {
   const own = productRecipe ?? [];
+  const base = (categoryRecipe ?? []).filter(
+    (e): e is Extract<RecipeEntry, { kind: "ingredient" }> => e.kind === "ingredient",
+  );
+  const baseFree = (categoryRecipe ?? []).filter(
+    (e): e is Extract<RecipeEntry, { kind: "free" }> => e.kind === "free",
+  );
+  const baseById = new Map(base.map((e) => [e.costItemId, e]));
+  const baseIds = new Set(baseById.keys());
   const excluded = new Set(
     own.flatMap((e) => (e.kind === "exclude" ? [e.costItemId] : [])),
   );
@@ -93,28 +133,121 @@ export function mergeRecipe(
     own.flatMap((e) => (e.kind === "override" ? [[e.costItemId, e.grams] as const] : [])),
   );
 
+  const pinned = own.some((e) => e.kind === "inherited");
   const result: RecipeEntry[] = [];
-  const baseIds = new Set<string>();
-  for (const e of categoryRecipe ?? []) {
-    if (e.kind === "ingredient") {
-      if (excluded.has(e.costItemId)) continue;
-      baseIds.add(e.costItemId);
-      const g = overrides.get(e.costItemId);
-      result.push(g === undefined ? e : { ...e, grams: g });
-    } else if (e.kind === "free") {
-      result.push(e);
+
+  if (!pinned) {
+    // Default order: base (with directives) first, then own entries.
+    for (const e of base) {
+      const resolved = resolveInherited(baseById, e.costItemId, excluded, overrides);
+      if (resolved) result.push(resolved);
     }
-    // exclude/override on a category recipe are meaningless — skip.
+    for (const e of baseFree) result.push(e);
+    for (const e of own) {
+      if (e.kind === "free") result.push(e);
+      else if (e.kind === "ingredient" && !baseIds.has(e.costItemId)) result.push(e);
+    }
+    return result;
   }
 
+  // Pinned order: expand markers in place, interleaving the drink's own steps.
+  const placedBaseIds = new Set<string>();
   for (const e of own) {
-    if (e.kind === "free") {
+    if (e.kind === "inherited") {
+      const resolved = resolveInherited(baseById, e.costItemId, excluded, overrides);
+      placedBaseIds.add(e.costItemId);
+      if (resolved) result.push(resolved);
+    } else if (e.kind === "free") {
       result.push(e);
-    } else if (e.kind === "ingredient") {
-      if (baseIds.has(e.costItemId)) continue; // dedupe: base wins
+    } else if (e.kind === "ingredient" && !baseIds.has(e.costItemId)) {
       result.push(e);
     }
-    // own exclude/override entries are directives, not output.
+    // exclude/override are directives, not output.
   }
+  // Append base ingredients this drink never pinned (added to the category
+  // after it pinned), so new base items still flow in for cost + prep.
+  for (const e of base) {
+    if (placedBaseIds.has(e.costItemId)) continue;
+    const resolved = resolveInherited(baseById, e.costItemId, excluded, overrides);
+    if (resolved) result.push(resolved);
+  }
+  for (const e of baseFree) result.push(e);
   return result;
+}
+
+// The ordered list the product form edits: the drink's saved order if it has
+// pinned (markers already present), otherwise the default order with an
+// `inherited` marker synthesized for each base ingredient so every inherited
+// step is a real, draggable row. Directives (exclude/override) are kept so the
+// form can derive skip/grams; they carry no position.
+export function buildDisplayRecipe(
+  categoryRecipe: RecipeEntry[] | null,
+  productRecipe: RecipeEntry[] | null,
+): RecipeEntry[] {
+  const own = productRecipe ?? [];
+  const directives = own.filter(
+    (e) => e.kind === "exclude" || e.kind === "override",
+  );
+  const baseIds = (categoryRecipe ?? [])
+    .filter((e) => e.kind === "ingredient")
+    .map((e) => (e as Extract<RecipeEntry, { kind: "ingredient" }>).costItemId);
+
+  if (own.some((e) => e.kind === "inherited")) {
+    // Already pinned: the ordered rows are the own ingredient/free/inherited
+    // entries as saved; keep directives too (the form reads them separately).
+    const ordered: RecipeEntry[] = own.filter(
+      (e) =>
+        e.kind === "inherited" || e.kind === "ingredient" || e.kind === "free",
+    );
+    return [...ordered, ...directives];
+  }
+
+  // Not pinned: synthesize markers for the base (default order), then own steps.
+  const markers: RecipeEntry[] = baseIds.map((id) => ({
+    kind: "inherited",
+    costItemId: id,
+  }));
+  const ownSteps = own.filter(
+    (e) => e.kind === "ingredient" || e.kind === "free",
+  );
+  return [...markers, ...ownSteps, ...directives];
+}
+
+// Prepare the form's ordered list for saving. If the drink's order still equals
+// the category's default (markers appear first, in category order, before any
+// own step), strip the markers so the drink stays UNPINNED and keeps re-flowing
+// category order. Otherwise keep the markers (pinned). Directives pass through.
+export function prepareRecipeForSave(
+  categoryRecipe: RecipeEntry[] | null,
+  displayRecipe: RecipeEntry[],
+): RecipeEntry[] {
+  const baseOrder = (categoryRecipe ?? [])
+    .filter((e) => e.kind === "ingredient")
+    .map((e) => (e as Extract<RecipeEntry, { kind: "ingredient" }>).costItemId);
+
+  // Positions of inherited markers and whether they lead the list in base order.
+  const markerIds: string[] = [];
+  let firstOwnIndex = displayRecipe.length;
+  displayRecipe.forEach((e, i) => {
+    if (e.kind === "inherited") markerIds.push(e.costItemId);
+    else if (
+      (e.kind === "ingredient" || e.kind === "free") &&
+      i < firstOwnIndex
+    )
+      firstOwnIndex = i;
+  });
+
+  const markersLead = displayRecipe
+    .slice(0, markerIds.length)
+    .every((e) => e.kind === "inherited");
+  const sameAsBase =
+    markerIds.length === baseOrder.length &&
+    markerIds.every((id, i) => id === baseOrder[i]);
+
+  const isDefault = markersLead && sameAsBase && firstOwnIndex >= markerIds.length;
+
+  const kept = isDefault
+    ? displayRecipe.filter((e) => e.kind !== "inherited")
+    : displayRecipe;
+  return kept;
 }

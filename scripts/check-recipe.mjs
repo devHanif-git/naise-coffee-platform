@@ -9,6 +9,8 @@ import {
   resolveRecipeStrings,
   deriveGoodsCost,
   mergeRecipe,
+  buildDisplayRecipe,
+  prepareRecipeForSave,
 } from "../lib/menu/recipe.ts";
 
 // fillTemplate: {g}g -> "150g"; empty grams removes the token cleanly.
@@ -148,5 +150,150 @@ assert.equal(
   deriveGoodsCost(mergeRecipe(base, [{ kind: "ingredient", costItemId: "milk", grams: 999, text: null, custom: false }]), mItems),
   85 + 155 + 46, // milk once (dedup) + matcha + always-included cup
 );
+
+// --- pinned order (inherited markers) ------------------------------------
+// Pinned: markers expand in place, own step interleaves where placed.
+assert.deepEqual(
+  mergeRecipe(base, [
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "free", text: "Add ice" },
+    { kind: "inherited", costItemId: "milk" },
+  ]),
+  [
+    { kind: "ingredient", costItemId: "matcha", grams: 4, text: null, custom: false },
+    { kind: "free", text: "Add ice" },
+    { kind: "ingredient", costItemId: "milk", grams: 150, text: null, custom: false },
+  ],
+);
+
+// Pinned + a base item never placed (added to category later): appended after.
+assert.deepEqual(
+  mergeRecipe(base, [{ kind: "inherited", costItemId: "milk" }]),
+  [
+    { kind: "ingredient", costItemId: "milk", grams: 150, text: null, custom: false },
+    { kind: "ingredient", costItemId: "matcha", grams: 4, text: null, custom: false },
+  ],
+);
+
+// Pinned + exclude still drops the excluded base ingredient.
+assert.deepEqual(
+  mergeRecipe(base, [
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "exclude", costItemId: "milk" },
+  ]),
+  [{ kind: "ingredient", costItemId: "matcha", grams: 4, text: null, custom: false }],
+);
+
+// Pinned + override still applies grams, keeping pinned position.
+assert.deepEqual(
+  mergeRecipe(base, [
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "override", costItemId: "matcha", grams: 6 },
+  ]),
+  [
+    { kind: "ingredient", costItemId: "matcha", grams: 6, text: null, custom: false },
+    { kind: "ingredient", costItemId: "milk", grams: 150, text: null, custom: false },
+  ],
+);
+
+// Cost is order-independent: pinned vs default give the same goods cost.
+assert.equal(
+  deriveGoodsCost(
+    mergeRecipe(base, [
+      { kind: "inherited", costItemId: "matcha" },
+      { kind: "inherited", costItemId: "milk" },
+    ]),
+    mItems,
+  ),
+  deriveGoodsCost(mergeRecipe(base, null), mItems),
+);
+
+// --- buildDisplayRecipe --------------------------------------------------
+// Not pinned: synthesize a marker per base ingredient (default order) + own.
+assert.deepEqual(
+  buildDisplayRecipe(base, [{ kind: "free", text: "Add ice" }]),
+  [
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "free", text: "Add ice" },
+  ],
+);
+
+// Not pinned but with directives: markers + own steps + directives kept.
+assert.deepEqual(
+  buildDisplayRecipe(base, [{ kind: "exclude", costItemId: "milk" }]),
+  [
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "exclude", costItemId: "milk" },
+  ],
+);
+
+// Already pinned: returns the saved order (markers/own) + directives appended.
+assert.deepEqual(
+  buildDisplayRecipe(base, [
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "override", costItemId: "matcha", grams: 6 },
+  ]),
+  [
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "override", costItemId: "matcha", grams: 6 },
+  ],
+);
+
+// --- prepareRecipeForSave ------------------------------------------------
+// Display in default order (markers lead, in base order, own after) -> strip
+// markers so the drink stays unpinned.
+assert.deepEqual(
+  prepareRecipeForSave(base, [
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "free", text: "Add ice" },
+  ]),
+  [{ kind: "free", text: "Add ice" }],
+);
+
+// Display reordered (own step before a marker) -> keep markers (pinned).
+assert.deepEqual(
+  prepareRecipeForSave(base, [
+    { kind: "free", text: "Add ice" },
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "inherited", costItemId: "matcha" },
+  ]),
+  [
+    { kind: "free", text: "Add ice" },
+    { kind: "inherited", costItemId: "milk" },
+    { kind: "inherited", costItemId: "matcha" },
+  ],
+);
+
+// Display with markers swapped from base order -> keep markers (pinned).
+assert.deepEqual(
+  prepareRecipeForSave(base, [
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "inherited", costItemId: "milk" },
+  ]),
+  [
+    { kind: "inherited", costItemId: "matcha" },
+    { kind: "inherited", costItemId: "milk" },
+  ],
+);
+
+// No base at all: nothing to strip, own entries pass through unchanged.
+assert.deepEqual(
+  prepareRecipeForSave(null, [{ kind: "free", text: "Add ice" }]),
+  [{ kind: "free", text: "Add ice" }],
+);
+
+// Round-trip: default display -> save -> merge equals default merge.
+{
+  const display = buildDisplayRecipe(base, [{ kind: "free", text: "Add ice" }]);
+  const saved = prepareRecipeForSave(base, display);
+  assert.deepEqual(mergeRecipe(base, saved), mergeRecipe(base, [{ kind: "free", text: "Add ice" }]));
+}
 
 console.log("recipe.ts smoke check passed");
