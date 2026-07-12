@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth/session";
 import { AdminShell } from "@/components/admin/admin-shell";
+import {
+  UnsavedChangesProvider,
+  UnsavedChangesDialog,
+} from "@/components/admin/unsaved-changes";
 
 export const metadata: Metadata = {
   title: "Naise Admin",
@@ -14,5 +18,10 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   if (!(await isAdmin())) redirect("/");
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <UnsavedChangesProvider>
+      <AdminShell>{children}</AdminShell>
+      <UnsavedChangesDialog />
+    </UnsavedChangesProvider>
+  );
 }
