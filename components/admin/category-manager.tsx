@@ -12,6 +12,7 @@ import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { RecipeBuilder } from "@/components/admin/recipe-builder";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 import type { AdminAddon, AdminCategory, AdminCostItem } from "@/lib/menu/types";
 import type { RecipeEntry } from "@/lib/menu/recipe";
 import {
@@ -167,6 +168,15 @@ function CategoryRow({
   const [pending, startTransition] = useTransition();
 
   const activeCostItems = costItems.filter((c) => !c.isArchived);
+
+  // Reloads on save (onChanged -> window.location.reload), so compare directly
+  // to the category prop; no saved-baseline advance needed.
+  const dirty =
+    name !== category.name ||
+    maxAddons !== String(category.maxAddons) ||
+    JSON.stringify([...picked].sort()) !== JSON.stringify([...category.addonIds].sort()) ||
+    JSON.stringify(recipe) !== JSON.stringify(category.recipe);
+  useUnsavedChanges(dirty);
 
   function save() {
     setError(null);

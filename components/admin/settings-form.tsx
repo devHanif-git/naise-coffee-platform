@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { capitalizeFirst } from "@/lib/format";
 import type { StoreSettings } from "@/lib/settings/types";
 import { updateStoreSettings } from "@/app/(admin)/admin/settings/actions";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 
 function ToggleRow({
   label,
@@ -49,10 +50,17 @@ export function SettingsForm({ initial }: { initial: StoreSettings }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // Baseline advances on a successful save (this form does not reload), so the
+  // guard disarms once edits are persisted.
+  const [saved, setSaved] = useState(() => JSON.stringify(initial));
+  const dirty = JSON.stringify(s) !== saved;
+  useUnsavedChanges(dirty);
+
   function save() {
     setMsg(null);
     startTransition(async () => {
       const res = await updateStoreSettings(s);
+      if (res.ok) setSaved(JSON.stringify(s));
       setMsg(res.ok ? { ok: true, text: "Saved." } : { ok: false, text: res.error });
     });
   }

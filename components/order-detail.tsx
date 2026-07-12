@@ -556,7 +556,11 @@ export function OrderDetail({
         <div className="flex items-baseline justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider">Drinks</h2>
           <span className="text-[0.6875rem] text-muted-foreground">
-            {canAmend ? "Swipe ← to update · → to amend" : "Swipe each drink to update"}
+            {order.status === "cancelled"
+              ? "Order cancelled"
+              : canAmend
+                ? "Swipe ← to update · → to amend"
+                : "Swipe each drink to update"}
           </span>
         </div>
         <ul className="flex flex-col">
@@ -571,6 +575,7 @@ export function OrderDetail({
                 statuses[i] !== "done" &&
                 !item.isReward
               }
+              locked={order.status === "cancelled"}
               onAdvance={() => advanceDrink(i)}
               onSwap={() => handleSwap(i)}
               onVoid={() => handleVoid(i)}
