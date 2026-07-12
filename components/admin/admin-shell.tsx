@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { GuardedLink } from "@/components/admin/guarded-link";
 import { usePathname } from "next/navigation";
 import {
   Menu,
@@ -58,7 +58,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         const active = isActive(pathname, item.href);
         const Icon = item.icon;
         return (
-          <Link
+          <GuardedLink
             key={item.href}
             href={item.href}
             onClick={onNavigate}
@@ -72,7 +72,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           >
             <Icon className="size-5 shrink-0" aria-hidden />
             {item.label}
-          </Link>
+          </GuardedLink>
         );
       })}
     </nav>
@@ -84,14 +84,14 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 // jump to their profile (where the staff tools live) from any admin page.
 function ExitToApp({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <Link
+    <GuardedLink
       href="/profile"
       onClick={onNavigate}
       className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <Store className="size-5 shrink-0" aria-hidden />
       Back to app
-    </Link>
+    </GuardedLink>
   );
 }
 
