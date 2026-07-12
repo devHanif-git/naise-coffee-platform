@@ -529,7 +529,7 @@ function RecipeStepRow({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-[0.7rem] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-[0.7rem] text-muted-foreground">
             <span className="rounded-full bg-foreground px-2 py-0.5 font-semibold text-background">
               From category
             </span>

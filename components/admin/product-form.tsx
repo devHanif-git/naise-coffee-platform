@@ -191,7 +191,7 @@ export function ProductForm({
 
       <div className="grid items-start gap-4 lg:grid-cols-3">
         {/* Main column — the substance of the item. */}
-        <div className="flex flex-col gap-4 lg:col-span-2">
+        <div className="flex min-w-0 flex-col gap-4 lg:col-span-2">
           <Panel title="Details">
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(capitalizeWords(e.target.value))} />
@@ -376,7 +376,7 @@ export function ProductForm({
         </div>
 
         {/* Side column — image and where it surfaces. */}
-        <div className="flex flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <Panel title="Image">
             <ImageUpload value={imageUrl} onChange={setImageUrl} />
           </Panel>
