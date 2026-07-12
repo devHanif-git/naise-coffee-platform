@@ -39,6 +39,11 @@ export function RecipeBuilder({
     (c) => c.alwaysIncluded && !c.prepTemplate,
   );
   const templateById = new Map(costItems.map((c) => [c.id, c.prepTemplate]));
+  // Always-included ids — inherited rows for these came from Cost Goods ("every
+  // cup"), not a category, so they get a different source badge.
+  const alwaysIncludedIds = new Set(
+    activeCostItems.filter((c) => c.alwaysIncluded).map((c) => c.id),
+  );
 
   const base = (inherited ?? []).filter(
     (e): e is Extract<RecipeEntry, { kind: "ingredient" }> => e.kind === "ingredient",
@@ -341,6 +346,13 @@ export function RecipeBuilder({
                     templateById,
                   )
                 : "";
+              // Where an inherited row comes from: an always-included cost item
+              // ("Every cup") vs a category base ingredient ("From category").
+              const sourceLabel = isInherited
+                ? alwaysIncludedIds.has(entry.costItemId)
+                  ? "Every cup"
+                  : "From category"
+                : "";
               return (
                 <div key={i} className="contents">
                   {drag &&
@@ -354,6 +366,7 @@ export function RecipeBuilder({
                     entry={entry}
                     templateById={templateById}
                     costName={costName}
+                    sourceLabel={sourceLabel}
                     inheritedText={inheritedText}
                     basePlaceholder={inheritedBase?.grams ?? null}
                     overrideGrams={overrideGrams}
@@ -403,7 +416,7 @@ function DropPlaceholder({ h }: { h: number }) {
 // One row in the ordered recipe list. Three body variants share the same drag
 // handle + position chrome:
 //   - inherited marker: read-only step text + grams-override input + Skip toggle
-//     (badged "From category"); no remove.
+//     (badged with its source — "Every cup" or "From category"); no remove.
 //   - own ingredient: editable text (freezes to custom), grams, reset, remove.
 //   - free step: editable text, remove.
 function RecipeStepRow({
@@ -412,6 +425,7 @@ function RecipeStepRow({
   entry,
   templateById,
   costName,
+  sourceLabel,
   inheritedText,
   basePlaceholder,
   overrideGrams,
@@ -431,6 +445,7 @@ function RecipeStepRow({
   entry: RecipeEntry;
   templateById: Map<string, string | null>;
   costName: string;
+  sourceLabel: string;
   inheritedText: string;
   basePlaceholder: number | null;
   overrideGrams: number | null;
@@ -536,7 +551,7 @@ function RecipeStepRow({
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[0.7rem] text-muted-foreground">
             <span className="rounded-full bg-foreground px-2 py-0.5 font-semibold text-background">
-              From category
+              {sourceLabel}
             </span>
             <span className="rounded-full bg-muted px-2 py-0.5 font-semibold">
               {costName}
