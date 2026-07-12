@@ -7,6 +7,7 @@ import type { Role } from "@/types/auth";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { setCustomerRole, adjustCustomerBeans } from "@/app/(admin)/admin/customers/actions";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { filterSignedInteger } from "@/lib/input";
@@ -40,6 +41,11 @@ export function CustomerDetail({ detail }: { detail: CustomerDetail }) {
   const [confirming, setConfirming] = useState(false);
   const [beansMsg, setBeansMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [beansPending, startBeans] = useTransition();
+
+  // Unsaved work: a changed-but-unsaved role, or a typed-but-unapplied Beans
+  // adjustment. saveRole/applyBeans call router.refresh() on success, which
+  // re-renders with the new summary/cleared inputs, disarming the guard.
+  useUnsavedChanges(role !== summary.role || amount.trim() !== "" || reason.trim() !== "");
 
   function saveRole() {
     setRoleMsg(null);

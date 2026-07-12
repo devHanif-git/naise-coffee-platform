@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { saveStampSettings, type StampSettingsInput } from "@/app/(admin)/admin/promotions/stamp-actions";
 import type { StampSettings } from "@/types/reward";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 
 export function StampSettingsForm({ initial }: { initial: StampSettings }) {
   const [form, setForm] = useState<StampSettingsInput>({
@@ -17,9 +18,15 @@ export function StampSettingsForm({ initial }: { initial: StampSettings }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
 
+  // No reload on save; baseline advances on success so the guard disarms.
+  const current = JSON.stringify(form);
+  const [saved, setSaved] = useState(current);
+  useUnsavedChanges(current !== saved);
+
   function save() {
     start(async () => {
       const res = await saveStampSettings(form);
+      if (res.ok) setSaved(current);
       setMsg(res.ok ? "Saved" : res.error);
     });
   }

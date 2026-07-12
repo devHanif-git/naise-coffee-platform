@@ -10,16 +10,23 @@ import type { PaymentSettings } from "@/lib/settings/payments";
 import { updatePaymentSettings, uploadDuitnowQr } from "@/app/(admin)/admin/settings/actions";
 import { ImageUpload } from "@/components/admin/image-upload";
 import { images } from "@/constants/images";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 
 export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
   const [s, setS] = useState<PaymentSettings>(initial);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // No reload on save; baseline advances on success so the guard disarms.
+  const current = JSON.stringify(s);
+  const [saved, setSaved] = useState(current);
+  useUnsavedChanges(current !== saved);
+
   function save() {
     setMsg(null);
     startTransition(async () => {
       const res = await updatePaymentSettings(s);
+      if (res.ok) setSaved(current);
       setMsg(res.ok ? { ok: true, text: "Saved." } : { ok: false, text: res.error });
     });
   }
