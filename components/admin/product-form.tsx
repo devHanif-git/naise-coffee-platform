@@ -17,7 +17,13 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { RecipeBuilder } from "@/components/admin/recipe-builder";
 import { saveProduct } from "@/app/(admin)/admin/menu/actions";
 import { formatPrice } from "@/lib/format";
-import { deriveGoodsCost, mergeRecipe, type RecipeEntry } from "@/lib/menu/recipe";
+import {
+  deriveGoodsCost,
+  mergeRecipe,
+  buildDisplayRecipe,
+  prepareRecipeForSave,
+  type RecipeEntry,
+} from "@/lib/menu/recipe";
 import type {
   AdminAddon,
   AdminCategory,
@@ -71,8 +77,9 @@ export function ProductForm({
   const [isFeatured] = useState(product?.isFeatured ?? false);
   const [isAvailable, setIsAvailable] = useState(product?.isAvailable ?? true);
 
-  // Ordered, unified recipe list. Holds the drink's own ingredient/free steps
-  // AND its directives (exclude/override) against the inherited category base.
+  // Ordered, unified recipe list. Holds the drink's own ingredient/free steps,
+  // its directives (exclude/override) against the inherited category base, and —
+  // once the drink pins its order — inherited position markers.
   const [recipe, setRecipe] = useState<RecipeEntry[]>(product?.recipe ?? []);
 
   const activeCostItems = costItems.filter((c) => !c.isArchived);
@@ -81,55 +88,10 @@ export function ProductForm({
   // The category base flows into every drink in the category (live inheritance).
   const inheritedBase: RecipeEntry[] = selectedCategory?.recipe ?? [];
 
-  // Controls for inherited ingredients, derived from the exclude/override
-  // directives currently in `recipe`.
-  const inheritedControls = new Map<
-    string,
-    { excluded: boolean; overrideGrams: number | null }
-  >();
-  for (const e of recipe) {
-    if (e.kind === "exclude")
-      inheritedControls.set(e.costItemId, {
-        excluded: true,
-        overrideGrams: inheritedControls.get(e.costItemId)?.overrideGrams ?? null,
-      });
-    else if (e.kind === "override")
-      inheritedControls.set(e.costItemId, {
-        excluded: inheritedControls.get(e.costItemId)?.excluded ?? false,
-        overrideGrams: e.grams,
-      });
-  }
-
-  // The plain ingredient/free entries the builder edits (directives filtered out).
-  const ownEntries = recipe.filter(
-    (e) => e.kind === "ingredient" || e.kind === "free",
-  );
-
-  // Builder edits own entries; keep the directives untouched alongside them.
-  function setOwnEntries(next: RecipeEntry[]) {
-    const directives = recipe.filter(
-      (e) => e.kind === "exclude" || e.kind === "override",
-    );
-    setRecipe([...directives, ...next]);
-  }
-
-  // Toggle skip / set grams override on an inherited ingredient. Rebuilds all
-  // directive entries (one per inherited ingredient that's excluded or
-  // overridden) and keeps the drink's own entries after them.
-  function setInheritedControl(
-    costItemId: string,
-    ctrl: { excluded: boolean; overrideGrams: number | null },
-  ) {
-    const merged = new Map(inheritedControls);
-    merged.set(costItemId, ctrl);
-    const directives: RecipeEntry[] = [];
-    for (const [id, c] of merged) {
-      if (c.excluded) directives.push({ kind: "exclude", costItemId: id });
-      else if (c.overrideGrams != null)
-        directives.push({ kind: "override", costItemId: id, grams: c.overrideGrams });
-    }
-    setRecipe([...directives, ...ownEntries]);
-  }
+  // The builder edits the full display recipe: inherited markers (so category
+  // steps are real, draggable rows) + own steps + directives. buildDisplayRecipe
+  // synthesizes markers in category order when the drink hasn't pinned yet.
+  const displayRecipe = buildDisplayRecipe(inheritedBase, recipe);
 
   // Live goods cost (sen): merged (category base + drink) ingredients + every
   // always-included item.
@@ -171,14 +133,15 @@ export function ProductForm({
   function submit() {
     setError(null);
     // Dedupe against the category base: drop own-ingredients already in the base
-    // (base wins), and drop stale directives for cost items no longer in the
-    // base (e.g. after the category changed). Free steps pass through.
+    // (base wins), and drop stale directives/markers for cost items no longer in
+    // the base (e.g. after the category changed). Free steps pass through.
     const baseIds = new Set(
       inheritedBase.flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
     );
     const cleanedRecipe = recipe.filter((e) => {
       if (e.kind === "ingredient") return !baseIds.has(e.costItemId);
-      if (e.kind === "exclude" || e.kind === "override") return baseIds.has(e.costItemId);
+      if (e.kind === "exclude" || e.kind === "override" || e.kind === "inherited")
+        return baseIds.has(e.costItemId);
       return true; // free
     });
     const data: ProductFormData = {
@@ -352,11 +315,11 @@ export function ProductForm({
             ) : (
               <RecipeBuilder
                 costItems={activeCostItems}
-                value={ownEntries}
-                onChange={setOwnEntries}
+                value={displayRecipe}
+                onChange={(next) =>
+                  setRecipe(prepareRecipeForSave(inheritedBase, next))
+                }
                 inherited={inheritedBase}
-                inheritedControls={inheritedControls}
-                onInheritedControlChange={setInheritedControl}
               />
             )}
           </Panel>

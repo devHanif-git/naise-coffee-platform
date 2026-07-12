@@ -9,95 +9,155 @@ import { formatPrice } from "@/lib/format";
 import { deriveGoodsCost, renderStep, mergeRecipe, type RecipeEntry } from "@/lib/menu/recipe";
 import type { AdminCostItem } from "@/lib/menu/types";
 
-// Per-inherited-ingredient control the parent owns (stored as exclude/override
-// entries on the product recipe). overrideGrams null = inherit the base grams.
-export type InheritedControl = { excluded: boolean; overrideGrams: number | null };
-
 // Shared recipe builder used by both the product form and the category editor.
-// It edits an ordered list of ingredient/free entries (`value`); the ingredient
-// picker, prep-step list (drag/reorder + grams), and live goods cost all work
-// off that list. When `inherited` is passed (product form), the category base is
-// shown read-only above the picker with per-ingredient skip + grams-override
-// controls, and the live cost reflects the merged result.
+//
+// `value` is the full working recipe: ordered rows (inherited markers + own
+// ingredient/free steps) followed by directive entries (exclude/override). The
+// builder renders every ordered row in ONE reorderable list — inherited steps
+// included — so category steps can be dragged, interleaved, skipped, and
+// grams-overridden right alongside the drink's own steps.
+//
+// `inherited` (the category base) is used only to resolve each inherited
+// marker's name, template, price, and base grams. The category editor passes no
+// `inherited`, so its list has no markers/directives and behaves as a plain
+// ordered recipe.
 export function RecipeBuilder({
   costItems,
   value,
   onChange,
   inherited,
-  inheritedControls,
-  onInheritedControlChange,
 }: {
   costItems: AdminCostItem[];
   value: RecipeEntry[];
   onChange: (next: RecipeEntry[]) => void;
   inherited?: RecipeEntry[];
-  inheritedControls?: Map<string, InheritedControl>;
-  onInheritedControlChange?: (costItemId: string, next: InheritedControl) => void;
 }) {
-  // Keep the moved handlers near-identical to their product-form origin.
-  const setRecipe = (
-    updater: RecipeEntry[] | ((prev: RecipeEntry[]) => RecipeEntry[]),
-  ) => onChange(typeof updater === "function" ? updater(value) : updater);
-
   const activeCostItems = costItems.filter((c) => !c.isArchived);
   const alwaysItems = activeCostItems.filter((c) => c.alwaysIncluded);
-  // Items already in the category base are shown (with skip/override) in the
-  // "From category" zone, so keep them out of the picker to avoid a confusing
-  // double-appearance (and a transient double-count in the live preview).
-  const inheritedIds = new Set(
-    (inherited ?? []).flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
+  const templateById = new Map(costItems.map((c) => [c.id, c.prepTemplate]));
+
+  const base = (inherited ?? []).filter(
+    (e): e is Extract<RecipeEntry, { kind: "ingredient" }> => e.kind === "ingredient",
   );
+  const baseById = new Map(base.map((e) => [e.costItemId, e]));
+  const inheritedIds = new Set(baseById.keys());
+
+  // Split the working list into ordered rows and directive metadata.
+  const ordered = value.filter(
+    (e) => e.kind === "inherited" || e.kind === "ingredient" || e.kind === "free",
+  );
+  const directives = value.filter(
+    (e) => e.kind === "exclude" || e.kind === "override",
+  );
+  const excluded = new Set(
+    directives.flatMap((e) => (e.kind === "exclude" ? [e.costItemId] : [])),
+  );
+  const overrides = new Map(
+    directives.flatMap((e) => (e.kind === "override" ? [[e.costItemId, e.grams] as const] : [])),
+  );
+
+  // Optional items not already inherited — the picker only adds NEW ingredients.
   const optionalItems = activeCostItems.filter(
     (c) => !c.alwaysIncluded && !inheritedIds.has(c.id),
   );
-  const templateById = new Map(costItems.map((c) => [c.id, c.prepTemplate]));
-
-  // Which optional cost items are currently in the list (as ingredient steps).
   const tickedIds = new Set(
-    value.flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
+    ordered.flatMap((e) => (e.kind === "ingredient" ? [e.costItemId] : [])),
   );
 
-  function inheritedControl(id: string): InheritedControl {
-    return inheritedControls?.get(id) ?? { excluded: false, overrideGrams: null };
-  }
-  function setInheritedControl(id: string, next: InheritedControl) {
-    onInheritedControlChange?.(id, next);
+  // Commit a new ordered list (directives unchanged unless passed).
+  function commit(nextOrdered: RecipeEntry[], nextDirectives: RecipeEntry[] = directives) {
+    onChange([...nextOrdered, ...nextDirectives]);
   }
 
   function toggleIngredient(costItemId: string) {
-    setRecipe((prev) => {
-      const exists = prev.some(
-        (e) => e.kind === "ingredient" && e.costItemId === costItemId,
-      );
-      if (exists)
-        return prev.filter(
+    const exists = ordered.some(
+      (e) => e.kind === "ingredient" && e.costItemId === costItemId,
+    );
+    if (exists) {
+      commit(
+        ordered.filter(
           (e) => !(e.kind === "ingredient" && e.costItemId === costItemId),
-        );
-      // New ingredient step appended at the bottom; drag to reposition.
-      return [
-        ...prev,
+        ),
+      );
+    } else {
+      commit([
+        ...ordered,
         { kind: "ingredient", costItemId, grams: null, text: null, custom: false },
-      ];
-    });
+      ]);
+    }
   }
 
   function addFreeStep() {
-    setRecipe((prev) => [...prev, { kind: "free", text: "" }]);
+    commit([...ordered, { kind: "free", text: "" }]);
   }
 
   function removeAt(index: number) {
-    setRecipe((prev) => prev.filter((_, i) => i !== index));
+    commit(ordered.filter((_, i) => i !== index));
   }
 
   // Adjacent swap for the up/down buttons.
   function move(index: number, dir: -1 | 1) {
-    setRecipe((prev) => {
-      const to = index + dir;
-      if (to < 0 || to >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[to]] = [next[to], next[index]];
-      return next;
-    });
+    const to = index + dir;
+    if (to < 0 || to >= ordered.length) return;
+    const next = [...ordered];
+    [next[index], next[to]] = [next[to], next[index]];
+    commit(next);
+  }
+
+  // Editing grams on an OWN ingredient step.
+  function setGramsAt(index: number, gramsStr: string) {
+    const n = Number(gramsStr);
+    const grams = gramsStr.trim() === "" || !Number.isFinite(n) ? null : n;
+    commit(
+      ordered.map((e, i) =>
+        i === index && e.kind === "ingredient" ? { ...e, grams } : e,
+      ),
+    );
+  }
+
+  // Editing an own ingredient step's text freezes it (custom=true). Free steps
+  // just update text.
+  function setTextAt(index: number, text: string) {
+    commit(
+      ordered.map((e, i) => {
+        if (i !== index) return e;
+        if (e.kind === "free") return { ...e, text };
+        if (e.kind === "ingredient") return { ...e, text, custom: true };
+        return e;
+      }),
+    );
+  }
+
+  // Revert a frozen own ingredient step back to its template.
+  function resetToTemplate(index: number) {
+    commit(
+      ordered.map((e, i) =>
+        i === index && e.kind === "ingredient"
+          ? { ...e, text: null, custom: false }
+          : e,
+      ),
+    );
+  }
+
+  // Skip / un-skip an inherited base ingredient (writes/removes an exclude
+  // directive). The marker row stays in place so it can be un-skipped.
+  function setSkip(costItemId: string, skip: boolean) {
+    const rest = directives.filter(
+      (e) => !(e.kind === "exclude" && e.costItemId === costItemId),
+    );
+    commit(ordered, skip ? [...rest, { kind: "exclude", costItemId }] : rest);
+  }
+
+  // Set / clear a grams override on an inherited base ingredient.
+  function setOverride(costItemId: string, gramsStr: string) {
+    const rest = directives.filter(
+      (e) => !(e.kind === "override" && e.costItemId === costItemId),
+    );
+    const digits = gramsStr.trim();
+    commit(
+      ordered,
+      digits === "" ? rest : [...rest, { kind: "override", costItemId, grams: Number(digits) }],
+    );
   }
 
   // Pointer-drag reordering. The grabbed row lifts out of flow (position:fixed)
@@ -112,11 +172,7 @@ export function RecipeBuilder({
     w: number;
     h: number;
   } | null>(null);
-  // Pointer offset within the grabbed row, so it stays under the cursor.
   const grabDy = useRef(0);
-  // Latest {from,drop} in a ref so release commits without a stale closure and
-  // without nesting setRecipe inside a state updater (StrictMode would
-  // otherwise apply the move twice).
   const dragInfo = useRef<{ from: number; drop: number } | null>(null);
 
   function startDrag(index: number, e: React.PointerEvent) {
@@ -137,8 +193,6 @@ export function RecipeBuilder({
     });
 
     const onMove = (ev: PointerEvent) => {
-      // Measure the live sibling rows (everything except the lifted row), so the
-      // target tracks the pointer even as rows reflow around the placeholder.
       const siblings = Array.from(
         list.querySelectorAll<HTMLElement>("li[data-step]"),
       ).filter((r) => r.dataset.step !== String(index));
@@ -157,55 +211,17 @@ export function RecipeBuilder({
       dragInfo.current = null;
       setDrag(null);
       if (!info || info.drop === info.from) return;
-      setRecipe((prev) => {
-        const next = [...prev];
-        const [moved] = next.splice(info.from, 1);
-        next.splice(Math.max(0, Math.min(info.drop, next.length)), 0, moved);
-        return next;
-      });
+      const next = [...ordered];
+      const [moved] = next.splice(info.from, 1);
+      next.splice(Math.max(0, Math.min(info.drop, next.length)), 0, moved);
+      commit(next);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
 
-  // Editing grams re-renders an untouched ingredient step from its template
-  // (text stays null); a custom step keeps its frozen text.
-  function setGramsAt(index: number, gramsStr: string) {
-    const n = Number(gramsStr);
-    const grams = gramsStr.trim() === "" || !Number.isFinite(n) ? null : n;
-    setRecipe((prev) =>
-      prev.map((e, i) =>
-        i === index && e.kind === "ingredient" ? { ...e, grams } : e,
-      ),
-    );
-  }
-
-  // Editing an ingredient step's text freezes it (custom=true). Free steps just
-  // update text.
-  function setTextAt(index: number, text: string) {
-    setRecipe((prev) =>
-      prev.map((e, i) => {
-        if (i !== index) return e;
-        if (e.kind === "free") return { ...e, text };
-        if (e.kind === "ingredient") return { ...e, text, custom: true };
-        return e;
-      }),
-    );
-  }
-
-  // Revert a frozen ingredient step back to its template.
-  function resetToTemplate(index: number) {
-    setRecipe((prev) =>
-      prev.map((e, i) =>
-        i === index && e.kind === "ingredient"
-          ? { ...e, text: null, custom: false }
-          : e,
-      ),
-    );
-  }
-
-  // Live goods cost (sen): merged (inherited base + own) ingredients + every
-  // always-included item.
+  // Live goods cost (sen): merged (inherited base + working list) ingredients +
+  // every always-included item. mergeRecipe handles the markers/directives.
   const goodsCost = deriveGoodsCost(
     mergeRecipe(inherited ?? null, value),
     activeCostItems.map((c) => ({
@@ -214,10 +230,6 @@ export function RecipeBuilder({
       alwaysIncluded: c.alwaysIncluded,
       isArchived: c.isArchived,
     })),
-  );
-
-  const inheritedIngredients = (inherited ?? []).filter(
-    (e): e is Extract<RecipeEntry, { kind: "ingredient" }> => e.kind === "ingredient",
   );
 
   return (
@@ -242,26 +254,6 @@ export function RecipeBuilder({
                   {formatPrice(c.price)}
                 </span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Inherited category base: read-only, with skip + grams-override. */}
-      {inheritedIngredients.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            From category
-          </span>
-          <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-muted/30">
-            {inheritedIngredients.map((e) => (
-              <InheritedRow
-                key={e.costItemId}
-                entry={e}
-                costItem={activeCostItems.find((c) => c.id === e.costItemId) ?? null}
-                control={inheritedControl(e.costItemId)}
-                onChange={(next) => setInheritedControl(e.costItemId, next)}
-              />
             ))}
           </div>
         </div>
@@ -304,7 +296,7 @@ export function RecipeBuilder({
         </div>
       </div>
 
-      {/* Ordered step list — ingredient + free steps, reorderable. */}
+      {/* Ordered step list — inherited + own steps, all reorderable. */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
@@ -318,47 +310,63 @@ export function RecipeBuilder({
             <Plus className="size-4" /> Add step
           </button>
         </div>
-        {value.length === 0 ? (
+        {ordered.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
             Tick an ingredient above or add a step. Drag to reorder.
           </p>
         ) : (
           <ol className="relative flex flex-col gap-2">
-            {value.map((entry, i) => (
-              <div key={i} className="contents">
-                {/* Placeholder opens a card-sized space at the target.
-                    `drop` counts in-flow rows (the dragged row is
-                    lifted out), so place it before the row whose
-                    in-flow position equals drop — skipping the dragged
-                    row itself to avoid a double render. */}
-                {drag &&
-                  i !== drag.from &&
-                  (i <= drag.from ? i : i - 1) === drag.drop && (
-                    <DropPlaceholder h={drag.h} />
-                  )}
-                <RecipeStepRow
-                  index={i}
-                  total={value.length}
-                  entry={entry}
-                  templateById={templateById}
-                  costName={
-                    entry.kind === "ingredient"
-                      ? activeCostItems.find((c) => c.id === entry.costItemId)?.name ??
-                        "Ingredient"
-                      : ""
-                  }
-                  lift={drag?.from === i ? { x: drag.x, y: drag.y, w: drag.w } : null}
-                  onGrams={(g) => setGramsAt(i, g)}
-                  onText={(t) => setTextAt(i, t)}
-                  onReset={() => resetToTemplate(i)}
-                  onRemove={() => removeAt(i)}
-                  onMove={(dir) => move(i, dir)}
-                  onDragStart={(e) => startDrag(i, e)}
-                />
-              </div>
-            ))}
-            {/* Placeholder at the end of the list (last in-flow slot). */}
-            {drag && drag.drop === value.length - 1 && (
+            {ordered.map((entry, i) => {
+              const isInherited = entry.kind === "inherited";
+              const inheritedBase = isInherited ? baseById.get(entry.costItemId) : undefined;
+              const overrideGrams = isInherited ? overrides.get(entry.costItemId) ?? null : null;
+              const isExcluded = isInherited && excluded.has(entry.costItemId);
+              const costName = isInherited
+                ? inheritedBase
+                  ? activeCostItems.find((c) => c.id === entry.costItemId)?.name ?? "Ingredient"
+                  : "Ingredient"
+                : entry.kind === "ingredient"
+                  ? activeCostItems.find((c) => c.id === entry.costItemId)?.name ?? "Ingredient"
+                  : "";
+              // Inherited step text renders from the base entry (with override
+              // grams applied), read-only.
+              const inheritedText = inheritedBase
+                ? renderStep(
+                    overrideGrams == null ? inheritedBase : { ...inheritedBase, grams: overrideGrams },
+                    templateById,
+                  )
+                : "";
+              return (
+                <div key={i} className="contents">
+                  {drag &&
+                    i !== drag.from &&
+                    (i <= drag.from ? i : i - 1) === drag.drop && (
+                      <DropPlaceholder h={drag.h} />
+                    )}
+                  <RecipeStepRow
+                    index={i}
+                    total={ordered.length}
+                    entry={entry}
+                    templateById={templateById}
+                    costName={costName}
+                    inheritedText={inheritedText}
+                    basePlaceholder={inheritedBase?.grams ?? null}
+                    overrideGrams={overrideGrams}
+                    excluded={isExcluded}
+                    lift={drag?.from === i ? { x: drag.x, y: drag.y, w: drag.w } : null}
+                    onGrams={(g) => setGramsAt(i, g)}
+                    onText={(t) => setTextAt(i, t)}
+                    onReset={() => resetToTemplate(i)}
+                    onRemove={() => removeAt(i)}
+                    onMove={(dir) => move(i, dir)}
+                    onDragStart={(e) => startDrag(i, e)}
+                    onSkip={(v) => isInherited && setSkip(entry.costItemId, v)}
+                    onOverrideGrams={(g) => isInherited && setOverride(entry.costItemId, g)}
+                  />
+                </div>
+              );
+            })}
+            {drag && drag.drop === ordered.length - 1 && (
               <DropPlaceholder h={drag.h} />
             )}
           </ol>
@@ -375,60 +383,6 @@ export function RecipeBuilder({
   );
 }
 
-// One inherited (category-base) ingredient: read-only name with a grams-override
-// input (placeholder shows the base grams) and a Skip checkbox. Editing these
-// writes exclude/override directives on the product recipe (parent-owned).
-function InheritedRow({
-  entry,
-  costItem,
-  control,
-  onChange,
-}: {
-  entry: Extract<RecipeEntry, { kind: "ingredient" }>;
-  costItem: { name: string; price: number } | null;
-  control: InheritedControl;
-  onChange: (next: InheritedControl) => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-3 py-2.5 text-sm">
-      <span
-        className={cn(
-          "flex-1",
-          control.excluded && "text-muted-foreground line-through",
-        )}
-      >
-        {costItem?.name ?? "Ingredient"}
-      </span>
-      <div className="relative w-20 shrink-0">
-        <Input
-          inputMode="numeric"
-          value={control.overrideGrams == null ? "" : String(control.overrideGrams)}
-          onChange={(e) => {
-            const digits = filterDigits(e.target.value);
-            onChange({ ...control, overrideGrams: digits === "" ? null : Number(digits) });
-          }}
-          placeholder={entry.grams == null ? "—" : String(entry.grams)}
-          aria-label={`${costItem?.name ?? "Ingredient"} grams override`}
-          disabled={control.excluded}
-          className="w-full pr-6 font-mono tabular-nums"
-        />
-        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-          g
-        </span>
-      </div>
-      <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={control.excluded}
-          onChange={(e) => onChange({ ...control, excluded: e.target.checked })}
-          className="size-4 accent-foreground"
-        />
-        Skip
-      </label>
-    </div>
-  );
-}
-
 // A placeholder that opens a real, card-sized space at the drop target while
 // dragging, so the list visibly parts to receive the row.
 function DropPlaceholder({ h }: { h: number }) {
@@ -441,17 +395,22 @@ function DropPlaceholder({ h }: { h: number }) {
   );
 }
 
-// One row in the ordered recipe list: drag handle + up/down for reorder, an
-// editable body (ingredient steps render from their template with grams inline;
-// free steps are plain text), and a remove control. While its own row is being
-// dragged it lifts out of flow (position:fixed) and follows the pointer, so its
-// origin collapses.
+// One row in the ordered recipe list. Three body variants share the same drag
+// handle + position chrome:
+//   - inherited marker: read-only step text + grams-override input + Skip toggle
+//     (badged "From category"); no remove.
+//   - own ingredient: editable text (freezes to custom), grams, reset, remove.
+//   - free step: editable text, remove.
 function RecipeStepRow({
   index,
   total,
   entry,
   templateById,
   costName,
+  inheritedText,
+  basePlaceholder,
+  overrideGrams,
+  excluded,
   lift,
   onGrams,
   onText,
@@ -459,12 +418,18 @@ function RecipeStepRow({
   onRemove,
   onMove,
   onDragStart,
+  onSkip,
+  onOverrideGrams,
 }: {
   index: number;
   total: number;
   entry: RecipeEntry;
   templateById: Map<string, string | null>;
   costName: string;
+  inheritedText: string;
+  basePlaceholder: number | null;
+  overrideGrams: number | null;
+  excluded: boolean;
   lift: { x: number; y: number; w: number } | null;
   onGrams: (grams: string) => void;
   onText: (text: string) => void;
@@ -472,19 +437,22 @@ function RecipeStepRow({
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
   onDragStart: (e: React.PointerEvent) => void;
+  onSkip: (skip: boolean) => void;
+  onOverrideGrams: (grams: string) => void;
 }) {
+  const isInherited = entry.kind === "inherited";
   const isIngredient = entry.kind === "ingredient";
   const custom = isIngredient && entry.custom;
-  const hasTemplate =
-    isIngredient && !!templateById.get(entry.costItemId);
-  // Untouched ingredient step shows its rendered template as the input value;
-  // editing it freezes to custom. Custom/free show their own text.
-  const shownText =
-    isIngredient && !custom
+  const hasTemplate = isIngredient && !!templateById.get(entry.costItemId);
+  // Untouched own ingredient step shows its rendered template; editing freezes
+  // to custom. Custom/free show their own text.
+  const shownText = isIngredient
+    ? !custom
       ? renderStep(entry, templateById)
-      : "text" in entry
-        ? entry.text ?? ""
-        : "";
+      : entry.text ?? ""
+    : entry.kind === "free"
+      ? entry.text
+      : "";
 
   return (
     <li
@@ -495,7 +463,8 @@ function RecipeStepRow({
           : undefined
       }
       className={cn(
-        "flex items-start gap-2 rounded-xl border bg-card px-2 py-2",
+        "flex items-start gap-2 rounded-xl border px-2 py-2",
+        isInherited ? "bg-muted/30" : "bg-card",
         lift
           ? "z-20 border-primary shadow-2xl ring-2 ring-primary/30 [&_input]:pointer-events-none"
           : "border-border",
@@ -533,56 +502,105 @@ function RecipeStepRow({
         {index + 1}
       </span>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-center gap-2">
-          <Input
-            value={shownText}
-            onChange={(e) => onText(e.target.value)}
-            placeholder={isIngredient ? "Step text" : `Step ${index + 1}`}
-            className="flex-1"
-          />
-          {isIngredient && (
+      {isInherited ? (
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            {/* Read-only rendered step; grams flow from the override input. */}
+            <div
+              className={cn(
+                "flex h-9 min-w-0 flex-1 items-center rounded-md border border-input bg-muted/40 px-3 text-sm",
+                excluded && "text-muted-foreground line-through",
+              )}
+            >
+              <span className="truncate">{inheritedText || costName}</span>
+            </div>
             <div className="relative w-20 shrink-0">
               <Input
                 inputMode="numeric"
-                value={entry.grams == null ? "" : String(entry.grams)}
-                onChange={(e) => onGrams(filterDigits(e.target.value))}
-                placeholder="0"
-                aria-label={`${costName} grams`}
+                value={overrideGrams == null ? "" : String(overrideGrams)}
+                onChange={(e) => onOverrideGrams(filterDigits(e.target.value))}
+                placeholder={basePlaceholder == null ? "—" : String(basePlaceholder)}
+                aria-label={`${costName} grams override`}
+                disabled={excluded}
                 className="w-full pr-7 font-mono tabular-nums"
               />
               <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                 g
               </span>
             </div>
-          )}
-        </div>
-        {isIngredient && (
+          </div>
           <div className="flex items-center gap-2 text-[0.7rem] text-muted-foreground">
+            <span className="rounded-full bg-foreground px-2 py-0.5 font-semibold text-background">
+              From category
+            </span>
             <span className="rounded-full bg-muted px-2 py-0.5 font-semibold">
               {costName}
             </span>
-            {custom && hasTemplate && (
-              <button
-                type="button"
-                onClick={onReset}
-                className="rounded-sm font-semibold outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                Reset to template
-              </button>
+            <label className="ml-auto flex cursor-pointer items-center gap-1.5 font-medium">
+              <input
+                type="checkbox"
+                checked={excluded}
+                onChange={(e) => onSkip(e.target.checked)}
+                className="size-4 accent-foreground"
+              />
+              Skip
+            </label>
+          </div>
+        </div>
+      ) : (
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <Input
+              value={shownText}
+              onChange={(e) => onText(e.target.value)}
+              placeholder={isIngredient ? "Step text" : `Step ${index + 1}`}
+              className="flex-1"
+            />
+            {isIngredient && (
+              <div className="relative w-20 shrink-0">
+                <Input
+                  inputMode="numeric"
+                  value={entry.grams == null ? "" : String(entry.grams)}
+                  onChange={(e) => onGrams(filterDigits(e.target.value))}
+                  placeholder="0"
+                  aria-label={`${costName} grams`}
+                  className="w-full pr-7 font-mono tabular-nums"
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                  g
+                </span>
+              </div>
             )}
           </div>
-        )}
-      </div>
+          {isIngredient && (
+            <div className="flex items-center gap-2 text-[0.7rem] text-muted-foreground">
+              <span className="rounded-full bg-muted px-2 py-0.5 font-semibold">
+                {costName}
+              </span>
+              {custom && hasTemplate && (
+                <button
+                  type="button"
+                  onClick={onReset}
+                  className="rounded-sm font-semibold outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  Reset to template
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label="Remove step"
-        className="mt-1.5 rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <Trash2 className="size-4" />
-      </button>
+      {!isInherited && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove step"
+          className="mt-1.5 rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-destructive focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      )}
     </li>
   );
 }
