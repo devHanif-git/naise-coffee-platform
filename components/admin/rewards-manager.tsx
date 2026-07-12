@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { filterDigits } from "@/lib/input";
 import { capitalizeWords, capitalizeFirst } from "@/lib/format";
 import { ImageUpload } from "@/components/admin/image-upload";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 import type {
   AdminLoyaltySettings,
   AdminMilestone,
@@ -91,6 +92,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
   );
   const current = serialize(settings, tiers, milestones, rewards);
   const dirty = current !== baseline;
+  useUnsavedChanges(dirty);
   const changes = countChanges(initial, settings, tiers, milestones, rewards);
 
   // Keep the bar mounted through its drop-out animation. Show immediately when
