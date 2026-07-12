@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { useUnsavedChanges, useGuardedNavigation } from "@/components/admin/unsaved-changes";
 import type { AdminCostItem } from "@/lib/menu/types";
 import { saveCostItems } from "@/app/(admin)/admin/costs/actions";
 
@@ -48,10 +49,18 @@ const COLS =
 
 export function CostManager({ initial }: { initial: AdminCostItem[] }) {
   const router = useRouter();
+  const { guardedPush } = useGuardedNavigation();
   const [rows, setRows] = useState<Row[]>(initial.map(toRow));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const nextKey = useRef(0);
+
+  // Dirty detection: compare rows to the last-saved baseline. router.refresh()
+  // keeps client state, so the baseline advances on a successful save (below)
+  // rather than resetting via reload.
+  const current = JSON.stringify(rows.map(({ key, ...rest }) => (void key, rest)));
+  const [saved, setSaved] = useState(current);
+  useUnsavedChanges(current !== saved);
   // The row key to focus + flash after a render, set by addRow.
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -122,8 +131,10 @@ export function CostManager({ initial }: { initial: AdminCostItem[] }) {
             prepTemplate: r.prepTemplate.trim() || null,
           })),
         );
-        if (res.ok) router.refresh();
-        else setError(res.error);
+        if (res.ok) {
+          setSaved(current);
+          router.refresh();
+        } else setError(res.error);
       } catch {
         setError("Save failed. Please try again.");
       }
@@ -245,7 +256,7 @@ export function CostManager({ initial }: { initial: AdminCostItem[] }) {
           type="button"
           variant="outline"
           className="h-11 flex-1 rounded-full"
-          onClick={() => router.push("/admin/menu")}
+          onClick={() => guardedPush("/admin/menu")}
         >
           Cancel
         </Button>
