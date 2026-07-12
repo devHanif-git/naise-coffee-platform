@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
+import { TriangleAlert } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
@@ -155,18 +157,29 @@ export function UnsavedChangesDialog() {
         if (!o) cancel();
       }}
     >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+      <AlertDialogContent className="gap-5 rounded-2xl p-5">
+        <AlertDialogHeader className="place-items-center gap-2 text-center sm:place-items-center sm:text-center">
+          <AlertDialogMedia className="size-11 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-500">
+            <TriangleAlert />
+          </AlertDialogMedia>
+          <AlertDialogTitle className="font-heading text-base font-semibold">
+            Unsaved changes
+          </AlertDialogTitle>
           <AlertDialogDescription>
             You&apos;ve made changes that haven&apos;t been saved. If you leave now, they&apos;ll be
             lost.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={cancel}>Stay</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" onClick={confirm}>
-            Leave without saving
+        <AlertDialogFooter className="mx-0 mb-0 grid grid-cols-2 gap-2 border-t-0 bg-transparent p-0 pt-1">
+          <AlertDialogCancel onClick={cancel} className="h-11 rounded-full">
+            Stay
+          </AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={confirm}
+            className="h-11 rounded-full"
+          >
+            Leave
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
