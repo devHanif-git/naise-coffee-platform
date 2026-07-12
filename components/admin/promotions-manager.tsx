@@ -15,6 +15,7 @@ import { promotionStatus, type PromotionStatus } from "@/lib/promotions/pricing"
 import type { AdminPromotion } from "@/lib/promotions/types";
 import type { AdminProduct, AdminCategory } from "@/lib/menu/types";
 import { savePromotion, setPromotionActive, deletePromotion } from "@/app/(admin)/admin/promotions/actions";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 
 // datetime-local helpers: input value is local "YYYY-MM-DDTHH:mm".
 function toLocalInput(iso: string | null): string {
@@ -143,6 +144,19 @@ function PromotionEditor({
   const [categoryIds, setCategoryIds] = useState<Set<string>>(new Set(promo?.categoryIds ?? []));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Reloads on save (onDone -> reload), so compare directly to the promo prop
+  // (undefined promo => the create form, whose defaults below flag as dirty
+  // once the admin types anything).
+  const dirty =
+    label !== (promo?.label ?? "") ||
+    percentOff !== (promo ? String(promo.percentOff) : "") ||
+    isActive !== (promo?.isActive ?? true) ||
+    startsAt !== toLocalInput(promo?.startsAt ?? null) ||
+    endsAt !== toLocalInput(promo?.endsAt ?? null) ||
+    JSON.stringify([...productIds].sort()) !== JSON.stringify([...(promo?.productIds ?? [])].sort()) ||
+    JSON.stringify([...categoryIds].sort()) !== JSON.stringify([...(promo?.categoryIds ?? [])].sort());
+  useUnsavedChanges(dirty);
 
   function toggle(set: Set<string>, id: string, apply: (s: Set<string>) => void) {
     const next = new Set(set);

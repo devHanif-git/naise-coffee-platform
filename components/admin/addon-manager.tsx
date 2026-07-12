@@ -9,6 +9,7 @@ import { filterDecimal } from "@/lib/input";
 import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 import type { AdminAddon } from "@/lib/menu/types";
 import { saveAddon, setAddonArchived } from "@/app/(admin)/admin/addons/actions";
 
@@ -20,6 +21,9 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
   const [price, setPrice] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // A partially-typed new add-on is unsaved work; reloads on save.
+  useUnsavedChanges(name.trim() !== "" || price.trim() !== "");
 
   function reload() {
     startTransition(() => window.location.reload());
@@ -116,6 +120,9 @@ function AddonRow({
   const [price, setPrice] = useState(toRm(addon.price));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  // Reloads on save (onChanged), so compare directly to the addon prop.
+  useUnsavedChanges(name !== addon.name || price !== toRm(addon.price));
 
   return (
     <div
