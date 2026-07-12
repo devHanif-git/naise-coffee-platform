@@ -9,6 +9,7 @@ import {
   isOrderFilter,
   type OrderFilter,
   type OrderGroupCounts,
+  type PaymentFilterOption,
 } from "@/lib/orders/status";
 import { isDateRangeKey, type DateRangeKey } from "@/lib/orders/range";
 import type { Order } from "@/types/order";
@@ -24,6 +25,9 @@ type Props = {
   initialCounts: OrderGroupCounts;
   initialFilter: OrderFilter;
   initialRange: DateRangeKey;
+  // Payment quick-filter chips derived from the CMS payment settings, leading
+  // with the "all" chip. Fixed for the session (server-provided).
+  paymentOptions: PaymentFilterOption[];
   backHref: string;
   backLabel: string;
 };
@@ -38,11 +42,14 @@ export function ManageOrdersLive({
   initialCounts,
   initialFilter,
   initialRange,
+  paymentOptions,
   backHref,
   backLabel,
 }: Props) {
   const [filter, setFilter] = useState<OrderFilter>(initialFilter);
   const [range, setRange] = useState<DateRangeKey>(initialRange);
+  // Payment chip: "all" by default (matches the server's unfiltered initial page).
+  const [payment, setPayment] = useState<string>("all");
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [counts, setCounts] = useState<OrderGroupCounts>(initialCounts);
@@ -52,22 +59,28 @@ export function ManageOrdersLive({
   // Latest filter/range/page-count, so the realtime callback always refreshes
   // the current view rather than whatever was current when the subscription was
   // created. Synced in an effect (never mutated during render).
-  const viewRef = useRef({ filter, range, pages: 1 });
+  const viewRef = useRef({ filter, range, payment, pages: 1 });
   useEffect(() => {
     viewRef.current = {
       filter,
       range,
+      payment,
       pages: Math.max(1, Math.ceil(orders.length / ORDERS_PAGE_SIZE)),
     };
-  }, [filter, range, orders.length]);
+  }, [filter, range, payment, orders.length]);
 
   // Fetch pages [0, pages) for a view and concatenate them. hasMore comes from
   // the final page. Returns null if any page fails (e.g. lost authorization).
   const fetchPages = useCallback(
-    async (f: OrderFilter, r: DateRangeKey, pages: number) => {
+    async (f: OrderFilter, r: DateRangeKey, p: string, pages: number) => {
       const results = await Promise.all(
         Array.from({ length: pages }, (_, i) =>
-          loadOrdersAction({ filter: f, range: r, offset: i * ORDERS_PAGE_SIZE }),
+          loadOrdersAction({
+            filter: f,
+            range: r,
+            payment: p,
+            offset: i * ORDERS_PAGE_SIZE,
+          }),
         ),
       );
       if (results.some((res) => !res.ok)) return null;
@@ -84,13 +97,14 @@ export function ManageOrdersLive({
     [],
   );
 
-  // Switch to a new tab/range: reset to the first page.
+  // Switch to a new tab/range/payment: reset to the first page.
   const applyView = useCallback(
-    (f: OrderFilter, r: DateRangeKey) => {
+    (f: OrderFilter, r: DateRangeKey, p: string) => {
       setFilter(f);
       setRange(r);
+      setPayment(p);
       startTransition(async () => {
-        const res = await fetchPages(f, r, 1);
+        const res = await fetchPages(f, r, p, 1);
         if (!res) return;
         setOrders(res.orders);
         setHasMore(res.hasMore);
@@ -102,16 +116,23 @@ export function ManageOrdersLive({
 
   const onFilterChange = useCallback(
     (f: OrderFilter) => {
-      if (f !== filter) applyView(f, range);
+      if (f !== filter) applyView(f, range, payment);
     },
-    [filter, range, applyView],
+    [filter, range, payment, applyView],
   );
 
   const onRangeChange = useCallback(
     (r: DateRangeKey) => {
-      if (r !== range) applyView(filter, r);
+      if (r !== range) applyView(filter, r, payment);
     },
-    [filter, range, applyView],
+    [filter, range, payment, applyView],
+  );
+
+  const onPaymentChange = useCallback(
+    (p: string) => {
+      if (p !== payment) applyView(filter, range, p);
+    },
+    [filter, range, payment, applyView],
   );
 
   // On mount, restore the tab/range the staffer last used this session. The
@@ -128,57 +149,79 @@ export function ManageOrdersLive({
     started.current = true;
     let f = filter;
     let r = range;
+    let p = payment;
     const raw = sessionStorage.getItem(VIEW_STORAGE_KEY);
     if (raw) {
       try {
-        const saved = JSON.parse(raw) as { filter?: string; range?: string };
+        const saved = JSON.parse(raw) as {
+          filter?: string;
+          range?: string;
+          payment?: string;
+        };
         if (saved.filter && isOrderFilter(saved.filter)) f = saved.filter;
         if (saved.range && isDateRangeKey(saved.range)) r = saved.range;
+        // Restore the payment chip only if it's still an offered option — the
+        // CMS may have disabled that method since the value was saved.
+        if (
+          saved.payment &&
+          paymentOptions.some((o) => o.value === saved.payment)
+        ) {
+          p = saved.payment;
+        }
       } catch {
         // Corrupt entry — keep the server default.
       }
     }
-    if (f === filter && r === range) {
+    if (f === filter && r === range && p === payment) {
       hydrated.current = true;
       return;
     }
     startTransition(async () => {
-      const res = await fetchPages(f, r, 1);
+      const res = await fetchPages(f, r, p, 1);
       hydrated.current = true;
       if (!res) return;
       setFilter(f);
       setRange(r);
+      setPayment(p);
       setOrders(res.orders);
       setHasMore(res.hasMore);
       setCounts(res.counts);
     });
-  }, [fetchPages, filter, range]);
+  }, [fetchPages, filter, range, payment, paymentOptions]);
 
   // Persist the active view so the next visit restores it. Gated on `hydrated`
   // so the mount-time write can't clobber the stored value before restore runs.
   useEffect(() => {
     if (!hydrated.current) return;
-    sessionStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify({ filter, range }));
-  }, [filter, range]);
+    sessionStorage.setItem(
+      VIEW_STORAGE_KEY,
+      JSON.stringify({ filter, range, payment }),
+    );
+  }, [filter, range, payment]);
 
   const onLoadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
     setIsLoadingMore(true);
-    const res = await loadOrdersAction({ filter, range, offset: orders.length });
+    const res = await loadOrdersAction({
+      filter,
+      range,
+      payment,
+      offset: orders.length,
+    });
     setIsLoadingMore(false);
     if (!res.ok) return;
     setOrders((prev) => [...prev, ...res.orders]);
     setHasMore(res.hasMore);
     setCounts(res.counts);
-  }, [filter, range, orders.length, hasMore, isLoadingMore]);
+  }, [filter, range, payment, orders.length, hasMore, isLoadingMore]);
 
   // Realtime: re-fetch the pages currently on screen for the active view.
   useEffect(
     () =>
       subscribeToOrders(() => {
-        const { filter: f, range: r, pages } = viewRef.current;
+        const { filter: f, range: r, payment: p, pages } = viewRef.current;
         startTransition(async () => {
-          const res = await fetchPages(f, r, pages);
+          const res = await fetchPages(f, r, p, pages);
           if (!res) return;
           setOrders(res.orders);
           setHasMore(res.hasMore);
@@ -196,11 +239,14 @@ export function ManageOrdersLive({
       counts={counts}
       filter={filter}
       range={range}
+      payment={payment}
+      paymentOptions={paymentOptions}
       hasMore={hasMore}
       isRefreshing={isPending}
       isLoadingMore={isLoadingMore}
       onFilterChange={onFilterChange}
       onRangeChange={onRangeChange}
+      onPaymentChange={onPaymentChange}
       onLoadMore={onLoadMore}
     />
   );

@@ -7,9 +7,11 @@ import {
   orderFilters,
   type OrderFilter,
   type OrderGroupCounts,
+  type PaymentFilterOption,
 } from "@/lib/orders/status";
 import { dateRanges, type DateRangeKey } from "@/lib/orders/range";
 import { OrderCard } from "@/components/order-card";
+import { FilterDropdown } from "@/components/filter-dropdown";
 import type { Order } from "@/types/order";
 
 type Props = {
@@ -19,11 +21,17 @@ type Props = {
   counts: OrderGroupCounts;
   filter: OrderFilter;
   range: DateRangeKey;
+  // Currently selected payment chip ("all" or a payment_method value).
+  payment: string;
+  // Payment chips to show, derived from the CMS payment settings. The leading
+  // chip is always "all"; when only that chip is present the row is hidden.
+  paymentOptions: PaymentFilterOption[];
   hasMore: boolean;
   isRefreshing: boolean;
   isLoadingMore: boolean;
   onFilterChange: (filter: OrderFilter) => void;
   onRangeChange: (range: DateRangeKey) => void;
+  onPaymentChange: (payment: string) => void;
   onLoadMore: () => void;
 };
 
@@ -34,11 +42,14 @@ export function ManageOrdersScreen({
   counts,
   filter,
   range,
+  payment,
+  paymentOptions,
   hasMore,
   isRefreshing,
   isLoadingMore,
   onFilterChange,
   onRangeChange,
+  onPaymentChange,
   onLoadMore,
 }: Props) {
   return (
@@ -93,30 +104,24 @@ export function ManageOrdersScreen({
         })}
       </div>
 
-      {/* Date quick-filters. */}
-      <div
-        role="group"
-        aria-label="Filter orders by date"
-        className="-mx-5 mt-2.5 flex gap-2 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {dateRanges.map((chip) => {
-          const active = chip.value === range;
-          return (
-            <button
-              key={chip.value}
-              aria-pressed={active}
-              onClick={() => onRangeChange(chip.value)}
-              className={cn(
-                "shrink-0 rounded-full border px-3.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                active
-                  ? "border-black bg-black text-white"
-                  : "border-border bg-white text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
+      {/* Secondary refinements: date range and (when the CMS enables methods)
+          payment method, as compact dropdowns so they don't crowd the status
+          tabs above. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <FilterDropdown
+          ariaLabel="Filter orders by date"
+          value={range}
+          options={dateRanges}
+          onChange={(v) => onRangeChange(v as DateRangeKey)}
+        />
+        {paymentOptions.length > 1 && (
+          <FilterDropdown
+            ariaLabel="Filter orders by payment method"
+            value={payment}
+            options={paymentOptions}
+            onChange={onPaymentChange}
+          />
+        )}
       </div>
 
       {/* Order list. */}

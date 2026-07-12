@@ -102,7 +102,9 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   if (data.maxAddons != null && (!Number.isInteger(data.maxAddons) || data.maxAddons < 0))
     return { ok: false, error: "Max add-ons must be a non-negative whole number." };
   // Validate the unified recipe list: grams non-negative ints or null;
-  // ingredient entries must carry a cost item id; entries must be well-formed.
+  // ingredient/directive entries must carry a cost item id; entries must be
+  // well-formed. exclude/override are per-drink directives against the category
+  // base (see lib/menu/recipe.ts mergeRecipe).
   for (const entry of data.recipe) {
     if (entry.kind === "ingredient") {
       if (!entry.costItemId)
@@ -112,6 +114,16 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
         (!Number.isInteger(entry.grams) || entry.grams < 0)
       )
         return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
+    } else if (entry.kind === "exclude") {
+      if (!entry.costItemId)
+        return { ok: false, error: "Invalid recipe step." };
+    } else if (entry.kind === "override") {
+      if (!entry.costItemId || !Number.isInteger(entry.grams) || entry.grams < 0)
+        return { ok: false, error: "Recipe amounts must be non-negative whole numbers." };
+    } else if (entry.kind === "inherited") {
+      // Position marker for a pinned inherited base ingredient; carries an id.
+      if (!entry.costItemId)
+        return { ok: false, error: "Invalid recipe step." };
     } else if (entry.kind !== "free") {
       return { ok: false, error: "Invalid recipe step." };
     }
@@ -122,10 +134,10 @@ export async function saveProduct(data: ProductFormData): Promise<SaveResult> {
   if (!slug)
     return { ok: false, error: "Enter a slug or name with letters or numbers." };
 
-  // Drop blank free steps; keep ingredient steps (they render from a template
-  // even with empty text).
+  // Drop blank free steps; keep ingredient + directive steps (ingredients
+  // render from a template even with empty text; exclude/override have no text).
   const cleanRecipe = data.recipe.filter((e) =>
-    e.kind === "ingredient" ? true : e.text.trim().length > 0,
+    e.kind === "free" ? e.text.trim().length > 0 : true,
   );
 
   const payload = {

@@ -186,6 +186,9 @@ export async function listOrdersPage(opts: {
   range: DateRangeKey;
   offset: number;
   limit?: number;
+  // Canonical payment_method id (or the `unpaid` sentinel) to narrow to. Omitted
+  // / undefined means every method — no payment constraint.
+  payment?: string;
 }): Promise<OrdersPage> {
   const limit = Math.min(opts.limit ?? ORDERS_PAGE_SIZE, ORDERS_PAGE_SIZE);
   const offset = Math.max(opts.offset, 0);
@@ -201,6 +204,7 @@ export async function listOrdersPage(opts: {
   const { fromIso, toIso } = rangeBounds(opts.range);
   if (fromIso) query = query.gte("created_at", fromIso);
   if (toIso) query = query.lt("created_at", toIso);
+  if (opts.payment) query = query.eq("payment_method", opts.payment);
 
   const { data: orderRows, error } = await query;
   if (error || !orderRows) return { orders: [], hasMore: false };
@@ -220,6 +224,7 @@ export async function listOrdersPage(opts: {
 async function countOrders(
   filter: OrderFilter,
   range: DateRangeKey,
+  payment?: string,
 ): Promise<number> {
   const db = await createClient();
   let query = db.from("orders").select("id", { count: "exact", head: true });
@@ -228,21 +233,24 @@ async function countOrders(
   const { fromIso, toIso } = rangeBounds(range);
   if (fromIso) query = query.gte("created_at", fromIso);
   if (toIso) query = query.lt("created_at", toIso);
+  if (payment) query = query.eq("payment_method", payment);
   const { count } = await query;
   return count ?? 0;
 }
 
-// Per-tab order counts for the current date range. Drives the numbers on the
-// filter tabs. Staff only.
+// Per-tab order counts for the current date range, optionally narrowed to one
+// payment method so the tab numbers match the filtered list. Drives the numbers
+// on the filter tabs. Staff only.
 export async function countOrdersByGroup(
   range: DateRangeKey,
+  payment?: string,
 ): Promise<OrderGroupCounts> {
   const [all, pending, in_progress, completed, cancelled] = await Promise.all([
-    countOrders("all", range),
-    countOrders("pending", range),
-    countOrders("in_progress", range),
-    countOrders("completed", range),
-    countOrders("cancelled", range),
+    countOrders("all", range, payment),
+    countOrders("pending", range, payment),
+    countOrders("in_progress", range, payment),
+    countOrders("completed", range, payment),
+    countOrders("cancelled", range, payment),
   ]);
   return { all, pending, in_progress, completed, cancelled };
 }

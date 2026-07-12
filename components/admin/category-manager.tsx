@@ -11,20 +11,25 @@ import { filterDigits } from "@/lib/input";
 import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import type { AdminAddon, AdminCategory } from "@/lib/menu/types";
+import { RecipeBuilder } from "@/components/admin/recipe-builder";
+import type { AdminAddon, AdminCategory, AdminCostItem } from "@/lib/menu/types";
+import type { RecipeEntry } from "@/lib/menu/recipe";
 import {
   saveCategory,
   reorderCategories,
   setCategoryArchived,
   setCategoryAddons,
+  saveCategoryRecipe,
 } from "@/app/(admin)/admin/categories/actions";
 
 export function CategoryManager({
   initial,
   addons,
+  costItems,
 }: {
   initial: AdminCategory[];
   addons: AdminAddon[];
+  costItems: AdminCostItem[];
 }) {
   const [cats, setCats] = useState(initial);
   const [pending, startTransition] = useTransition();
@@ -114,6 +119,7 @@ export function CategoryManager({
                 index={i}
                 category={c}
                 addons={addons}
+                costItems={costItems}
                 onUp={() => move(i, -1)}
                 onDown={() => move(i, 1)}
                 isFirst={i === 0}
@@ -133,6 +139,7 @@ function CategoryRow({
   index,
   category,
   addons,
+  costItems,
   onUp,
   onDown,
   isFirst,
@@ -143,6 +150,7 @@ function CategoryRow({
   index: number;
   category: AdminCategory;
   addons: AdminAddon[];
+  costItems: AdminCostItem[];
   onUp: () => void;
   onDown: () => void;
   isFirst: boolean;
@@ -154,8 +162,11 @@ function CategoryRow({
   const [name, setName] = useState(category.name);
   const [maxAddons, setMaxAddons] = useState(String(category.maxAddons));
   const [picked, setPicked] = useState<Set<string>>(new Set(category.addonIds));
+  const [recipe, setRecipe] = useState<RecipeEntry[]>(category.recipe);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const activeCostItems = costItems.filter((c) => !c.isArchived);
 
   function save() {
     setError(null);
@@ -169,6 +180,8 @@ function CategoryRow({
         if (!saveRes.ok) return setError(saveRes.error);
         const addonsRes = await setCategoryAddons(category.id, [...picked]);
         if (!addonsRes.ok) return setError(addonsRes.error);
+        const recipeRes = await saveCategoryRecipe(category.id, recipe);
+        if (!recipeRes.ok) return setError(recipeRes.error);
         onChanged();
       } catch {
         setError("Couldn't save. Please try again.");
@@ -293,6 +306,20 @@ function CategoryRow({
                   );
                 })}
               </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Base recipe (applies to every drink in this category)</Label>
+            {activeCostItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No cost items yet. Create them under Cost Goods first.
+              </p>
+            ) : (
+              <RecipeBuilder
+                costItems={activeCostItems}
+                value={recipe}
+                onChange={setRecipe}
+              />
             )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
