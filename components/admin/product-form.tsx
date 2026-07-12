@@ -15,6 +15,7 @@ import { ImageUpload } from "@/components/admin/image-upload";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { RecipeBuilder } from "@/components/admin/recipe-builder";
+import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
 import { saveProduct } from "@/app/(admin)/admin/menu/actions";
 import { formatPrice } from "@/lib/format";
 import {
@@ -119,6 +120,31 @@ export function ProductForm({
     new Map(product?.addonOverrides.map((o) => [o.addonId, o.mode]) ?? []),
   );
 
+  // Serialize every editable field for dirty detection. The Map is normalized to
+  // sorted entries so key order never registers as a change. The baseline
+  // advances on a successful save (below) so the guard disarms once persisted.
+  const snapshot = () =>
+    JSON.stringify({
+      name,
+      slug,
+      description,
+      categoryId,
+      imageUrl,
+      pricingMode,
+      basePrice,
+      variants,
+      maxAddons,
+      isBestSeller,
+      isNew,
+      isFeatured,
+      isAvailable,
+      recipe,
+      overrides: [...overrides.entries()].sort(([a], [b]) => a.localeCompare(b)),
+    });
+  const current = snapshot();
+  const [saved, setSaved] = useState(current);
+  useUnsavedChanges(current !== saved);
+
   function isChecked(addonId: string): boolean {
     const mode = overrides.get(addonId);
     const isDefault = selectedCategory?.addonIds.includes(addonId) ?? false;
@@ -182,8 +208,10 @@ export function ProductForm({
     startTransition(async () => {
       try {
         const res = await saveProduct(data);
-        if (res.ok) router.push("/admin/menu");
-        else setError(res.error);
+        if (res.ok) {
+          setSaved(current);
+          router.push("/admin/menu");
+        } else setError(res.error);
       } catch {
         setError("Save failed. Please try again.");
       }
