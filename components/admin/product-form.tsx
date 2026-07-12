@@ -22,6 +22,7 @@ import {
   mergeRecipe,
   buildDisplayRecipe,
   prepareRecipeForSave,
+  composeInheritedBase,
   type RecipeEntry,
 } from "@/lib/menu/recipe";
 import type {
@@ -85,16 +86,25 @@ export function ProductForm({
   const activeCostItems = costItems.filter((c) => !c.isArchived);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
-  // The category base flows into every drink in the category (live inheritance).
-  const inheritedBase: RecipeEntry[] = selectedCategory?.recipe ?? [];
+  // The inherited base flows into every drink: global always-included steps
+  // (e.g. ice) first, then this category's base recipe (live inheritance).
+  const inheritedBase: RecipeEntry[] = composeInheritedBase(
+    activeCostItems.map((c) => ({
+      id: c.id,
+      alwaysIncluded: c.alwaysIncluded,
+      isArchived: c.isArchived,
+      prepTemplate: c.prepTemplate,
+    })),
+    selectedCategory?.recipe ?? null,
+  );
 
-  // The builder edits the full display recipe: inherited markers (so category
+  // The builder edits the full display recipe: inherited markers (so inherited
   // steps are real, draggable rows) + own steps + directives. buildDisplayRecipe
-  // synthesizes markers in category order when the drink hasn't pinned yet.
+  // synthesizes markers in base order when the drink hasn't pinned yet.
   const displayRecipe = buildDisplayRecipe(inheritedBase, recipe);
 
-  // Live goods cost (sen): merged (category base + drink) ingredients + every
-  // always-included item.
+  // Live goods cost (sen): merged (inherited base + drink) ingredients +
+  // packaging-type always-included items.
   const goodsCost = deriveGoodsCost(
     mergeRecipe(inheritedBase, recipe),
     activeCostItems.map((c) => ({
@@ -102,6 +112,7 @@ export function ProductForm({
       price: c.price,
       alwaysIncluded: c.alwaysIncluded,
       isArchived: c.isArchived,
+      prepTemplate: c.prepTemplate,
     })),
   );
   const [overrides, setOverrides] = useState<Map<string, "add" | "remove">>(

@@ -7,7 +7,7 @@ import { getOrderByToken } from "@/lib/orders/store";
 import { listCategories, listProducts } from "@/lib/menu/store";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveRecipeStrings, mergeRecipe, type RecipeEntry } from "@/lib/menu/recipe";
+import { resolveRecipeStrings, mergeRecipe, composeInheritedBase, type RecipeEntry } from "@/lib/menu/recipe";
 
 // Management view is internal — keep it out of search results.
 export const metadata: Metadata = {
@@ -58,10 +58,11 @@ export default async function ManageOrderPage({
     const db = createAdminClient();
     const [prods, items] = await Promise.all([
       db.from("products").select("id, recipe, category_id").in("id", productIds),
-      db.from("cost_items").select("id, prep_template"),
+      db.from("cost_items").select("id, is_always_included, is_archived, prep_template"),
     ]);
-    // Merge each product's recipe with its category base so the prep sheet lists
-    // inherited steps (milk, matcha…) plus drink-specific ones, once each.
+    // Merge each product's recipe with its inherited base (global
+    // always-included steps like ice + its category base) so the prep sheet
+    // lists inherited steps plus drink-specific ones, once each.
     const categoryIds = [
       ...new Set(
         (prods.data ?? [])
@@ -78,12 +79,22 @@ export default async function ManageOrderPage({
         ((c.recipe as unknown) as RecipeEntry[] | null) ?? null,
       ]),
     );
+    const costItems = (items.data ?? []).map((c) => ({
+      id: c.id,
+      alwaysIncluded: c.is_always_included,
+      isArchived: c.is_archived,
+      prepTemplate: c.prep_template,
+    }));
     const templateById = new Map(
       (items.data ?? []).map((c) => [c.id, c.prep_template]),
     );
     for (const p of prods.data ?? []) {
-      const merged = mergeRecipe(
+      const inheritedBase = composeInheritedBase(
+        costItems,
         p.category_id ? categoryRecipeById.get(p.category_id) ?? null : null,
+      );
+      const merged = mergeRecipe(
+        inheritedBase,
         ((p.recipe as unknown) as RecipeEntry[] | null) ?? null,
       );
       const strings = resolveRecipeStrings(merged, templateById);

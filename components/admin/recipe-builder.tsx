@@ -33,7 +33,11 @@ export function RecipeBuilder({
   inherited?: RecipeEntry[];
 }) {
   const activeCostItems = costItems.filter((c) => !c.isArchived);
-  const alwaysItems = activeCostItems.filter((c) => c.alwaysIncluded);
+  // Only packaging-type always items (no prep template) show in the locked list.
+  // Templated always items (e.g. ice) arrive as inherited base rows instead.
+  const alwaysItems = activeCostItems.filter(
+    (c) => c.alwaysIncluded && !c.prepTemplate,
+  );
   const templateById = new Map(costItems.map((c) => [c.id, c.prepTemplate]));
 
   const base = (inherited ?? []).filter(
@@ -221,7 +225,7 @@ export function RecipeBuilder({
   }
 
   // Live goods cost (sen): merged (inherited base + working list) ingredients +
-  // every always-included item. mergeRecipe handles the markers/directives.
+  // packaging-type always-included items. mergeRecipe handles markers/directives.
   const goodsCost = deriveGoodsCost(
     mergeRecipe(inherited ?? null, value),
     activeCostItems.map((c) => ({
@@ -229,6 +233,7 @@ export function RecipeBuilder({
       price: c.price,
       alwaysIncluded: c.alwaysIncluded,
       isArchived: c.isArchived,
+      prepTemplate: c.prepTemplate,
     })),
   );
 

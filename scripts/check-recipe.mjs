@@ -8,6 +8,8 @@ import {
   renderStep,
   resolveRecipeStrings,
   deriveGoodsCost,
+  alwaysIncludedSteps,
+  composeInheritedBase,
   mergeRecipe,
   buildDisplayRecipe,
   prepareRecipeForSave,
@@ -57,13 +59,13 @@ assert.deepEqual(
 );
 assert.deepEqual(resolveRecipeStrings(null, templates), []);
 
-// deriveGoodsCost: ingredient prices + always-included, ignores archived, skips
-// missing ids and free entries.
+// deriveGoodsCost: ingredient prices + packaging-type always-included, ignores
+// archived, skips missing ids and free entries.
 const items = [
-  { id: "milk", price: 85, alwaysIncluded: false, isArchived: false },
-  { id: "coffee", price: 151, alwaysIncluded: false, isArchived: false },
-  { id: "cup", price: 46, alwaysIncluded: true, isArchived: false },
-  { id: "old", price: 999, alwaysIncluded: true, isArchived: true },
+  { id: "milk", price: 85, alwaysIncluded: false, isArchived: false, prepTemplate: null },
+  { id: "coffee", price: 151, alwaysIncluded: false, isArchived: false, prepTemplate: null },
+  { id: "cup", price: 46, alwaysIncluded: true, isArchived: false, prepTemplate: null },
+  { id: "old", price: 999, alwaysIncluded: true, isArchived: true, prepTemplate: null },
 ];
 assert.equal(
   deriveGoodsCost(
@@ -83,6 +85,53 @@ assert.equal(
   ),
   46, // unknown id contributes 0, still adds always-included
 );
+
+// --- templated always-included item (e.g. ice) ---------------------------
+// Ice is always-included AND has a prep template, so it is NOT counted in the
+// flat always-base; it is priced only when present as a recipe ingredient.
+const iceItems = [
+  { id: "cup", price: 46, alwaysIncluded: true, isArchived: false, prepTemplate: null },
+  { id: "ice", price: 12, alwaysIncluded: true, isArchived: false, prepTemplate: "Add ice" },
+  { id: "milk", price: 85, alwaysIncluded: false, isArchived: false, prepTemplate: null },
+];
+// No recipe: only packaging cup counts (ice not counted flat).
+assert.equal(deriveGoodsCost(null, iceItems), 46);
+// Ice present as an ingredient (via inherited base): now it's priced.
+assert.equal(
+  deriveGoodsCost(
+    [{ kind: "ingredient", costItemId: "ice", grams: null, text: null, custom: false }],
+    iceItems,
+  ),
+  46 + 12,
+);
+
+// alwaysIncludedSteps: only templated, non-archived always items become steps.
+assert.deepEqual(alwaysIncludedSteps(iceItems), [
+  { kind: "ingredient", costItemId: "ice", grams: null, text: null, custom: false },
+]);
+assert.deepEqual(alwaysIncludedSteps(items), []); // none templated
+
+// composeInheritedBase: always steps first, then the category recipe.
+assert.deepEqual(
+  composeInheritedBase(iceItems, [
+    { kind: "ingredient", costItemId: "milk", grams: 150, text: null, custom: false },
+  ]),
+  [
+    { kind: "ingredient", costItemId: "ice", grams: null, text: null, custom: false },
+    { kind: "ingredient", costItemId: "milk", grams: 150, text: null, custom: false },
+  ],
+);
+assert.deepEqual(composeInheritedBase(iceItems, null), [
+  { kind: "ingredient", costItemId: "ice", grams: null, text: null, custom: false },
+]);
+
+// Skipping ice on a drink (exclude directive) drops both its step and its cost.
+{
+  const inheritedBase = composeInheritedBase(iceItems, null);
+  const merged = mergeRecipe(inheritedBase, [{ kind: "exclude", costItemId: "ice" }]);
+  assert.deepEqual(merged, []); // ice excluded, nothing else
+  assert.equal(deriveGoodsCost(merged, iceItems), 46); // only packaging cup
+}
 
 // --- mergeRecipe ---------------------------------------------------------
 const base = [
@@ -141,10 +190,10 @@ assert.deepEqual(
 
 // Merged result feeds deriveGoodsCost unchanged: milk+matcha priced once.
 const mItems = [
-  { id: "milk", price: 85, alwaysIncluded: false, isArchived: false },
-  { id: "matcha", price: 155, alwaysIncluded: false, isArchived: false },
-  { id: "syrup", price: 106, alwaysIncluded: false, isArchived: false },
-  { id: "cup", price: 46, alwaysIncluded: true, isArchived: false },
+  { id: "milk", price: 85, alwaysIncluded: false, isArchived: false, prepTemplate: null },
+  { id: "matcha", price: 155, alwaysIncluded: false, isArchived: false, prepTemplate: null },
+  { id: "syrup", price: 106, alwaysIncluded: false, isArchived: false, prepTemplate: null },
+  { id: "cup", price: 46, alwaysIncluded: true, isArchived: false, prepTemplate: null },
 ];
 assert.equal(
   deriveGoodsCost(mergeRecipe(base, [{ kind: "ingredient", costItemId: "milk", grams: 999, text: null, custom: false }]), mItems),

@@ -63,20 +63,72 @@ export function resolveRecipeStrings(
     .filter((s) => s.length > 0);
 }
 
-// Goods cost (sen): every non-archived always-included item + each ingredient
-// entry's price. Grams don't affect cost. Unknown ids and free entries add 0.
+// Goods cost (sen): packaging-type always-included items (no prep template) +
+// each ingredient entry's price. Grams don't affect cost. Unknown ids and free
+// entries add 0.
+//
+// Templated always-included items (e.g. ice — "Add ice") are NOT counted here:
+// they flow into the recipe as inherited base steps (see composeInheritedBase)
+// and are priced via the ingredient entries below, so skipping one on a drink
+// drops its cost too. Only packaging-type always items (no template, e.g. the
+// cup) are counted flat, since they never become steps.
 export function deriveGoodsCost(
   recipe: RecipeEntry[] | null,
-  costItems: { id: string; price: number; alwaysIncluded: boolean; isArchived: boolean }[],
+  costItems: {
+    id: string;
+    price: number;
+    alwaysIncluded: boolean;
+    isArchived: boolean;
+    prepTemplate: string | null;
+  }[],
 ): number {
   const priceById = new Map(costItems.map((c) => [c.id, c.price]));
   const base = costItems
-    .filter((c) => c.alwaysIncluded && !c.isArchived)
+    .filter((c) => c.alwaysIncluded && !c.isArchived && !c.prepTemplate)
     .reduce((sum, c) => sum + c.price, 0);
   const fromRecipe = (recipe ?? [])
     .filter((e): e is Extract<RecipeEntry, { kind: "ingredient" }> => e.kind === "ingredient")
     .reduce((sum, e) => sum + (priceById.get(e.costItemId) ?? 0), 0);
   return base + fromRecipe;
+}
+
+// Ingredient entries for templated, non-archived always-included items — the
+// global "in every cup" steps (e.g. ice). They flow into every drink as
+// inherited base steps (draggable, skippable, grams-overridable) and are priced
+// via the recipe, not the always base sum. Packaging items (no template) are
+// excluded — they stay flat cost, never a step.
+export function alwaysIncludedSteps(
+  costItems: {
+    id: string;
+    alwaysIncluded: boolean;
+    isArchived: boolean;
+    prepTemplate: string | null;
+  }[],
+): RecipeEntry[] {
+  return costItems
+    .filter((c) => c.alwaysIncluded && !c.isArchived && !!c.prepTemplate)
+    .map((c) => ({
+      kind: "ingredient",
+      costItemId: c.id,
+      grams: null,
+      text: null,
+      custom: false,
+    }));
+}
+
+// The full inherited base for a drink: global always-included steps first, then
+// the category's own base recipe. This is what flows into mergeRecipe as the
+// `inherited` base, so ice + category steps all behave identically per drink.
+export function composeInheritedBase(
+  costItems: {
+    id: string;
+    alwaysIncluded: boolean;
+    isArchived: boolean;
+    prepTemplate: string | null;
+  }[],
+  categoryRecipe: RecipeEntry[] | null,
+): RecipeEntry[] {
+  return [...alwaysIncludedSteps(costItems), ...(categoryRecipe ?? [])];
 }
 
 // Resolve one inherited base ingredient into its effective entry given the
