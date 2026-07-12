@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, ChevronLeft, Loader2, TriangleAlert } from "lucide-react";
+import { Check, ChevronLeft, Loader2, Minus, Plus, TriangleAlert } from "lucide-react";
 import type { Category, Product } from "@/types/menu";
 import type { OrderLine } from "@/types/order";
 import type { SwapDrinkInput } from "@/app/(admin)/manage/actions";
@@ -42,6 +42,10 @@ export function SwapPicker({
   const [picked, setPicked] = useState<Product | null>(null);
   const [sizeId, setSizeId] = useState<string | undefined>(undefined);
   const [addonIds, setAddonIds] = useState<string[]>([]);
+  // How many units of the line to swap. For a qty-1 line this is always 1; for a
+  // multi-unit line staff pick 1..qty in the customize step (fewer than the full
+  // quantity splits the line, leaving the rest as the original drink).
+  const [swapCount, setSwapCount] = useState(1);
 
   // Reset everything each time the sheet is opened so a prior attempt never
   // bleeds into the next drink being swapped.
@@ -51,6 +55,7 @@ export function SwapPicker({
     setPicked(null);
     setSizeId(undefined);
     setAddonIds([]);
+    setSwapCount(1);
   }
 
   // Categories that actually have drinks, plus a leading "All" tab.
@@ -75,6 +80,8 @@ export function SwapPicker({
     // Default to the first (usually smallest) size so a price shows immediately.
     setSizeId(product.sizes?.[0]?.id);
     setAddonIds([]);
+    // Default to swapping the whole line; staff dial it down for a partial swap.
+    setSwapCount(replacing.quantity);
   }
 
   const sizes = picked?.sizes ?? [];
@@ -108,17 +115,20 @@ export function SwapPicker({
         .reduce((sum, a) => sum + a.price, 0)
     : 0;
   const unitPrice = drinkPrice + addonsTotal;
-  // Quantity carries over from the line being replaced — that's what the server
-  // uses, so the difference preview must match.
-  const newLineTotal = unitPrice * replacing.quantity;
-  const diff = newLineTotal - replacing.lineTotal;
+  // Difference preview compares the SWAPPED units against the same number of
+  // original units (the server prices the same way). For a full swap swapCount
+  // equals the line quantity; for a partial swap only those units move.
+  const swappedInTotal = unitPrice * swapCount;
+  const swappedOutTotal = replacing.unitPrice * swapCount;
+  const diff = swappedInTotal - swappedOutTotal;
+  const isPartial = swapCount < replacing.quantity;
 
   // A sized drink needs a size chosen before it can be confirmed.
   const ready = Boolean(picked) && (!hasSizes || Boolean(selectedSize));
 
   function confirm() {
     if (!picked || !ready) return;
-    onConfirm({ productId: picked.id, sizeId, addonIds });
+    onConfirm({ productId: picked.id, sizeId, addonIds, count: swapCount });
   }
 
   return (
@@ -175,8 +185,56 @@ export function SwapPicker({
                 </SheetTitle>
                 <p className="text-xs text-muted-foreground">
                   Replacing {replacing.name}
+                  {replacing.quantity > 1 && ` ×${replacing.quantity}`}
                 </p>
               </div>
+
+              {/* Quantity to swap — only for multi-unit lines. Bounds 1..qty; at
+                  the max the whole line is swapped, below it the line splits and
+                  the rest stay as the original drink. */}
+              {replacing.quantity > 1 && (
+                <section className="mt-4 flex flex-col gap-2.5">
+                  <h3 className="text-[0.6875rem] font-bold uppercase tracking-wider">
+                    How many to swap
+                  </h3>
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3">
+                    <span className="text-sm font-semibold tabular-nums">
+                      {swapCount} of {replacing.quantity}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSwapCount((c) => Math.max(1, c - 1))}
+                        disabled={busy || swapCount <= 1}
+                        aria-label="Swap one fewer"
+                        className="flex size-9 items-center justify-center rounded-full border border-border text-foreground outline-none transition-colors hover:bg-neutral-100 disabled:opacity-40 focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <Minus className="size-4" strokeWidth={2.5} aria-hidden />
+                      </button>
+                      <span className="w-6 text-center text-base font-bold tabular-nums">
+                        {swapCount}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSwapCount((c) => Math.min(replacing.quantity, c + 1))
+                        }
+                        disabled={busy || swapCount >= replacing.quantity}
+                        aria-label="Swap one more"
+                        className="flex size-9 items-center justify-center rounded-full border border-border text-foreground outline-none transition-colors hover:bg-neutral-100 disabled:opacity-40 focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <Plus className="size-4" strokeWidth={2.5} aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                  {isPartial && (
+                    <p className="text-xs text-muted-foreground">
+                      {replacing.quantity - swapCount} × {replacing.name} stay on
+                      the order.
+                    </p>
+                  )}
+                </section>
+              )}
 
               {hasSizes && (
                 <section className="mt-4 flex flex-col gap-2.5">
@@ -306,7 +364,9 @@ export function SwapPicker({
                   </>
                 ) : (
                   <span className="text-xs font-bold uppercase tracking-wider">
-                    Replace · {formatPrice(newLineTotal)}
+                    {isPartial
+                      ? `Swap ${swapCount} · ${formatPrice(swappedInTotal)}`
+                      : `Replace · ${formatPrice(swappedInTotal)}`}
                   </span>
                 )}
               </button>
