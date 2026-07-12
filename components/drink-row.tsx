@@ -44,6 +44,7 @@ export function DrinkRow({
   item,
   status,
   amendable,
+  locked = false,
   onAdvance,
   onSwap,
   onVoid,
@@ -54,6 +55,10 @@ export function DrinkRow({
   // Whether Swap/Void are offered. False for done/voided/reward lines and
   // terminal orders — the tray stays closed and right-drag is inert.
   amendable: boolean;
+  // The whole order is cancelled: the line is frozen. It renders struck through
+  // and inert (no advance, no amend), kept on the ticket for the record — same
+  // treatment as a done/voided line, minus the "ready" affordances.
+  locked?: boolean;
   onAdvance: () => void;
   onSwap: () => void;
   onVoid: () => void;
@@ -75,7 +80,9 @@ export function DrinkRow({
 
   const subtitle = [item.sizeName, ...item.addonNames].filter(Boolean).join(", ");
   const s = statusStyle[status];
-  const canAdvance = status !== "done" && !voided;
+  // A cancelled order (locked) freezes every line just like a void does — no
+  // swipe advances it and it strikes through.
+  const canAdvance = status !== "done" && !voided && !locked;
   // The tray only rests open while the line is still amendable.
   const showTray = trayOpen && amendable;
 
@@ -83,7 +90,7 @@ export function DrinkRow({
   const advanceLabel = status === "pending" ? "Start making" : "Mark ready";
 
   function onPointerDown(e: React.PointerEvent) {
-    if (voided) return;
+    if (voided || locked) return;
     startX.current = e.clientX;
     moved.current = false;
     // Don't capture the pointer or start dragging yet — a press that never moves
@@ -220,13 +227,13 @@ export function DrinkRow({
           "relative flex touch-pan-y items-center gap-3 bg-white py-3",
           !dragging &&
             "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-          (status === "done" || voided) && "opacity-70",
+          (status === "done" || voided || locked) && "opacity-70",
         )}
       >
         <span
           className={cn(
             "flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold tabular-nums text-white",
-            voided ? "bg-neutral-400" : "bg-black",
+            voided || locked ? "bg-neutral-400" : "bg-black",
           )}
         >
           {item.quantity}
@@ -237,7 +244,7 @@ export function DrinkRow({
             <span
               className={cn(
                 "truncate font-heading text-sm font-bold tracking-tight",
-                (status === "done" || voided) && "line-through",
+                (status === "done" || voided || locked) && "line-through",
                 voided && "text-muted-foreground",
               )}
             >
@@ -271,7 +278,7 @@ export function DrinkRow({
               {subtitle}
             </span>
           )}
-          {!voided && (
+          {!voided && !locked && (
             <span
               className={cn(
                 "mt-1 inline-flex w-fit items-center gap-1.5 text-[0.6875rem] font-bold",
@@ -284,7 +291,7 @@ export function DrinkRow({
           )}
         </div>
 
-        {!voided && (
+        {!voided && !locked && (
           <div className="flex shrink-0 items-center gap-2">
             {recipeSteps && recipeSteps.length > 0 && (
               <>
