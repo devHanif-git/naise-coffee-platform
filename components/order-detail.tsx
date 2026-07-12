@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, ChevronLeft, ChevronRight, CheckCircle2, Loader2, MessageCircle, Pencil, Receipt, TriangleAlert } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, CheckCircle2, Loader2, MessageCircle, Minus, Pencil, Plus, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
@@ -101,6 +101,9 @@ export function OrderDetail({
   // small confirm; swap opens the picker.
   const [swapIndex, setSwapIndex] = useState<number | null>(null);
   const [voidIndex, setVoidIndex] = useState<number | null>(null);
+  // How many units to void on the line being confirmed. For a qty-1 line this is
+  // always 1; for a multi-unit line staff pick 1..qty in the modal.
+  const [voidCount, setVoidCount] = useState(1);
   const [amending, setAmending] = useState(false);
   const [amendError, setAmendError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -204,16 +207,18 @@ export function OrderDetail({
     setAdjustments(next.adjustments ?? []);
   }
 
-  // Void one drink. Opens a confirm first (handleVoid), then commits here. On the
-  // "last active drink" guard the action returns an error steering staff to cancel
-  // the whole order instead; we surface it inline in the confirm.
+  // Void drinks on one line. Opens a confirm first (handleVoid), then commits
+  // here for `voidCount` units. On the "last active drink" guard the action
+  // returns an error steering staff to cancel the whole order instead; we surface
+  // it inline in the confirm.
   function confirmVoid() {
     if (voidIndex === null) return;
     const index = voidIndex;
+    const count = voidCount;
     setAmendError(null);
     setAmending(true);
     startTransition(async () => {
-      const res = await voidDrinkAction(order.token, index);
+      const res = await voidDrinkAction(order.token, index, count);
       setAmending(false);
       if (!res.ok) {
         setAmendError(res.error);
@@ -244,8 +249,10 @@ export function OrderDetail({
   }
 
   // Open the void confirm / swap picker for a line, clearing any stale error.
+  // Void starts with a count of 1 so a multi-unit line defaults to voiding one.
   function handleVoid(index: number) {
     setAmendError(null);
+    setVoidCount(1);
     setVoidIndex(index);
   }
   function handleSwap(index: number) {
@@ -880,12 +887,64 @@ export function OrderDetail({
               >
                 Void {lines[voidIndex].name}?
               </h2>
-              <p className="text-sm text-muted-foreground">
-                This removes the drink from the order and takes{" "}
-                {formatPrice(lines[voidIndex].lineTotal)} off the total. It stays
-                on the ticket, struck through, for the record.
-              </p>
+              {lines[voidIndex].quantity > 1 ? (
+                <p className="text-sm text-muted-foreground">
+                  This line has {lines[voidIndex].quantity} drinks. Choose how many
+                  to void — the rest stay on the order. Voided drinks stay on the
+                  ticket for the record.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  This removes the drink from the order and takes{" "}
+                  {formatPrice(lines[voidIndex].lineTotal)} off the total. It stays
+                  on the ticket, struck through, for the record.
+                </p>
+              )}
             </div>
+
+            {/* Quantity stepper — only for multi-unit lines. Bounds 1..qty; at
+                the max the line is fully voided (struck through), below it the
+                line stays live with fewer units. */}
+            {lines[voidIndex].quantity > 1 && (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border px-4 py-3">
+                  <span className="text-sm font-semibold">Drinks to void</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setVoidCount((c) => Math.max(1, c - 1))}
+                      disabled={amending || voidCount <= 1}
+                      aria-label="Void one fewer"
+                      className="flex size-9 items-center justify-center rounded-full border border-border text-foreground outline-none transition-colors hover:bg-neutral-100 disabled:opacity-40 focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <Minus className="size-4" strokeWidth={2.5} aria-hidden />
+                    </button>
+                    <span className="w-6 text-center text-base font-bold tabular-nums">
+                      {voidCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVoidCount((c) =>
+                          Math.min(lines[voidIndex].quantity, c + 1),
+                        )
+                      }
+                      disabled={amending || voidCount >= lines[voidIndex].quantity}
+                      aria-label="Void one more"
+                      className="flex size-9 items-center justify-center rounded-full border border-border text-foreground outline-none transition-colors hover:bg-neutral-100 disabled:opacity-40 focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      <Plus className="size-4" strokeWidth={2.5} aria-hidden />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-center text-xs text-muted-foreground">
+                  {voidCount >= lines[voidIndex].quantity
+                    ? "Voids the whole line"
+                    : `${lines[voidIndex].quantity - voidCount} drink${lines[voidIndex].quantity - voidCount === 1 ? "" : "s"} left on the order`}
+                  {" · "}−{formatPrice(lines[voidIndex].unitPrice * voidCount)}
+                </p>
+              </div>
+            )}
 
             {amendError && (
               <div
@@ -909,6 +968,10 @@ export function OrderDetail({
                     <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
                     Voiding
                   </>
+                ) : lines[voidIndex].quantity > 1 ? (
+                  voidCount >= lines[voidIndex].quantity
+                    ? "Void All Drinks"
+                    : `Void ${voidCount} Drink${voidCount === 1 ? "" : "s"}`
                 ) : (
                   "Void Drink"
                 )}

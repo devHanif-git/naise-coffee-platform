@@ -22,6 +22,9 @@ const SWIPE_THRESHOLD = 88;
 const MAX_DRAG = 120;
 // How far the row shifts right to reveal the amend tray (Swap + Void).
 const TRAY_WIDTH = 148;
+// Movement (px) before a pointer gesture counts as a drag rather than a tap.
+// Below this a press is a plain tap — it neither drags the row nor closes the tray.
+const TAP_SLOP = 6;
 
 const statusStyle: Record<
   DrinkStatus,
@@ -64,6 +67,10 @@ export function DrinkRow({
   const [trayOpen, setTrayOpen] = useState(false);
   const [showRecipe, setShowRecipe] = useState(false);
   const startX = useRef<number | null>(null);
+  // Whether the current pointer gesture has moved past the tap slop — i.e. it's
+  // a drag, not a tap. Stays false for a plain tap so tapping the row (e.g. the
+  // drink name) never settles/closes the tray or steals a button press.
+  const moved = useRef(false);
   const voided = Boolean(item.voidedAt);
 
   const subtitle = [item.sizeName, ...item.addonNames].filter(Boolean).join(", ");
@@ -78,8 +85,11 @@ export function DrinkRow({
   function onPointerDown(e: React.PointerEvent) {
     if (voided) return;
     startX.current = e.clientX;
-    setDragging(true);
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    moved.current = false;
+    // Don't capture the pointer or start dragging yet — a press that never moves
+    // is a tap (on the drink name, the tray buttons, the recipe/advance controls)
+    // and must reach its target. We only take over once the finger actually moves
+    // past the slop in onPointerMove.
   }
 
   function onPointerMove(e: React.PointerEvent) {
@@ -87,6 +97,16 @@ export function DrinkRow({
     // Drag is measured from the resting position (tray open or closed).
     const base = trayOpen ? TRAY_WIDTH : 0;
     const delta = e.clientX - startX.current + base;
+
+    // Promote to a drag the first time we move past the tap slop: capture the
+    // pointer (so the gesture keeps tracking even off the row) and start dragging.
+    if (!moved.current) {
+      if (Math.abs(e.clientX - startX.current) < TAP_SLOP) return;
+      moved.current = true;
+      setDragging(true);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    }
+
     const clamped = Math.max(-MAX_DRAG, Math.min(MAX_DRAG, delta));
     // Left drag advances status; only allowed when the drink can advance.
     if (clamped < 0 && !canAdvance) return;
@@ -99,6 +119,9 @@ export function DrinkRow({
     if (startX.current === null) return;
     startX.current = null;
     setDragging(false);
+    // A plain tap (no movement) leaves the tray as-is — tapping the row never
+    // closes an open tray. Only a real drag settles to a resting state below.
+    if (!moved.current) return;
 
     // Left past threshold: advance fulfilment.
     if (dragX <= -SWIPE_THRESHOLD && canAdvance) {
@@ -107,11 +130,11 @@ export function DrinkRow({
       setTrayOpen(false);
       return;
     }
-    // Right past threshold: latch the tray open. Otherwise settle to whichever
-    // resting state we're nearest.
+    // Right past threshold: latch the tray open. A leftward drag from the open
+    // tray closes it. Otherwise settle back to the current resting state.
     if (amendable && dragX >= SWIPE_THRESHOLD) {
       setTrayOpen(true);
-    } else if (dragX <= TRAY_WIDTH / 2) {
+    } else if (dragX < TRAY_WIDTH / 2) {
       setTrayOpen(false);
     }
     setDragX(0);
@@ -137,13 +160,21 @@ export function DrinkRow({
         </span>
       </div>
 
-      {/* Amend tray (Swap + Void) — sits behind the row on the left, revealed as
-          it slides right. Real buttons so keyboard users reach them when open. */}
+      {/* Amend tray (Swap + Void). Kept on top of the card and revealed by
+          clipping its width to how far the card has slid (offsetX): the buttons
+          are uncovered left-to-right exactly like before, but the card never
+          overlaps them — so the first tap always lands (no z-order fight between
+          "reveal needs card on top" and "tap needs tray on top"). Width tracks the
+          card 1:1 while dragging and shares its easing on release. Real buttons so
+          keyboard users reach them when open. */}
       {amendable && (
         <div
+          style={{ width: Math.max(0, offsetX) }}
           className={cn(
-            "absolute inset-y-0 left-0 flex items-stretch",
-            offsetX <= 0 && "pointer-events-none opacity-0",
+            "absolute inset-y-0 left-0 z-10 flex items-stretch overflow-hidden",
+            !dragging &&
+              "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+            !showTray && "pointer-events-none",
           )}
         >
           <button
@@ -154,7 +185,7 @@ export function DrinkRow({
             }}
             tabIndex={showTray ? 0 : -1}
             aria-label={`Swap ${item.name}`}
-            className="flex w-[74px] flex-col items-center justify-center gap-1 bg-neutral-900 text-white outline-none transition-colors hover:bg-black focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-white/40"
+            className="flex w-[74px] shrink-0 flex-col items-center justify-center gap-1 bg-neutral-900 text-white outline-none transition-colors hover:bg-black focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-white/40"
           >
             <ArrowLeftRight className="size-4" strokeWidth={2.5} aria-hidden />
             <span className="text-[0.625rem] font-bold uppercase tracking-wider">
@@ -169,7 +200,7 @@ export function DrinkRow({
             }}
             tabIndex={showTray ? 0 : -1}
             aria-label={`Void ${item.name}`}
-            className="flex w-[74px] flex-col items-center justify-center gap-1 bg-rose-600 text-white outline-none transition-colors hover:bg-rose-700 focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-white/40"
+            className="flex w-[74px] shrink-0 flex-col items-center justify-center gap-1 bg-rose-600 text-white outline-none transition-colors hover:bg-rose-700 focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-white/40"
           >
             <Ban className="size-4" strokeWidth={2.5} aria-hidden />
             <span className="text-[0.625rem] font-bold uppercase tracking-wider">

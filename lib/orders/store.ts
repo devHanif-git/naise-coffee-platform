@@ -387,13 +387,19 @@ export type AmendResult =
   | { ok: true; order: Order }
   | { ok: false; reason: "not_found" | "invalid" | "last_line" };
 
-// Void a single drink: strike it from the bill but keep the row for history.
-// Logs an order_adjustments row (delta = -line_total) and recalculates the
-// order's subtotal/total and status from the remaining active drinks. Staff-only;
-// callers gate first. Uses the cookie client so the staff RLS policies apply.
+// Void drinks on a single line, keeping the row for history. `count` is how many
+// units to void: voiding the whole line strikes it through (delta = -line_total)
+// and it's ignored by the "all done" check; voiding fewer units does a PARTIAL
+// void — the line stays live with a smaller quantity and is recharged. Either
+// way an order_adjustments row logs the refund and the order total/status are
+// recalculated. Staff-only; callers gate first. Uses the cookie client so the
+// staff RLS policies apply.
 export async function voidOrderItem(
   token: string,
   position: number,
+  // How many units of this line to void. Undefined (or a count at/above the
+  // line's quantity) voids the whole line.
+  count?: number,
 ): Promise<AmendResult> {
   const db = await createClient();
 
@@ -423,42 +429,94 @@ export async function voidOrderItem(
     return { ok: false, reason: "invalid" };
   }
 
-  // Never empty the order by voiding — cancel the whole order instead.
-  const activeCount = itemRows.filter((it) => !it.voided_at).length;
-  if (activeCount <= 1) return { ok: false, reason: "last_line" };
-
-  const voidedAt = new Date().toISOString();
-  const { error: voidErr } = await db
-    .from("order_items")
-    .update({ voided_at: voidedAt })
-    .eq("id", target.id);
-  if (voidErr) return { ok: false, reason: "invalid" };
-
-  await db.from("order_adjustments").insert({
-    order_id: orderRow.id,
-    item_position: position,
-    kind: "void",
-    from_label: drinkLabel(target),
-    to_label: null,
-    delta: -target.line_total,
-  });
-
-  // Recalc money (clamp at zero) and re-derive status from remaining active lines.
-  const nextItems = itemRows.map((it) =>
-    it.id === target.id
-      ? { status: it.status as ItemStatus, voidedAt: voidedAt }
-      : { status: it.status as ItemStatus, voidedAt: it.voided_at },
+  // Clamp the requested count into 1..quantity; undefined / too large means
+  // "void the whole line".
+  const voidCount = Math.max(
+    1,
+    Math.min(target.quantity, Math.floor(count ?? target.quantity)),
   );
-  const { error: ordErr } = await db
-    .from("orders")
-    .update({
-      subtotal: Math.max(0, orderRow.subtotal - target.line_total),
-      total: Math.max(0, orderRow.total - target.line_total),
-      status: deriveOrderStatus(nextItems),
-      completed_at: null,
-    })
-    .eq("id", orderRow.id);
-  if (ordErr) return { ok: false, reason: "invalid" };
+  const isFullVoid = voidCount >= target.quantity;
+  // Money coming off the bill. `total` tracks the charged amount, so it drops by
+  // the charged unit price × voided units. `subtotal` tracks the PRE-promo sum,
+  // so it drops by the original unit price × voided units (equals unit_price when
+  // no promo) — mirroring the swap path so promo savings stay correct.
+  const voidedValue = target.unit_price * voidCount;
+  const voidedSubtotal =
+    (target.unit_original_price ?? target.unit_price) * voidCount;
+
+  // Never empty the order by voiding — if this would remove the last active
+  // unit, steer staff to cancel the whole order instead.
+  const activeUnits = itemRows
+    .filter((it) => !it.voided_at)
+    .reduce((sum, it) => sum + it.quantity, 0);
+  if (activeUnits - voidCount <= 0) return { ok: false, reason: "last_line" };
+
+  if (isFullVoid) {
+    const voidedAt = new Date().toISOString();
+    const { error: voidErr } = await db
+      .from("order_items")
+      .update({ voided_at: voidedAt })
+      .eq("id", target.id);
+    if (voidErr) return { ok: false, reason: "invalid" };
+
+    await db.from("order_adjustments").insert({
+      order_id: orderRow.id,
+      item_position: position,
+      kind: "void",
+      from_label: drinkLabel(target),
+      to_label: null,
+      delta: -target.line_total,
+    });
+
+    // Recalc money (clamp at zero) and re-derive status from remaining active lines.
+    const nextItems = itemRows.map((it) =>
+      it.id === target.id
+        ? { status: it.status as ItemStatus, voidedAt: voidedAt }
+        : { status: it.status as ItemStatus, voidedAt: it.voided_at },
+    );
+    const { error: ordErr } = await db
+      .from("orders")
+      .update({
+        subtotal: Math.max(0, orderRow.subtotal - target.line_total),
+        total: Math.max(0, orderRow.total - target.line_total),
+        status: deriveOrderStatus(nextItems),
+        completed_at: null,
+      })
+      .eq("id", orderRow.id);
+    if (ordErr) return { ok: false, reason: "invalid" };
+  } else {
+    // Partial void: keep the line live with fewer units, recharge it, and log
+    // the removed units. Status is unchanged — the line is still active.
+    const newQuantity = target.quantity - voidCount;
+    const { error: updErr } = await db
+      .from("order_items")
+      .update({
+        quantity: newQuantity,
+        line_total: target.unit_price * newQuantity,
+      })
+      .eq("id", target.id);
+    if (updErr) return { ok: false, reason: "invalid" };
+
+    await db.from("order_adjustments").insert({
+      order_id: orderRow.id,
+      item_position: position,
+      kind: "void",
+      // Note the count so the amendment log reads "Latte ×2" for a partial void.
+      from_label: `${drinkLabel(target)} ×${voidCount}`,
+      to_label: null,
+      delta: -voidedValue,
+    });
+
+    const { error: ordErr } = await db
+      .from("orders")
+      .update({
+        subtotal: Math.max(0, orderRow.subtotal - voidedSubtotal),
+        total: Math.max(0, orderRow.total - voidedValue),
+        completed_at: null,
+      })
+      .eq("id", orderRow.id);
+    if (ordErr) return { ok: false, reason: "invalid" };
+  }
 
   const order = await getOrderByToken(token);
   return order ? { ok: true, order } : { ok: false, reason: "not_found" };
@@ -475,14 +533,19 @@ export type SwapInput = {
   unitPrice: number;
 };
 
-// Swap a single drink for another product. Rewrites the line in place (new name,
-// size, add-ons, price, cost snapshot) and resets it to "pending" — the new drink
-// still needs making. Logs an order_adjustments row with the price difference and
-// recalculates the order total/status. Staff-only; callers gate first.
+// Swap drinks on one line for another product. `count` is how many units to
+// swap: swapping the whole line rewrites it in place; swapping fewer units does a
+// PARTIAL swap — the original line keeps its remaining units and a NEW line holds
+// the swapped units (both reset to "pending" for the swapped drink). Logs an
+// order_adjustments row with the price difference and recalculates the order
+// total/status. Staff-only; callers gate first.
 export async function swapOrderItem(
   token: string,
   position: number,
   next: SwapInput,
+  // How many units of this line to swap. Undefined (or a count at/above the
+  // line's quantity) swaps the whole line.
+  count?: number,
 ): Promise<AmendResult> {
   const db = await createClient();
 
@@ -509,62 +572,115 @@ export async function swapOrderItem(
     return { ok: false, reason: "invalid" };
   }
 
-  const newLineTotal = next.unitPrice * target.quantity;
-  // `total` tracks the charged amount, so its delta is against the charged
-  // line_total. `subtotal` tracks the PRE-promo sum (unit_original_price * qty),
-  // so if the swapped-out line was promo'd, its subtotal contribution was the
-  // original price, not line_total — using `delta` there would leave subtotal
-  // inflated and overstate promo savings in the breakdown. The swapped-in line
-  // has no promo (original == unitPrice), so its subtotal contribution is
-  // newLineTotal.
-  const delta = newLineTotal - target.line_total;
-  const oldSubtotalContribution =
-    (target.unit_original_price ?? target.unit_price) * target.quantity;
-  const subtotalDelta = newLineTotal - oldSubtotalContribution;
+  // Clamp the requested count into 1..quantity; undefined / too large means
+  // "swap the whole line".
+  const swapCount = Math.max(
+    1,
+    Math.min(target.quantity, Math.floor(count ?? target.quantity)),
+  );
+  const isFullSwap = swapCount >= target.quantity;
+
+  // Money for the swapped units. `total` tracks the charged amount, so its delta
+  // is (new price − old charged price) × swapped units. `subtotal` tracks the
+  // PRE-promo sum, so if the swapped-out units were promo'd, their subtotal
+  // contribution was the original price, not the charged one — mirror the void
+  // path so promo savings stay correct. The swapped-in units have no promo
+  // (original == unitPrice).
+  const swappedInValue = next.unitPrice * swapCount;
+  const oldChargedValue = target.unit_price * swapCount;
+  const oldSubtotalValue =
+    (target.unit_original_price ?? target.unit_price) * swapCount;
+  const delta = swappedInValue - oldChargedValue;
+  const subtotalDelta = swappedInValue - oldSubtotalValue;
 
   // Re-snapshot goods cost for the new product (admin-only tables → admin client).
-  const costByProduct = await getProductCosts(createAdminClient(), [
-    next.productId,
-  ]);
+  const adminDb = createAdminClient();
+  const costByProduct = await getProductCosts(adminDb, [next.productId]);
+  const newUnitCost = costByProduct.get(next.productId) ?? null;
   const fromLabel = drinkLabel(target);
+  const toLabel = drinkLabel({
+    name: next.name,
+    sizeName: next.sizeName,
+    addonNames: next.addonNames,
+  });
 
-  const { error: swapErr } = await db
-    .from("order_items")
-    .update({
+  if (isFullSwap) {
+    // Rewrite the line in place for the whole quantity.
+    const { error: swapErr } = await db
+      .from("order_items")
+      .update({
+        name: next.name,
+        size_name: next.sizeName ?? null,
+        addon_names: next.addonNames,
+        unit_price: next.unitPrice,
+        // Staff swaps have no promo concept — original equals the resolved price,
+        // so the swapped line never shows a promo flag on the manage view.
+        unit_original_price: next.unitPrice,
+        line_total: next.unitPrice * target.quantity,
+        unit_cost: newUnitCost,
+        product_id: next.productId,
+        is_custom: false,
+        status: "pending",
+      })
+      .eq("id", target.id);
+    if (swapErr) return { ok: false, reason: "invalid" };
+  } else {
+    // Partial swap: shrink the original line to its remaining units, then add a
+    // new line for the swapped units. The insert has no staff RLS policy, so it
+    // goes through the admin client (callers already gate on canManageOrders).
+    const remaining = target.quantity - swapCount;
+    const { error: shrinkErr } = await db
+      .from("order_items")
+      .update({
+        quantity: remaining,
+        line_total: target.unit_price * remaining,
+      })
+      .eq("id", target.id);
+    if (shrinkErr) return { ok: false, reason: "invalid" };
+
+    const nextPosition =
+      Math.max(...itemRows.map((it) => it.position)) + 1;
+    const { error: insErr } = await adminDb.from("order_items").insert({
+      order_id: orderRow.id,
+      position: nextPosition,
       name: next.name,
+      quantity: swapCount,
       size_name: next.sizeName ?? null,
       addon_names: next.addonNames,
       unit_price: next.unitPrice,
-      // Staff swaps have no promo concept — original equals the resolved price,
-      // so the swapped line never shows a promo flag on the manage view.
       unit_original_price: next.unitPrice,
-      line_total: newLineTotal,
-      unit_cost: costByProduct.get(next.productId) ?? null,
-      product_id: next.productId,
-      is_custom: false,
+      line_total: swappedInValue,
+      unit_cost: newUnitCost,
       status: "pending",
-    })
-    .eq("id", target.id);
-  if (swapErr) return { ok: false, reason: "invalid" };
+      is_reward: false,
+      reward_cost: 0,
+      is_custom: false,
+      product_id: next.productId,
+    });
+    if (insErr) return { ok: false, reason: "invalid" };
+  }
 
   await db.from("order_adjustments").insert({
     order_id: orderRow.id,
     item_position: position,
     kind: "swap",
-    from_label: fromLabel,
-    to_label: drinkLabel({
-      name: next.name,
-      sizeName: next.sizeName,
-      addonNames: next.addonNames,
-    }),
+    // Note the count so the amendment log reads "Latte ×2 → Mocha" for a partial.
+    from_label: isFullSwap ? fromLabel : `${fromLabel} ×${swapCount}`,
+    to_label: toLabel,
     delta,
   });
 
+  // Re-derive status over the surviving lines. A full swap resets the target to
+  // "pending"; a partial swap leaves the original untouched but adds a new
+  // pending line, so either way the order can't be "ready" straight after.
   const nextItems = itemRows.map((it) =>
-    it.id === target.id
+    it.id === target.id && isFullSwap
       ? { status: "pending" as ItemStatus, voidedAt: it.voided_at }
       : { status: it.status as ItemStatus, voidedAt: it.voided_at },
   );
+  if (!isFullSwap) {
+    nextItems.push({ status: "pending", voidedAt: null });
+  }
   const { error: ordErr } = await db
     .from("orders")
     .update({

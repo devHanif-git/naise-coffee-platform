@@ -171,18 +171,21 @@ export async function cancelOrderAction(
   return { ok: true, orderStatus: updated.status };
 }
 
-// Void a single drink on an order (staff amendment). Strikes it from the bill and
-// recalculates the total; the line stays visible for history. Returns the
-// refreshed order. The "last active drink" case is surfaced so the client can
-// steer staff to cancel the whole order instead.
+// Void drinks on an order line (staff amendment). `count` is how many units to
+// void — omit (or pass the full quantity) to void the whole line, which strikes
+// it from the bill and keeps it for history; a smaller count is a partial void
+// that drops the line's quantity and recharges it. Recalculates the total either
+// way and returns the refreshed order. The "last active drink" case is surfaced
+// so the client can steer staff to cancel the whole order instead.
 export async function voidDrinkAction(
   token: string,
   position: number,
+  count?: number,
 ): Promise<AmendActionResult> {
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
   }
-  const res = await voidOrderItem(token, position);
+  const res = await voidOrderItem(token, position, count);
   if (!res.ok) {
     const error =
       res.reason === "last_line"
@@ -197,13 +200,16 @@ export async function voidDrinkAction(
   return { ok: true, order: res.order };
 }
 
-// What the client submits for a swap: which line, and the chosen product + size +
-// add-ons. Price is recomputed here from the catalog — the client value is never
-// trusted.
+// What the client submits for a swap: which line, the chosen product + size +
+// add-ons, and how many units to swap (omit / full quantity swaps the whole
+// line; fewer splits the line). Price is recomputed here from the catalog — the
+// client value is never trusted.
 export type SwapDrinkInput = {
   productId: string;
   sizeId?: string;
   addonIds: string[];
+  // How many units of the line to swap. Undefined swaps the whole line.
+  count?: number;
 };
 
 // Swap a single drink for another menu product (staff amendment). Prices the
@@ -246,13 +252,18 @@ export async function swapDrinkAction(
   const drinkPrice = applyDiscount(baseOriginal, getProductDiscount(product)).final;
   const unitPrice = drinkPrice + addonsTotal;
 
-  const res = await swapOrderItem(token, position, {
-    productId: product.id,
-    name: product.name,
-    sizeName: selectedSize?.name,
-    addonNames: selectedAddons.map((a) => a.name),
-    unitPrice,
-  });
+  const res = await swapOrderItem(
+    token,
+    position,
+    {
+      productId: product.id,
+      name: product.name,
+      sizeName: selectedSize?.name,
+      addonNames: selectedAddons.map((a) => a.name),
+      unitPrice,
+    },
+    input.count,
+  );
   if (!res.ok) {
     const error =
       res.reason === "not_found"
