@@ -93,6 +93,9 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
     if (!anyDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
+      // Older engines gate the native prompt on returnValue rather than
+      // preventDefault; set both so the prompt fires everywhere.
+      e.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
