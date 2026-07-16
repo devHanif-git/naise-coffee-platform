@@ -87,14 +87,33 @@ export async function getReportData(range: AnalyticsRange): Promise<ReportData> 
   let itemsSold = 0;
   let totalCost = 0;
   if (ids.length > 0) {
-    const { data: items, error: itemsErr } = await db
-      .from("order_items")
-      .select("name, quantity, line_total, unit_cost, is_reward, reward_cost, is_custom, order_id, products(name)")
-      .in("order_id", ids);
-    if (itemsErr) throw new Error(`getReportData failed: ${itemsErr.message}`);
+    // Fetch line items in ID chunks: a single `.in()` over a wide range inlines
+    // every ID into the request URL, which overflows the server/proxy URL limit
+    // and surfaces as `TypeError: fetch failed`.
+    const CHUNK = 100;
+    const items: {
+      name: string;
+      quantity: number;
+      line_total: number;
+      unit_cost: number | null;
+      is_reward: boolean;
+      reward_cost: number;
+      is_custom: boolean;
+      order_id: string;
+      products: { name: string } | null;
+    }[] = [];
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      const { data, error: itemsErr } = await db
+        .from("order_items")
+        .select("name, quantity, line_total, unit_cost, is_reward, reward_cost, is_custom, order_id, products(name)")
+        .in("order_id", chunk);
+      if (itemsErr) throw new Error(`getReportData failed: ${itemsErr.message}`);
+      if (data) items.push(...data);
+    }
     const map = new Map<string, { quantity: number; revenue: number }>();
     const customMap = new Map<string, { quantity: number; revenue: number }>();
-    for (const it of items ?? []) {
+    for (const it of items) {
       // Prefer the current product name so renames flow through to reports;
       // fall back to the snapshot name for custom drinks and unlinked legacy rows.
       const displayName = it.products?.name ?? it.name;
