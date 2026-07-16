@@ -22,10 +22,35 @@ export function getChipConfig(): ChipConfig {
   return { baseUrl: CHIP_BASE_URL, brandId, secretKey };
 }
 
+// Rebuild a valid multi-line PEM from however the env stored the key. A PEM is
+// multi-line, but single-line env UIs (e.g. Azure App Service) mangle it: the
+// line breaks become spaces or literal "\n". node:crypto needs real newlines to
+// parse it, so we normalize any of those forms back to canonical PEM. Idempotent
+// on an already-correct key.
+export function normalizeChipPublicKey(raw: string): string {
+  // Strip surrounding quotes someone may have pasted, and turn literal "\n"
+  // escape sequences into real newlines.
+  const key = raw.trim().replace(/^"|"$/g, "").replace(/\\n/g, "\n");
+
+  // If it already has real newlines, trust it as-is.
+  if (key.includes("\n")) return key;
+
+  // Otherwise the newlines were flattened to spaces. Pull out the header,
+  // footer, and base64 body, then re-wrap the body at 64 chars per line.
+  const match = key.match(
+    /-----BEGIN ([A-Z ]+)-----\s*(.*?)\s*-----END \1-----/,
+  );
+  if (!match) return key; // Unrecognized shape — let crypto surface the error.
+  const label = match[1];
+  const body = match[2].replace(/\s+/g, "");
+  const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? body;
+  return `-----BEGIN ${label}-----\n${wrapped}\n-----END ${label}-----`;
+}
+
 // The public key verifies webhook / success_callback signatures. Separate getter
 // because most code paths (create purchase) don't need it.
 export function getChipPublicKey(): string {
   const publicKey = process.env.CHIP_PUBLIC_KEY;
   if (!publicKey) throw new Error("CHIP_PUBLIC_KEY is not set.");
-  return publicKey;
+  return normalizeChipPublicKey(publicKey);
 }
