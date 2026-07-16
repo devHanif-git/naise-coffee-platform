@@ -82,23 +82,23 @@ function OpenShiftPanel() {
   }
 
   return (
-    <section className="naise-rise flex flex-col gap-5 rounded-3xl border border-border bg-card p-6 sm:p-7">
-      <div className="flex items-center gap-2.5">
-        <span className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-          <Wallet className="size-4.5" strokeWidth={2} aria-hidden />
+    <section className="naise-rise flex flex-col items-center gap-6 rounded-3xl border border-border bg-card px-6 py-9 text-center sm:px-8">
+      <div className="flex flex-col items-center gap-3">
+        <span className="flex size-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <Wallet className="size-6" strokeWidth={2} aria-hidden />
         </span>
-        <div className="flex flex-col leading-tight">
-          <h2 className="font-heading text-lg font-bold tracking-tight">Open a shift</h2>
-          <span className="text-xs text-muted-foreground">
-            Enter the cash already in the drawer (whole ringgit — no coins).
-          </span>
+        <div className="flex flex-col gap-1">
+          <h2 className="font-heading text-xl font-bold tracking-tight">Open a shift</h2>
+          <p className="mx-auto max-w-[16rem] text-sm text-muted-foreground">
+            Enter the cash already in the drawer to start. Whole ringgit — no coins.
+          </p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex w-full flex-col items-center gap-2">
         <Eyebrow>Opening float</Eyebrow>
-        <div className="flex items-center gap-2.5">
-          <span className="text-base font-bold text-muted-foreground">RM</span>
+        <div className="flex items-center justify-center gap-2.5">
+          <span className="text-xl font-bold text-muted-foreground">RM</span>
           <Input
             id="opening-float"
             inputMode="numeric"
@@ -106,14 +106,18 @@ function OpenShiftPanel() {
             value={floatRm}
             onChange={(e) => setFloatRm(e.target.value.replace(/[^0-9]/g, ""))}
             placeholder="50"
-            className="h-12 max-w-[9rem] font-mono text-lg font-bold tabular-nums"
+            className="h-14 w-32 text-center font-mono text-2xl font-bold tabular-nums"
           />
         </div>
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
-      <PendingButton pending={pending} onClick={submit} className="h-11 self-start px-6">
+      <PendingButton
+        pending={pending}
+        onClick={submit}
+        className="h-12 w-full max-w-xs text-sm font-bold uppercase tracking-[0.1em]"
+      >
         Open shift
       </PendingButton>
     </section>
