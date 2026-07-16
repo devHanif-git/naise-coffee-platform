@@ -101,8 +101,11 @@ export function StampCard({
         </div>
 
         {/* Stamp grid — filled slots carry the logo badge, empty are dashed
-            rings, milestone slots get a gold ring + tiny label. */}
-        <div className="mt-5 grid max-w-[62%] grid-cols-4 gap-x-3 gap-y-4">
+            rings, milestone slots get a gold ring + tiny label. Slots are a
+            fixed size and the grid sizes to its content (w-fit) so stamps stay
+            legible on narrow phones instead of shrinking to fit a percentage;
+            the grid sits above the coffee art (z-10 over z-0). */}
+        <div className="mt-5 grid w-fit grid-cols-4 gap-x-3 gap-y-4">
           {slots.map((n) => {
             const filled = n <= card.currentCount;
             const isFree = n === settings.cardSize;
@@ -111,7 +114,7 @@ export function StampCard({
               <div key={n} className="flex flex-col items-center gap-1">
                 <div
                   className={cn(
-                    "relative flex aspect-square w-full items-center justify-center rounded-full",
+                    "relative flex size-12 items-center justify-center rounded-full",
                     filled
                       ? "" // stamp art has white lettering; sits on the black card so it reads
                       : "border-2 border-dashed border-white/25",
