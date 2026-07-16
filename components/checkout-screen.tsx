@@ -106,16 +106,21 @@ export function CheckoutScreen({
   // Whether the voucher picker sheet is open. Selecting + confirming there is
   // the one-time-use step; the inline warning lives in the sheet.
   const [voucherSheetOpen, setVoucherSheetOpen] = useState(false);
+  // Set true right before the CHIP path clears the cart and navigates to the
+  // review screen. Without it, clearing the cart makes it empty and the
+  // empty-cart guard below races router.push and wins, bouncing to /menu.
+  const [leavingToPayment, setLeavingToPayment] = useState(false);
 
   const hasItems = items.length > 0;
 
   // Nothing to check out: once the persisted cart has loaded and is empty,
   // send the customer back to the cart rather than showing a dead screen.
-  // Skipped after a successful order — the cart is intentionally cleared then
-  // and the confirmation view takes over.
+  // Skipped after a successful order (confirmation view takes over) and while
+  // handing off to the CHIP review screen (cart is intentionally cleared then).
   useEffect(() => {
-    if (hydrated && !hasItems && !placedNumber) router.replace("/menu");  // no cart for now redirect to menu
-  }, [hydrated, hasItems, placedNumber, router]);
+    if (hydrated && !hasItems && !placedNumber && !leavingToPayment)
+      router.replace("/menu"); // no cart for now redirect to menu
+  }, [hydrated, hasItems, placedNumber, leavingToPayment, router]);
 
   // Re-price against the live catalogue when checkout mounts, so a promo toggled
   // in the CMS since the item was added is reflected here without a page refresh.
@@ -259,9 +264,12 @@ export function CheckoutScreen({
         return;
       }
 
-      // CHIP path: clear the cart and go to the payment review screen instead of
-      // showing the confirmation view. The order is awaiting_payment until paid.
+      // CHIP path: go to the payment review screen instead of showing the
+      // confirmation view. Set the leaving flag BEFORE clearing so the empty-cart
+      // guard doesn't race the push and bounce us to /menu. The order is
+      // awaiting_payment until paid.
       if ("redirectTo" in result) {
+        setLeavingToPayment(true);
         clear();
         router.push(result.redirectTo);
         return;
