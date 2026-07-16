@@ -2,11 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { Flame } from "lucide-react";
 import { images } from "@/constants/images";
+import { AutoRedirect } from "@/components/auto-redirect";
 import type { StreakAward } from "@/types/reward";
+
+// Seconds before the confirmation eases the customer back to the menu. Short —
+// this is the customer app, not the store kiosk (which lingers far longer).
+const AUTO_BACK_SECONDS = 5;
 
 // The "You're all set" celebration shown after an order is confirmed — used by
 // the cash/manual checkout (inline) and the CHIP paid landing route. Pure
-// presentational: pass the order number and any streak bonuses to surface.
+// presentational apart from a short auto-redirect back to the menu.
 export function OrderConfirmed({
   orderNumber,
   streakAwards = [],
@@ -16,6 +21,7 @@ export function OrderConfirmed({
 }) {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-5 py-16 text-center">
+      <AutoRedirect href="/menu" seconds={AUTO_BACK_SECONDS} />
       <div className="relative size-32 naise-pop sm:size-36">
         <Image
           src={images.celebration}
@@ -65,6 +71,9 @@ export function OrderConfirmed({
       >
         Back to menu
       </Link>
+      <p className="mt-3 text-[0.625rem] text-muted-foreground naise-rise [animation-delay:360ms]">
+        Returning to the menu shortly&hellip;
+      </p>
     </main>
   );
 }
