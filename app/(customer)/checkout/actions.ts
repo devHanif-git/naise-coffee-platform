@@ -321,8 +321,10 @@ export async function placeOrder(
         ...(callbackOk
           ? { successCallback: `${baseUrl}/api/payments/chip/webhook` }
           : {}),
-        successRedirect: `${baseUrl}/profile/orders/${pendingOrder.token}`,
-        failureRedirect: `${baseUrl}/profile/orders/${pendingOrder.token}`,
+        // Success lands on the paid confirmation screen (reconciles + "Back to
+        // menu"); failure/cancel returns to the review screen to retry.
+        successRedirect: `${baseUrl}/checkout/paid/${pendingOrder.token}`,
+        failureRedirect: `${baseUrl}/checkout/pay/${pendingOrder.token}`,
         cancelRedirect: `${baseUrl}/checkout/pay/${pendingOrder.token}`,
       });
     } catch (err) {

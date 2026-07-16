@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Apple,
@@ -13,7 +11,6 @@ import {
   Coffee,
   Copy,
   CreditCard,
-  Flame,
   Ticket,
   Landmark,
   Loader2,
@@ -28,7 +25,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
-import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
@@ -41,6 +37,7 @@ import { StoreClosedBanner } from "@/components/store-closed-banner";
 import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
 import { VoucherPickerSheet } from "@/components/stamps/voucher-picker-sheet";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
+import { OrderConfirmed } from "@/components/order-confirmed";
 import { uploadReceipt } from "@/lib/orders/receipt";
 import { useProfile } from "@/store/profile";
 import { useRepriceCart } from "@/hooks/use-reprice-cart";
@@ -290,59 +287,7 @@ export function CheckoutScreen({
   }
 
   if (placedNumber) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center px-5 py-16 text-center">
-        <div className="relative size-32 naise-pop sm:size-36">
-          <Image
-            src={images.celebration}
-            alt="A cup celebrating with confetti"
-            fill
-            sizes="(min-width: 640px) 144px, 128px"
-            className="object-contain"
-          />
-        </div>
-        <p className="mt-4 text-[0.625rem] font-semibold uppercase tracking-[0.25em] text-muted-foreground naise-rise [animation-delay:60ms]">
-          Order Confirmed
-        </p>
-        <h1 className="mt-2 font-heading text-2xl font-bold tracking-tight naise-rise [animation-delay:120ms]">
-          You&rsquo;re all set!
-        </h1>
-        <p className="mt-2 max-w-[17rem] text-xs leading-relaxed text-muted-foreground naise-rise [animation-delay:180ms]">
-          The store has been notified and is brewing your order. Show this
-          reference when you collect it.
-        </p>
-
-        <div className="mt-6 inline-flex flex-col items-center rounded-2xl bg-black px-6 py-3 text-white naise-rise [animation-delay:240ms]">
-          <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
-            Order Ref
-          </span>
-          <span className="mt-0.5 font-heading text-xl font-bold tracking-tight tabular-nums">
-            {placedNumber}
-          </span>
-        </div>
-
-        {streakAwards.length > 0 && (
-          <div className="mt-4 flex flex-col items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 naise-rise [animation-delay:270ms]">
-            <span className="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              <Flame className="size-3.5" strokeWidth={2.5} aria-hidden />
-              Streak Bonus
-            </span>
-            {streakAwards.map((award) => (
-              <span key={award.label} className="text-xs font-semibold text-emerald-800">
-                +{award.beans.toLocaleString()} Beans · {award.label}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <Link
-          href="/menu"
-          className="mt-7 flex h-12 items-center justify-center rounded-2xl bg-black px-7 text-xs font-bold uppercase tracking-wider text-white transition-transform hover:scale-[1.02] active:scale-[0.98] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:300ms]"
-        >
-          Back to menu
-        </Link>
-      </main>
-    );
+    return <OrderConfirmed orderNumber={placedNumber} streakAwards={streakAwards} />;
   }
 
   return (
