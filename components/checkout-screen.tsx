@@ -66,12 +66,16 @@ export function CheckoutScreen({
   bank,
   duitnowQrUrl,
   vouchers,
+  chipEnabled,
 }: {
   closedMessage?: string | null;
   methods: PaymentMethod[];
   bank: BankDetails;
   duitnowQrUrl: string | null;
   vouchers: Voucher[];
+  // When true, DuitNow QR is collected via the CHIP gateway: hide the manual QR
+  // card + receipt upload, and route to the payment review screen on submit.
+  chipEnabled: boolean;
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
@@ -129,6 +133,10 @@ export function CheckoutScreen({
   // The currently selected method (null when nothing is selectable). Drives the
   // method-specific blocks below (QR card, bank details, receipt upload).
   const selectedMethod = methods.find((m) => m.id === selected) ?? null;
+  // True when the selected method is collected via the CHIP gateway (only
+  // DuitNow QR this phase). Drives hiding the manual QR + receipt UI and the
+  // redirect-to-review submit behaviour.
+  const isChipPath = chipEnabled && selected === "duitnow-qr";
   const featured = methods.filter((m) => m.featured);
   const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
@@ -200,7 +208,8 @@ export function CheckoutScreen({
       return;
     }
 
-    if (method.requiresReceipt && !receiptFile) {
+    // The CHIP gateway path collects payment on CHIP's page — no manual receipt.
+    if (method.requiresReceipt && !isChipPath && !receiptFile) {
       setError("Please attach your payment receipt.");
       return;
     }
@@ -213,7 +222,7 @@ export function CheckoutScreen({
       // prefix matches this id.
       const ownerId = user.id;
       let proofOfPaymentPath: string | undefined;
-      if (method.requiresReceipt && receiptFile) {
+      if (method.requiresReceipt && !isChipPath && receiptFile) {
         proofOfPaymentPath = await uploadReceipt(receiptFile, ownerId);
       }
 
@@ -247,6 +256,14 @@ export function CheckoutScreen({
 
       if (!result.ok) {
         setError(result.error);
+        return;
+      }
+
+      // CHIP path: clear the cart and go to the payment review screen instead of
+      // showing the confirmation view. The order is awaiting_payment until paid.
+      if ("redirectTo" in result) {
+        clear();
+        router.push(result.redirectTo);
         return;
       }
 
@@ -446,9 +463,18 @@ export function CheckoutScreen({
           })}
         </ul>
 
-        {selected === "duitnow-qr" && (
+        {selected === "duitnow-qr" && !isChipPath && (
           <div className="mt-4">
             <DuitnowQrCard src={duitnowQrUrl ?? undefined} />
+          </div>
+        )}
+
+        {isChipPath && (
+          <div className="mt-4 rounded-2xl border border-border bg-white px-4 py-3">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              You&rsquo;ll review the payment details and pay securely with DuitNow
+              QR on the next screen.
+            </p>
           </div>
         )}
 
@@ -510,7 +536,7 @@ export function CheckoutScreen({
             </div>
           ))}
 
-        {selectedMethod?.requiresReceipt && (
+        {selectedMethod?.requiresReceipt && !isChipPath && (
           <div className="mt-2.5 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
             <label
               htmlFor="receipt"
@@ -749,7 +775,7 @@ export function CheckoutScreen({
         ) : (
           <>
             <span className="text-xs font-bold uppercase tracking-wider">
-              Place Order
+              {isChipPath ? "Continue to Payment" : "Place Order"}
             </span>
             <span className="text-xs font-bold tabular-nums">
               {formatPrice(totalAfterVoucher)}

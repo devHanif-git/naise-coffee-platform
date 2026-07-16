@@ -26,6 +26,7 @@ export default async function CheckoutPage() {
       bank={payments.bank}
       duitnowQrUrl={payments.duitnowQrUrl}
       vouchers={vouchers.filter((v) => v.status === "active")}
+      chipEnabled={payments.chip.enabled}
     />
   );
 }
