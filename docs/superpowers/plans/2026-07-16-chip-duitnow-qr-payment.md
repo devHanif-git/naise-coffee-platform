@@ -1643,3 +1643,24 @@ Remove the Task 3 smoke script if it still exists. Confirm `git status` is clean
 6. **Voucher-unhonourable-at-webhook stance (locked):** settle-what's-possible +
    log, no auto-refund (Task 8 `settlePaidOrder`). Money is already captured; an
    unsettled reward is a staff concern, never a customer error.
+
+---
+
+## PLAN REVISION (2026-07-16) — reuse prior prod objects
+
+A prior CHIP attempt already applied objects to prod. User directed: **fresh build, reuse the prod table.** Diagnosis: CHIP API/creds/DuitNow QR all work (sandbox verified); prior "couldn't reach checkout" was most likely `window.open` popup-blocking — the new review screen uses full `window.location.href`, which fixes it. These deltas OVERRIDE the task text above where they conflict:
+
+**Reuse (do NOT recreate):**
+- Table `public.chip_purchases` (id, order_id→orders, chip_purchase_id text unique, checkout_url, status, amount sen, is_test, paid_at, created/updated). RLS: SELECT own-or-staff; writes service-role only. This REPLACES `orders.chip_purchase_id` from the plan.
+- `awaiting_payment` already in `order_status` enum.
+- `expire_awaiting_payment()` (SECURITY DEFINER, 30-min, reverse_order_rewards then cancel) — already in prod. Idempotent reverse is a no-op under settle-after-payment. **Task 14 DB work is DONE**; Task 14 becomes just the cron route + schedule (or reuse the prior best-effort call from a staff page).
+- Env in `.env.local`: `CHIP_SECRET_KEY`, `CHIP_PUBLIC_KEY`, `CHIP_BRAND_ID`, `CHIP_WEBHOOK_BASE_URL`. Config loader reads `process.env` (Next loads `.env.local` in dev). `chip.env` is only for the standalone sandbox scripts.
+
+**Revised Task 1 migration:** add to `orders`: `gateway_fee int not null default 0`, `pending_voucher_id uuid null → vouchers`. Add to `payment_settings`: `chip_enabled bool default false`, `chip_fee_flat int default 0`, `chip_fee_percent int default 0`. Do NOT add `orders.chip_purchase_id` (use chip_purchases).
+
+**Downstream deltas:**
+- Task 3 client: unchanged (talks to CHIP HTTP). Add helper to persist into `chip_purchases`.
+- Task 6 store: `markOrderPaid(chipPurchaseId)` → look up `chip_purchases` by `chip_purchase_id`, get `order_id`, flip that order awaiting_payment→pending, set `chip_purchases.status='paid'`, `paid_at=now()`. Staff board exclusion + `createOrder(status, pendingVoucherId, gatewayFee)` unchanged.
+- Task 8 checkout: after creating the awaiting_payment order + CHIP purchase, INSERT a `chip_purchases` row (order_id, chip_purchase_id, checkout_url, amount, is_test) via admin client — instead of updating `orders.chip_purchase_id`.
+- Tasks 10/12: read the purchase link from `chip_purchases` (join on order_id) rather than `orders.chip_purchase_id`.
+- Member insert of awaiting_payment: CONFIRMED allowed by `orders_insert_self` (WITH CHECK is `auth.uid()=user_id`, no status constraint) — use the member cookie client, no admin client needed for the insert.
