@@ -53,6 +53,9 @@ export function OrderCompleteModal({
       ? total
       : Math.max(Math.round(Number(cashReceived)), 0) * 100;
   const changeDue = cashReceivedSen - total;
+  // Can't complete a cash order when the entered amount doesn't cover the total.
+  // A blank field (exact cash) is fine — it equals the total, so never short.
+  const isShort = isCash && changeDue < 0;
 
   return (
     <div
@@ -140,11 +143,11 @@ export function OrderCompleteModal({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={busy}
+          disabled={busy || isShort}
           className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <BellRing className="size-4" strokeWidth={2} aria-hidden />
-          {busy ? "Completing…" : "Complete order"}
+          {busy ? "Completing…" : isShort ? "Cash received is short" : "Complete order"}
         </button>
 
         <button
