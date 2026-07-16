@@ -9,7 +9,7 @@ import { buildWhatsAppReadyLink } from "@/lib/orders/message";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { SwapPicker } from "@/components/swap-picker";
 import { ReceiptModal } from "@/components/receipt-modal";
-import { paymentMethodLabel, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
+import { normalizePaymentMethod, paymentMethodLabel, UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import {
   cancelOrderAction,
   changeOrderPaymentAction,
@@ -99,6 +99,9 @@ export function OrderDetail({
   const [settingPayment, setSettingPayment] = useState<"cash" | "duitnow-qr" | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [completeError, setCompleteError] = useState<string | null>(null);
+  // Cash received from the customer (whole RM), for the change calculator shown
+  // on cash orders. Purely a counter aid — never persisted.
+  const [cashReceived, setCashReceived] = useState("");
   const [showChangePayment, setShowChangePayment] = useState(false);
   const [changingPayment, setChangingPayment] = useState(false);
   const [changePaymentError, setChangePaymentError] = useState<string | null>(null);
@@ -367,6 +370,18 @@ export function OrderDetail({
   }
 
   const isUnpaid = paymentMethod === UNPAID_PAYMENT_METHOD;
+  // Cash order (any legacy casing/label) that isn't cancelled — show the change
+  // calculator so staff work out change without leaving the manage screen.
+  const isCashOrder =
+    normalizePaymentMethod(paymentMethod) === "cash" &&
+    order.status !== "cancelled";
+  // Change = cash received − amount due. null until a valid amount is typed.
+  const cashReceivedSen =
+    cashReceived.trim() === ""
+      ? null
+      : Math.max(Math.round(Number(cashReceived)), 0) * 100;
+  const changeDue =
+    cashReceivedSen === null ? null : cashReceivedSen - total;
 
   // Manager-gated correction of an already-set method. Offered for persisted,
   // non-cancelled orders that have a real method and at least one option to
@@ -761,6 +776,45 @@ export function OrderDetail({
           <span className="tabular-nums">{formatPrice(total)}</span>
         </span>
       </section>
+
+      {/* Change calculator — cash orders only. A counter aid so staff work out
+          change on the spot without leaving manage. Whole-RM in; nothing saved. */}
+      {isCashOrder && (
+        <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-border bg-neutral-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="cash-received" className="text-xs font-bold uppercase tracking-wider">
+              Cash received
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-muted-foreground">RM</span>
+              <input
+                id="cash-received"
+                type="text"
+                inputMode="numeric"
+                value={cashReceived}
+                onChange={(e) => setCashReceived(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="0"
+                className="h-10 w-24 rounded-xl border border-border bg-white px-3 text-right text-sm font-semibold tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              />
+            </div>
+          </div>
+          {changeDue !== null && (
+            <div className="flex items-baseline justify-between border-t border-border pt-3">
+              <span className="text-sm font-semibold">
+                {changeDue < 0 ? "Short by" : "Change"}
+              </span>
+              <span
+                className={
+                  "text-lg font-bold tabular-nums " +
+                  (changeDue < 0 ? "text-rose-600" : "text-emerald-700")
+                }
+              >
+                {formatPrice(Math.abs(changeDue))}
+              </span>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Order actions, grouped as one block: a tight stack set off from the
           content above. Complete is the primary action for an all-drinks-done
