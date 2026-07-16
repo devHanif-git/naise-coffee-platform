@@ -25,24 +25,9 @@ export function DuitnowQrCard({ src }: { src?: string }) {
     try {
       const res = await fetch(QR_SRC);
       const blob = await res.blob();
-      const file = new File([blob], SAVE_FILENAME, { type: blob.type });
 
-      // Mobile: native share sheet lets the user pick "Save to Photos", which
-      // drops the QR straight into their gallery.
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file] });
-          return;
-        } catch (shareError) {
-          // User dismissed the sheet — not an error worth surfacing.
-          if (shareError instanceof DOMException && shareError.name === "AbortError") {
-            return;
-          }
-          // Anything else: fall through to a plain download below.
-        }
-      }
-
-      // Desktop / unsupported: trigger a normal file download.
+      // Always trigger a direct file download rather than the native share
+      // sheet — pressing the button should save the QR straight to the device.
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
