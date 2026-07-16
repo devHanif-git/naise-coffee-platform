@@ -151,6 +151,53 @@ export type Database = {
           },
         ]
       }
+      chip_purchases: {
+        Row: {
+          amount: number
+          checkout_url: string
+          chip_purchase_id: string
+          created_at: string
+          id: string
+          is_test: boolean
+          order_id: string
+          paid_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          checkout_url: string
+          chip_purchase_id: string
+          created_at?: string
+          id?: string
+          is_test?: boolean
+          order_id: string
+          paid_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          checkout_url?: string
+          chip_purchase_id?: string
+          created_at?: string
+          id?: string
+          is_test?: boolean
+          order_id?: string
+          paid_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chip_purchases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cost_items: {
         Row: {
           created_at: string
@@ -375,6 +422,7 @@ export type Database = {
           owner_id: string
           payment_method: string
           proof_of_payment_url: string | null
+          shift_id: string | null
           source: Database["public"]["Enums"]["order_source"]
           status: Database["public"]["Enums"]["order_status"]
           subtotal: number
@@ -394,6 +442,7 @@ export type Database = {
           owner_id: string
           payment_method: string
           proof_of_payment_url?: string | null
+          shift_id?: string | null
           source?: Database["public"]["Enums"]["order_source"]
           status?: Database["public"]["Enums"]["order_status"]
           subtotal: number
@@ -413,6 +462,7 @@ export type Database = {
           owner_id?: string
           payment_method?: string
           proof_of_payment_url?: string | null
+          shift_id?: string | null
           source?: Database["public"]["Enums"]["order_source"]
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
@@ -421,7 +471,15 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_settings: {
         Row: {
@@ -927,6 +985,199 @@ export type Database = {
         }
         Relationships: []
       }
+      shift_movements: {
+        Row: {
+          cash_delta: number
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: Database["public"]["Enums"]["movement_kind"]
+          note: string | null
+          qr_delta: number
+          shift_id: string
+        }
+        Insert: {
+          cash_delta: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["movement_kind"]
+          note?: string | null
+          qr_delta?: number
+          shift_id: string
+        }
+        Update: {
+          cash_delta?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["movement_kind"]
+          note?: string | null
+          qr_delta?: number
+          shift_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_movements_shift_id_fkey"
+            columns: ["shift_id"]
+            isOneToOne: false
+            referencedRelation: "shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shifts: {
+        Row: {
+          cash_difference: number | null
+          closed_at: string | null
+          closed_by: string | null
+          closing_note: string | null
+          counted_cash: number | null
+          created_at: string
+          expected_cash: number | null
+          id: string
+          last_reminder_at: string | null
+          opened_at: string
+          opened_by: string | null
+          opening_float: number
+          status: Database["public"]["Enums"]["shift_status"]
+          updated_at: string
+        }
+        Insert: {
+          cash_difference?: number | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closing_note?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          last_reminder_at?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_float: number
+          status?: Database["public"]["Enums"]["shift_status"]
+          updated_at?: string
+        }
+        Update: {
+          cash_difference?: number | null
+          closed_at?: string | null
+          closed_by?: string | null
+          closing_note?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          last_reminder_at?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_float?: number
+          status?: Database["public"]["Enums"]["shift_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      stamp_cards: {
+        Row: {
+          created_at: string
+          current_count: number
+          cycle: number
+          total_stamps: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_count?: number
+          cycle?: number
+          total_stamps?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_count?: number
+          cycle?: number
+          total_stamps?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stamp_settings: {
+        Row: {
+          card_size: number
+          created_at: string
+          free_drink_max_value: number
+          id: boolean
+          is_enabled: boolean
+          milestone_small: number
+          rm_off_amount: number
+          rm_off_min_spend: number
+          updated_at: string
+          voucher_expiry_days: number
+        }
+        Insert: {
+          card_size?: number
+          created_at?: string
+          free_drink_max_value?: number
+          id?: boolean
+          is_enabled?: boolean
+          milestone_small?: number
+          rm_off_amount?: number
+          rm_off_min_spend?: number
+          updated_at?: string
+          voucher_expiry_days?: number
+        }
+        Update: {
+          card_size?: number
+          created_at?: string
+          free_drink_max_value?: number
+          id?: boolean
+          is_enabled?: boolean
+          milestone_small?: number
+          rm_off_amount?: number
+          rm_off_min_spend?: number
+          updated_at?: string
+          voucher_expiry_days?: number
+        }
+        Relationships: []
+      }
+      stamp_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          is_reversal: boolean
+          order_id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          is_reversal?: boolean
+          order_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          is_reversal?: boolean
+          order_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stamp_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_account: {
         Row: {
           id: boolean
@@ -1044,107 +1295,6 @@ export type Database = {
         }
         Relationships: []
       }
-      stamp_cards: {
-        Row: {
-          created_at: string
-          current_count: number
-          cycle: number
-          total_stamps: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          current_count?: number
-          cycle?: number
-          total_stamps?: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          current_count?: number
-          cycle?: number
-          total_stamps?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      stamp_settings: {
-        Row: {
-          card_size: number
-          created_at: string
-          free_drink_max_value: number
-          id: boolean
-          is_enabled: boolean
-          milestone_small: number
-          rm_off_amount: number
-          rm_off_min_spend: number
-          updated_at: string
-          voucher_expiry_days: number
-        }
-        Insert: {
-          card_size?: number
-          created_at?: string
-          free_drink_max_value?: number
-          id?: boolean
-          is_enabled?: boolean
-          milestone_small?: number
-          rm_off_amount?: number
-          rm_off_min_spend?: number
-          updated_at?: string
-          voucher_expiry_days?: number
-        }
-        Update: {
-          card_size?: number
-          created_at?: string
-          free_drink_max_value?: number
-          id?: boolean
-          is_enabled?: boolean
-          milestone_small?: number
-          rm_off_amount?: number
-          rm_off_min_spend?: number
-          updated_at?: string
-          voucher_expiry_days?: number
-        }
-        Relationships: []
-      }
-      stamp_transactions: {
-        Row: {
-          amount: number
-          created_at: string
-          id: string
-          is_reversal: boolean
-          order_id: string
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          id?: string
-          is_reversal?: boolean
-          order_id: string
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          is_reversal?: boolean
-          order_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stamp_transactions_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       vouchers: {
         Row: {
           created_at: string
@@ -1210,6 +1360,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_shift_movement: {
+        Args: {
+          p_cash_delta: number
+          p_kind: string
+          p_note: string
+          p_qr_delta: number
+        }
+        Returns: Json
+      }
       admin_adjust_beans: {
         Args: { p_amount: number; p_reason: string; p_user: string }
         Returns: number
@@ -1231,16 +1390,22 @@ export type Database = {
         Returns: Json
       }
       claim_device_orders: { Args: { p_owner_id: string }; Returns: number }
+      close_shift: {
+        Args: { p_closing_note: string; p_counted_cash: number }
+        Returns: Json
+      }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
       expire_awaiting_payment: { Args: never; Returns: undefined }
       grant_order_stamp: { Args: { p_token: string }; Returns: Json }
-      mark_expired_vouchers: { Args: never; Returns: undefined }
+      mark_expired_vouchers: { Args: never; Returns: number }
+      normalize_my_phone: { Args: { p_phone: string }; Returns: string }
+      open_shift: { Args: { p_opening_float: number }; Returns: Json }
       record_custom_drinks: { Args: { p_drinks: Json }; Returns: undefined }
       redeem_voucher: {
-        Args: { p_voucher_id: string; p_order_token: string }
+        Args: { p_order_token: string; p_voucher_id: string }
         Returns: Json
       }
       reverse_order_rewards: { Args: { p_token: string }; Returns: undefined }
@@ -1248,10 +1413,10 @@ export type Database = {
       search_members: {
         Args: { p_query: string }
         Returns: {
-          id: string
           display_name: string
-          phone: string | null
-          email: string | null
+          email: string
+          id: string
+          phone: string
         }[]
       }
     }
@@ -1263,6 +1428,7 @@ export type Database = {
         | "referral"
         | "adjustment"
       item_status: "pending" | "preparing" | "done"
+      movement_kind: "exchange" | "cash_in" | "cash_out"
       order_source: "online" | "store" | "custom"
       order_status:
         | "pending"
@@ -1271,6 +1437,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "awaiting_payment"
+      shift_status: "open" | "closed"
       user_role: "admin" | "manager" | "staff" | "customer" | "store"
       voucher_status: "active" | "redeemed" | "expired"
       voucher_type: "rm_off" | "free_drink"
@@ -1409,6 +1576,7 @@ export const Constants = {
         "adjustment",
       ],
       item_status: ["pending", "preparing", "done"],
+      movement_kind: ["exchange", "cash_in", "cash_out"],
       order_source: ["online", "store", "custom"],
       order_status: [
         "pending",
@@ -1418,6 +1586,7 @@ export const Constants = {
         "cancelled",
         "awaiting_payment",
       ],
+      shift_status: ["open", "closed"],
       user_role: ["admin", "manager", "staff", "customer", "store"],
       voucher_status: ["active", "redeemed", "expired"],
       voucher_type: ["rm_off", "free_drink"],

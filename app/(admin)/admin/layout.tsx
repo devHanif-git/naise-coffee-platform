@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/auth/session";
-import { getOpenShift } from "@/lib/shifts/store";
+import { getOpenShiftStaleness } from "@/lib/shifts/store";
 import { AdminShell } from "@/components/admin/admin-shell";
 import {
   UnsavedChangesProvider,
@@ -19,10 +19,15 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   if (!(await isAdmin())) redirect("/");
-  const openShift = await getOpenShift();
+  const staleness = await getOpenShiftStaleness();
   return (
     <UnsavedChangesProvider>
-      <AdminShell openSince={openShift?.openedAt ?? null}>{children}</AdminShell>
+      <AdminShell
+        openSince={staleness?.openedAt ?? null}
+        lastOrderAt={staleness?.lastOrderAt ?? null}
+      >
+        {children}
+      </AdminShell>
       <UnsavedChangesDialog />
     </UnsavedChangesProvider>
   );

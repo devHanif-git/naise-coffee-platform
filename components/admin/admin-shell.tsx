@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { GuardedLink } from "@/components/admin/guarded-link";
+import { ShiftStaleBanner } from "@/components/admin/shift-stale-banner";
 import { usePathname } from "next/navigation";
 import {
   Menu,
@@ -124,9 +125,11 @@ function ShiftChip({ openSince }: { openSince: string | null }) {
 export function AdminShell({
   children,
   openSince,
+  lastOrderAt,
 }: {
   children: React.ReactNode;
   openSince: string | null;
+  lastOrderAt: string | null;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -177,6 +180,7 @@ export function AdminShell({
       </header>
 
       <div className="lg:pl-60">
+        <ShiftStaleBanner openedAt={openSince} lastOrderAt={lastOrderAt} />
         <main className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8">
           {children}
         </main>

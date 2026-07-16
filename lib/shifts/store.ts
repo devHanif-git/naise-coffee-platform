@@ -55,6 +55,32 @@ export async function getOpenShift(): Promise<Shift | null> {
   return data ? mapShift(data as ShiftRow) : null;
 }
 
+// Open shift's opened-at plus the timestamp of its most recent order — the two
+// inputs the staleness banner needs. Null when no shift is open.
+export async function getOpenShiftStaleness(): Promise<{
+  openedAt: string;
+  lastOrderAt: string | null;
+} | null> {
+  const db = await createClient();
+  const { data: shift } = await db
+    .from("shifts")
+    .select("id, opened_at")
+    .eq("status", "open")
+    .maybeSingle();
+  if (!shift) return null;
+  const { data: lastOrder } = await db
+    .from("orders")
+    .select("created_at")
+    .eq("shift_id", shift.id as string)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return {
+    openedAt: shift.opened_at as string,
+    lastOrderAt: (lastOrder?.created_at as string | undefined) ?? null,
+  };
+}
+
 export async function getShiftSummary(): Promise<ShiftSummary | null> {
   const db = await createClient();
   const { data: shiftRow } = await db
@@ -154,7 +180,8 @@ export async function addMovement(
     p_kind: kind,
     p_cash_delta: cashDelta,
     p_qr_delta: qrDelta,
-    p_note: note ?? null,
+    // RPC arg is typed non-null; "" is treated as null server-side (nullif btrim).
+    p_note: note ?? "",
   });
   if (error)
     return { ok: false, error: "Couldn't record the movement. Try again." };
@@ -173,7 +200,8 @@ export async function closeShift(
   const db = await createClient();
   const { data, error } = await db.rpc("close_shift", {
     p_counted_cash: countedCashSen,
-    p_closing_note: note ?? null,
+    // RPC arg is typed non-null; "" is treated as null server-side (nullif btrim).
+    p_closing_note: note ?? "",
   });
   if (error) return { ok: false, error: "Couldn't close the shift. Try again." };
   const r = data as unknown as Rpc;
