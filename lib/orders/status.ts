@@ -36,7 +36,7 @@ export function matchesFilter(status: OrderStatus, filter: OrderFilter): boolean
     case "all":
       return true;
     case "pending":
-      return status === "pending" || status === "awaiting_payment";
+      return status === "pending";
     case "in_progress":
       return status === "preparing" || status === "ready";
     case "completed":
@@ -63,7 +63,7 @@ export function statusesForFilter(filter: OrderFilter): OrderStatus[] | null {
     case "all":
       return null;
     case "pending":
-      return ["pending", "awaiting_payment"];
+      return ["pending"];
     case "in_progress":
       return ["preparing", "ready"];
     case "completed":
