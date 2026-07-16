@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/lib/format";
+import { capitalizeFirst, formatPrice } from "@/lib/format";
 import type { ShiftSummary } from "@/types/shift";
 import { closeShiftAction } from "@/app/(admin)/shift/actions";
 
@@ -92,7 +92,7 @@ export function ShiftClosePanel({
 
       <Input
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => setNote(capitalizeFirst(e.target.value))}
         placeholder="Note (optional — explain any difference)"
         className="bg-white"
       />

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { formatPrice, formatOrderTime } from "@/lib/format";
+import { capitalizeFirst, formatPrice, formatOrderTime } from "@/lib/format";
 import type {
   MovementKind,
   ShiftHistoryRow,
@@ -263,7 +263,7 @@ function AddMovementForm() {
       </div>
       <Input
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => setNote(capitalizeFirst(e.target.value))}
         placeholder="Note (optional)"
       />
       {error && <p className="text-sm text-rose-600">{error}</p>}
