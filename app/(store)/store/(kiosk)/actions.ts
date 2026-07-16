@@ -14,6 +14,7 @@ import { STORE_OWNER_ID } from "@/constants/store";
 import { UNPAID_PAYMENT_METHOD } from "@/data/payment-methods";
 import { listProductsFresh } from "@/lib/menu/store";
 import { repriceLine } from "@/lib/promotions/reprice";
+import { getOpenShiftIdAdmin } from "@/lib/shifts/store";
 
 type StoreOrderItem = {
   productId?: string;
@@ -135,6 +136,10 @@ export async function placeStoreOrder(
   );
   const total = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
 
+  // Attribute the kiosk order to the open shift (if any) for drawer
+  // reconciliation. The kiosk has no staff session, so read via the admin client.
+  const shiftId = await getOpenShiftIdAdmin(createAdminClient());
+
   let order;
   try {
     order = await createOrder(
@@ -146,6 +151,7 @@ export async function placeStoreOrder(
         total,
         notes: input.notes?.trim() || undefined,
         source: "store",
+        shiftId: shiftId ?? undefined,
       },
       { userId: null },
     );

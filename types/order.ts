@@ -97,6 +97,9 @@ export type Order = {
   // Channel the order came from. Defaults to "online" for the storefront; the
   // in-store kiosk sets "store". Maps to orders.source.
   source?: "online" | "store" | "custom";
+  // The drawer shift this order counts toward. Set at creation when a shift is
+  // open; absent otherwise. Maps to orders.shift_id.
+  shiftId?: string;
   // Staff amendments (voids/swaps) to this order, newest last. Populated on the
   // manage read path; absent elsewhere. Drives the amendments panel + recalced total.
   adjustments?: OrderAdjustment[];

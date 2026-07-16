@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
 import type { Product } from "@/types/menu";
@@ -66,6 +66,12 @@ export function ProductCustomizer({
   const [addonIds, setAddonIds] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [prefilled, setPrefilled] = useState(false);
+  // Guards against a double-tap on Add to Cart / Checkout / Update. Navigation
+  // after submit is async (the next route loads while this screen is still
+  // mounted and its button tappable), so a fast second tap would fire submit
+  // again and add the drink twice. Latch synchronously on the first tap; it's
+  // never reset because the component unmounts on the navigation that follows.
+  const submitted = useRef(false);
 
   // When editing a cart line (?edit=<key>), prefill the controls from it. The
   // cart loads from localStorage in an effect, so we wait until the matching
@@ -115,6 +121,10 @@ export function ProductCustomizer({
 
   function submit(target: "menu" | "checkout") {
     if (soldOut) return;
+    // Block a second tap while the post-submit navigation is still in flight,
+    // so a fast double-tap can't add (or merge) the drink twice.
+    if (submitted.current) return;
+    submitted.current = true;
     const selectedAddons = product.addons.filter((a) =>
       addonIds.includes(a.id),
     );

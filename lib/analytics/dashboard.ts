@@ -51,13 +51,29 @@ export async function getDashboardMetrics(range: AnalyticsRange): Promise<Dashbo
   let topSellers: { name: string; quantity: number }[] = [];
   let rangeCost = 0;
   if (rangeCompletedIds.length > 0) {
-    const { data: items, error: itemsErr } = await db
-      .from("order_items")
-      .select("name, quantity, unit_cost, is_custom, order_id, products(name)")
-      .in("order_id", rangeCompletedIds);
-    if (itemsErr) throw new Error(`getDashboardMetrics failed: ${itemsErr.message}`);
+    // Fetch line items in ID chunks: a single `.in()` over a wide range inlines
+    // every ID into the request URL, which overflows the server/proxy URL limit
+    // and surfaces as `TypeError: fetch failed`.
+    const CHUNK = 100;
+    const items: {
+      name: string;
+      quantity: number;
+      unit_cost: number | null;
+      is_custom: boolean;
+      order_id: string;
+      products: { name: string } | null;
+    }[] = [];
+    for (let i = 0; i < rangeCompletedIds.length; i += CHUNK) {
+      const ids = rangeCompletedIds.slice(i, i + CHUNK);
+      const { data, error: itemsErr } = await db
+        .from("order_items")
+        .select("name, quantity, unit_cost, is_custom, order_id, products(name)")
+        .in("order_id", ids);
+      if (itemsErr) throw new Error(`getDashboardMetrics failed: ${itemsErr.message}`);
+      if (data) items.push(...data);
+    }
     const byName = new Map<string, number>();
-    for (const it of items ?? []) {
+    for (const it of items) {
       // Goods cost snapshotted at sale; null for legacy/unlinked lines -> 0.
       rangeCost += (it.unit_cost ?? 0) * it.quantity;
       if (it.is_custom) continue; // best-sellers is for featurable menu items only

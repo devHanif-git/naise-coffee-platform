@@ -1,16 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
+import { formatPrice } from "@/lib/format";
 
 // Auto-opens when the last drink is marked done. Confirm sends the buyer the
 // "ready" notice and completes the order; Cancel reverts the just-completed
 // drink back to "preparing" so nothing is sent.
+//
+// For cash orders it also shows a change calculator: staff type the cash
+// received and see the change to hand back before completing. Purely a counter
+// aid — the figure is not persisted.
 export function OrderCompleteModal({
   orderNumber,
   busy,
   hasContactPhone,
   error,
+  isCash = false,
+  total,
   onConfirm,
   onCancel,
 }: {
@@ -18,9 +25,14 @@ export function OrderCompleteModal({
   busy: boolean;
   hasContactPhone: boolean;
   error?: string | null;
+  // Cash order → render the change calculator. total is the amount due (sen).
+  isCash?: boolean;
+  total: number;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const [cashReceived, setCashReceived] = useState("");
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onCancel();
@@ -33,6 +45,17 @@ export function OrderCompleteModal({
       document.body.style.overflow = prev;
     };
   }, [busy, onCancel]);
+
+  // Change = cash received − amount due. A blank field means "exact cash" —
+  // received equals the total, so change is RM 0 (staff can just complete).
+  const cashReceivedSen =
+    cashReceived.trim() === ""
+      ? total
+      : Math.max(Math.round(Number(cashReceived)), 0) * 100;
+  const changeDue = cashReceivedSen - total;
+  // Can't complete a cash order when the entered amount doesn't cover the total.
+  // A blank field (exact cash) is fine — it equals the total, so never short.
+  const isShort = isCash && changeDue < 0;
 
   return (
     <div
@@ -62,6 +85,56 @@ export function OrderCompleteModal({
             : "This marks the order as complete."}
         </p>
 
+        {/* Cash change calculator — collect on the spot before completing. */}
+        {isCash && (
+          <div className="mt-5 flex w-full flex-col gap-3 rounded-2xl border border-border bg-neutral-50 p-4 text-left">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Total due
+              </span>
+              <span className="text-sm font-bold tabular-nums">{formatPrice(total)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <label
+                htmlFor="cash-received"
+                className="text-xs font-bold uppercase tracking-wide"
+              >
+                Cash received
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-muted-foreground">RM</span>
+                <input
+                  id="cash-received"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoFocus
+                  value={cashReceived}
+                  onChange={(e) =>
+                    setCashReceived(e.target.value.replace(/[^0-9]/g, ""))
+                  }
+                  placeholder="0"
+                  disabled={busy}
+                  className="h-10 w-24 rounded-xl border border-border bg-white px-3 text-right text-sm font-semibold tabular-nums outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                />
+              </div>
+            </div>
+            <div className="flex items-baseline justify-between border-t border-border pt-3">
+              <span className="text-sm font-semibold">
+                {changeDue < 0 ? "Short by" : "Change"}
+              </span>
+              <span
+                className={
+                  "text-lg font-bold tabular-nums " +
+                  (changeDue < 0 ? "text-rose-600" : "text-emerald-700")
+                }
+              >
+                {formatPrice(Math.abs(changeDue))}
+              </span>
+            </div>
+          </div>
+        )}
+
         {error && (
           <p className="mt-4 w-full rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
             {error}
@@ -71,11 +144,11 @@ export function OrderCompleteModal({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={busy}
+          disabled={busy || isShort}
           className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <BellRing className="size-4" strokeWidth={2} aria-hidden />
-          {busy ? "Completing…" : "Complete order"}
+          {busy ? "Completing…" : isShort ? "Cash received is short" : "Complete order"}
         </button>
 
         <button

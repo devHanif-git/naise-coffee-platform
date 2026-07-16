@@ -74,6 +74,7 @@ export async function createOrder(
       contact_phone: draft.contactPhone ?? null,
       proof_of_payment_url: draft.proofOfPaymentUrl ?? null,
       source: draft.source ?? "online",
+      shift_id: draft.shiftId ?? null,
     })
     .select()
     .single();

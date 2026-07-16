@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Minus, Plus, Trash2 } from "lucide-react";
 import { SmartImage } from "@/components/ui/smart-image";
 import { useCart } from "@/store/cart";
 import { useRepriceCart } from "@/hooks/use-reprice-cart";
@@ -9,6 +10,7 @@ import { formatPrice } from "@/lib/format";
 import { images } from "@/constants/images";
 import { STORE_CONFIRMATION_RESET_MS, STORE_CONFIRMATION_RESET_HOLD_MS } from "@/constants/store";
 import { placeStoreOrder, attachStoreMember } from "@/app/(store)/store/(kiosk)/actions";
+import type { CartItem } from "@/types/cart";
 
 type Method = "cash" | "duitnow-qr" | "unpaid";
 
@@ -26,11 +28,15 @@ export function StoreCheckout({
   closedMessage: string | null;
 }) {
   const router = useRouter();
-  const { items, totalPrice, notes, clear } = useCart();
+  const { items, totalPrice, notes, clear, incrementItem, decrementItem, removeItem } = useCart();
   const reprice = useRepriceCart();
   const [method, setMethod] = useState<Method | null>(cashOk ? "cash" : qrOk ? "duitnow-qr" : null);
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<{ orderNumber: string; token: string } | null>(null);
+  // Set when emptying the cart from here needs a confirmation — pressing minus on
+  // the last unit, or removing the only line. On confirm we clear and route back
+  // to the menu (mirrors the customer cart sheet's clear-cart dialog).
+  const [confirmingClear, setConfirmingClear] = useState(false);
   // Bumps on every keystroke while the customer types their member details. null
   // means they haven't started — the confirmation uses the short idle reset. Once
   // they start, it holds a value and each keystroke restarts the long window so
@@ -117,13 +123,80 @@ export function StoreCheckout({
         setError(res.error);
         return;
       }
+      // Clear the cart the moment the order is placed — not later on the button
+      // or the auto-reset timer. Otherwise pressing back from the confirmation
+      // unmounts this screen with the cart still full, and those items linger
+      // into the next customer's order. (Mirrors the customer checkout, which
+      // clears at placement.) The confirmation view reads only the order number
+      // and token, so clearing here doesn't affect it.
       setPlaced({ orderNumber: res.orderNumber, token: res.token });
+      clear();
     });
+  }
+
+  // Pressing minus on the last unit, or removing the only line, would empty the
+  // cart and leave the customer stranded on the checkout. Instead of doing it
+  // silently, confirm first (mirrors the customer cart sheet); on confirm we
+  // clear and route back to the menu. When other lines remain, just apply the
+  // action — the cart isn't emptied, so no confirmation is needed.
+  const isOnlyLine = items.length === 1;
+
+  function handleDecrement(item: CartItem) {
+    if (item.quantity <= 1 && isOnlyLine) {
+      setConfirmingClear(true);
+      return;
+    }
+    decrementItem(item.key);
+  }
+
+  function handleRemove(item: CartItem) {
+    if (isOnlyLine) {
+      setConfirmingClear(true);
+      return;
+    }
+    removeItem(item.key);
   }
 
   return (
     <div className="flex flex-col gap-5 p-5">
-      <h1 className="font-heading text-lg font-bold uppercase tracking-wider">Pay</h1>
+      {/* Order review — the checkout is where money changes hands, so it always
+          shows what's being bought no matter which path got here. The kiosk's
+          product-page Checkout button adds the drink and jumps straight here
+          (skipping the menu's floating cart), so without this list a wrong or
+          duplicate line would be invisible and paid for. Editing quantity or
+          removing a line here is the fix for every variant of that. */}
+      <section className="flex flex-col gap-2">
+        <h1 className="font-heading text-lg font-bold uppercase tracking-wider">Order</h1>
+        <ul className="flex flex-col divide-y divide-border">
+          {items.map((item) => (
+            <li key={item.key} className="flex items-center gap-3 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{item.name}</p>
+                {[item.sizeName, ...item.addonNames].filter(Boolean).length > 0 && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[item.sizeName, ...item.addonNames].filter(Boolean).join(", ")}
+                  </p>
+                )}
+                <p className="text-xs font-medium">{formatPrice(item.unitPrice * item.quantity)}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 rounded-full bg-neutral-100 p-1">
+                <button type="button" aria-label={item.quantity <= 1 ? "Remove" : "Decrease"} onClick={() => handleDecrement(item)} className="flex size-9 items-center justify-center rounded-full transition-colors hover:bg-white">
+                  <Minus className="size-4" />
+                </button>
+                <span className="w-6 text-center text-sm font-bold tabular-nums">{item.quantity}</span>
+                <button type="button" aria-label="Increase" onClick={() => incrementItem(item.key)} className="flex size-9 items-center justify-center rounded-full transition-colors hover:bg-white">
+                  <Plus className="size-4" />
+                </button>
+              </div>
+              <button type="button" aria-label={`Remove ${item.name}`} onClick={() => handleRemove(item)} className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-rose-600">
+                <Trash2 className="size-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <h2 className="font-heading text-lg font-bold uppercase tracking-wider">Pay</h2>
 
       <div className="flex flex-col gap-2">
         {cashOk && (
@@ -165,6 +238,50 @@ export function StoreCheckout({
       <button type="button" onClick={submit} disabled={pending || !method || items.length === 0} className="h-14 rounded-2xl bg-black text-base font-semibold text-white disabled:opacity-40">
         Place order
       </button>
+
+      {/* Clear-cart confirmation — mirrors the customer cart sheet. Fired when
+          removing the last unit/line would empty the cart. On confirm we clear
+          and route back to the menu; cancel keeps the item as-is. */}
+      {confirmingClear && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="store-clear-title"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-6 naise-fade"
+          onClick={() => setConfirmingClear(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-3xl bg-white p-5 text-center shadow-2xl naise-rise"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+              <Trash2 className="size-6" strokeWidth={2} aria-hidden />
+            </div>
+            <h3 id="store-clear-title" className="mt-3 font-heading text-lg font-bold tracking-tight">
+              Clear your cart?
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              This removes all items from your cart. You can&rsquo;t undo this.
+            </p>
+            <div className="mt-5 flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => { clear(); setConfirmingClear(false); router.push("/store"); }}
+                className="flex h-11 w-full items-center justify-center rounded-2xl bg-rose-600 text-xs font-bold text-white transition-colors hover:bg-rose-700 outline-none focus-visible:ring-3 focus-visible:ring-rose-600/40"
+              >
+                Yes, clear cart
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(false)}
+                className="flex h-11 w-full items-center justify-center rounded-2xl border border-border bg-white text-xs font-bold text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                Keep items
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
