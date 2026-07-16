@@ -258,11 +258,12 @@ export async function placeOrder(
   // paid, so an abandoned attempt burns nothing.
   const paymentSettings = await getPaymentSettings();
   if (input.paymentMethod === "duitnow-qr" && paymentSettings.chip.enabled) {
-    const fee = computeGatewayFee(
-      discountedTotal,
-      paymentSettings.chip.feeFlat,
-      paymentSettings.chip.feePercent,
-    );
+    const fee = computeGatewayFee(discountedTotal, {
+      flat: paymentSettings.chip.feeFlat,
+      percentBasisPoints: paymentSettings.chip.feePercent,
+      min: paymentSettings.chip.feeMin,
+      max: paymentSettings.chip.feeMax,
+    });
 
     let pendingOrder;
     try {

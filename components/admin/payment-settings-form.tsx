@@ -224,8 +224,50 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
                 }
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chip-fee-min">Minimum fee (RM)</Label>
+              <Input
+                id="chip-fee-min"
+                type="number"
+                min={0}
+                step="0.01"
+                value={(s.chip.feeMin / 100).toString()}
+                onChange={(e) =>
+                  setS({
+                    ...s,
+                    chip: {
+                      ...s.chip,
+                      feeMin: Math.max(0, Math.round(Number(e.target.value) * 100) || 0),
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chip-fee-max">Maximum fee (RM)</Label>
+              <Input
+                id="chip-fee-max"
+                type="number"
+                min={0}
+                step="0.01"
+                value={(s.chip.feeMax / 100).toString()}
+                onChange={(e) =>
+                  setS({
+                    ...s,
+                    chip: {
+                      ...s.chip,
+                      feeMax: Math.max(0, Math.round(Number(e.target.value) * 100) || 0),
+                    },
+                  })
+                }
+              />
+            </div>
           </div>
         )}
+        <p className="text-xs text-muted-foreground">
+          Fee is flat + percentage, then clamped between min and max. Leave min/max
+          at 0 for no limit. DuitNow QR is typically RM0.15 min, RM1.50 max.
+        </p>
       </div>
 
       {msg && (

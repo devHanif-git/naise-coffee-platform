@@ -508,6 +508,8 @@ export type Database = {
           cash_method_enabled: boolean
           chip_enabled: boolean
           chip_fee_flat: number
+          chip_fee_max: number
+          chip_fee_min: number
           chip_fee_percent: number
           created_at: string
           duitnow_qr_enabled: boolean
@@ -534,6 +536,8 @@ export type Database = {
           cash_method_enabled?: boolean
           chip_enabled?: boolean
           chip_fee_flat?: number
+          chip_fee_max?: number
+          chip_fee_min?: number
           chip_fee_percent?: number
           created_at?: string
           duitnow_qr_enabled?: boolean
@@ -560,6 +564,8 @@ export type Database = {
           cash_method_enabled?: boolean
           chip_enabled?: boolean
           chip_fee_flat?: number
+          chip_fee_max?: number
+          chip_fee_min?: number
           chip_fee_percent?: number
           created_at?: string
           duitnow_qr_enabled?: boolean

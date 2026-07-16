@@ -64,6 +64,15 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
   ) {
     return { ok: false, error: "Percentage fee must be between 0 and 100%." };
   }
+  if (input.chip.feeMin < 0 || !Number.isInteger(input.chip.feeMin)) {
+    return { ok: false, error: "Minimum fee must be a whole number of sen." };
+  }
+  if (input.chip.feeMax < 0 || !Number.isInteger(input.chip.feeMax)) {
+    return { ok: false, error: "Maximum fee must be a whole number of sen." };
+  }
+  if (input.chip.feeMax > 0 && input.chip.feeMax < input.chip.feeMin) {
+    return { ok: false, error: "Maximum fee can't be lower than the minimum fee." };
+  }
 
   const db = await createClient();
   const { data, error } = await db
@@ -91,6 +100,8 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
       chip_enabled: input.chip.enabled,
       chip_fee_flat: input.chip.feeFlat,
       chip_fee_percent: input.chip.feePercent,
+      chip_fee_min: input.chip.feeMin,
+      chip_fee_max: input.chip.feeMax,
     })
     .eq("id", true)
     .select("id")
