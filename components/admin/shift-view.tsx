@@ -156,6 +156,16 @@ function OpenShiftSummary({ summary }: { summary: ShiftSummary }) {
             moves {formatPrice(summary.movementsCash)}
           </span>
         </div>
+
+        {!closing && (
+          <button
+            type="button"
+            onClick={() => setClosing(true)}
+            className="mt-6 flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 text-sm font-bold uppercase tracking-[0.1em] text-neutral-900 outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-amber-300"
+          >
+            Close shift &amp; count
+          </button>
+        )}
       </section>
 
       {/* Stat tiles: the breakdown that feeds expected cash + informational QR. */}
@@ -169,7 +179,7 @@ function OpenShiftSummary({ summary }: { summary: ShiftSummary }) {
       {closing ? (
         <ShiftClosePanel summary={summary} onCancel={() => setClosing(false)} />
       ) : (
-        <AddMovementForm onClose={() => setClosing(true)} />
+        <AddMovementForm />
       )}
 
       <MovementsSection movements={summary.movements} />
@@ -197,7 +207,7 @@ const MOVEMENT_TABS: { kind: MovementKind; label: string; icon: typeof ArrowLeft
   { kind: "cash_out", label: "Cash out", icon: MinusCircle },
 ];
 
-function AddMovementForm({ onClose }: { onClose: () => void }) {
+function AddMovementForm() {
   const [kind, setKind] = useState<MovementKind>("exchange");
   const [direction, setDirection] = useState<ExchangeDirection>("qr_to_cash");
   const [amountRm, setAmountRm] = useState("");
@@ -224,16 +234,7 @@ function AddMovementForm({ onClose }: { onClose: () => void }) {
 
   return (
     <section className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-5 sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <Eyebrow>Add drawer movement</Eyebrow>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-neutral-100 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          Close shift →
-        </button>
-      </div>
+      <Eyebrow>Add drawer movement</Eyebrow>
 
       {/* Movement kind — full-width segmented control. */}
       <div className="grid grid-cols-3 gap-1.5">
