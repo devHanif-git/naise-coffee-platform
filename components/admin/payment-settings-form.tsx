@@ -165,6 +165,112 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
         />
       </div>
 
+      <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-muted/40 p-3.5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="font-heading text-sm font-semibold">Collect DuitNow QR via CHIP</span>
+            <span className="text-xs text-muted-foreground">
+              Online DuitNow QR is paid through the CHIP gateway. The processing
+              fee below is added on top of the order total and shown to the
+              customer before they pay.
+            </span>
+          </div>
+          <Switch
+            checked={s.chip.enabled}
+            onCheckedChange={(v) => setS({ ...s, chip: { ...s.chip, enabled: v } })}
+          />
+        </div>
+
+        {s.chip.enabled && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chip-fee-flat">Flat fee (RM)</Label>
+              <Input
+                id="chip-fee-flat"
+                type="number"
+                min={0}
+                step="0.01"
+                value={(s.chip.feeFlat / 100).toString()}
+                onChange={(e) =>
+                  setS({
+                    ...s,
+                    chip: {
+                      ...s.chip,
+                      feeFlat: Math.max(0, Math.round(Number(e.target.value) * 100) || 0),
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chip-fee-percent">Percentage fee (%)</Label>
+              <Input
+                id="chip-fee-percent"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                value={(s.chip.feePercent / 100).toString()}
+                onChange={(e) =>
+                  setS({
+                    ...s,
+                    chip: {
+                      ...s.chip,
+                      feePercent: Math.max(
+                        0,
+                        Math.min(10000, Math.round(Number(e.target.value) * 100) || 0),
+                      ),
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chip-fee-min">Minimum fee (RM)</Label>
+              <Input
+                id="chip-fee-min"
+                type="number"
+                min={0}
+                step="0.01"
+                value={(s.chip.feeMin / 100).toString()}
+                onChange={(e) =>
+                  setS({
+                    ...s,
+                    chip: {
+                      ...s.chip,
+                      feeMin: Math.max(0, Math.round(Number(e.target.value) * 100) || 0),
+                    },
+                  })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="chip-fee-max">Maximum fee (RM)</Label>
+              <Input
+                id="chip-fee-max"
+                type="number"
+                min={0}
+                step="0.01"
+                value={(s.chip.feeMax / 100).toString()}
+                onChange={(e) =>
+                  setS({
+                    ...s,
+                    chip: {
+                      ...s.chip,
+                      feeMax: Math.max(0, Math.round(Number(e.target.value) * 100) || 0),
+                    },
+                  })
+                }
+              />
+            </div>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Fee is flat + percentage, then clamped between min and max. Leave min/max
+          at 0 for no limit. DuitNow QR is typically RM0.15 min, RM1.50 max.
+        </p>
+      </div>
+
       {msg && (
         <p className={msg.ok ? "text-sm text-emerald-600" : "text-sm text-destructive"}>{msg.text}</p>
       )}

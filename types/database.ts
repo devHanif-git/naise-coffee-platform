@@ -415,12 +415,14 @@ export type Database = {
           completed_at: string | null
           contact_phone: string | null
           created_at: string
+          gateway_fee: number
           id: string
           notes: string | null
           order_number: string | null
           order_seq: number
           owner_id: string
           payment_method: string
+          pending_voucher_id: string | null
           proof_of_payment_url: string | null
           shift_id: string | null
           source: Database["public"]["Enums"]["order_source"]
@@ -435,12 +437,14 @@ export type Database = {
           completed_at?: string | null
           contact_phone?: string | null
           created_at?: string
+          gateway_fee?: number
           id?: string
           notes?: string | null
           order_number?: string | null
           order_seq?: number
           owner_id: string
           payment_method: string
+          pending_voucher_id?: string | null
           proof_of_payment_url?: string | null
           shift_id?: string | null
           source?: Database["public"]["Enums"]["order_source"]
@@ -455,12 +459,14 @@ export type Database = {
           completed_at?: string | null
           contact_phone?: string | null
           created_at?: string
+          gateway_fee?: number
           id?: string
           notes?: string | null
           order_number?: string | null
           order_seq?: number
           owner_id?: string
           payment_method?: string
+          pending_voucher_id?: string | null
           proof_of_payment_url?: string | null
           shift_id?: string | null
           source?: Database["public"]["Enums"]["order_source"]
@@ -472,6 +478,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_pending_voucher_id_fkey"
+            columns: ["pending_voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_shift_id_fkey"
             columns: ["shift_id"]
@@ -493,6 +506,11 @@ export type Database = {
           card_enabled: boolean
           cash_enabled: boolean
           cash_method_enabled: boolean
+          chip_enabled: boolean
+          chip_fee_flat: number
+          chip_fee_max: number
+          chip_fee_min: number
+          chip_fee_percent: number
           created_at: string
           duitnow_qr_enabled: boolean
           duitnow_qr_url: string | null
@@ -516,6 +534,11 @@ export type Database = {
           card_enabled?: boolean
           cash_enabled?: boolean
           cash_method_enabled?: boolean
+          chip_enabled?: boolean
+          chip_fee_flat?: number
+          chip_fee_max?: number
+          chip_fee_min?: number
+          chip_fee_percent?: number
           created_at?: string
           duitnow_qr_enabled?: boolean
           duitnow_qr_url?: string | null
@@ -539,6 +562,11 @@ export type Database = {
           card_enabled?: boolean
           cash_enabled?: boolean
           cash_method_enabled?: boolean
+          chip_enabled?: boolean
+          chip_fee_flat?: number
+          chip_fee_max?: number
+          chip_fee_min?: number
+          chip_fee_percent?: number
           created_at?: string
           duitnow_qr_enabled?: boolean
           duitnow_qr_url?: string | null

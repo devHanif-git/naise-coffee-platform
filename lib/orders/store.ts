@@ -58,7 +58,14 @@ function drinkLabel(item: {
 // cookie client. Guests: userId is null, insert via the admin client.
 export async function createOrder(
   draft: OrderDraft,
-  opts: { userId: string | null },
+  opts: {
+    userId: string | null;
+    // Starting status. Defaults to the normal "pending"; the CHIP path passes
+    // "awaiting_payment" so the order is hidden from staff until payment confirms.
+    status?: OrderStatus;
+    // Voucher the customer chose, stored for redemption after payment confirms.
+    pendingVoucherId?: string;
+  },
 ): Promise<Order> {
   const db = opts.userId ? await createClient() : createAdminClient();
 
@@ -75,6 +82,12 @@ export async function createOrder(
       proof_of_payment_url: draft.proofOfPaymentUrl ?? null,
       source: draft.source ?? "online",
       shift_id: draft.shiftId ?? null,
+      // Gateway fee — 0 for non-CHIP orders.
+      gateway_fee: draft.gatewayFee ?? 0,
+      // Voucher redeemed only after payment confirms (CHIP path); null otherwise.
+      pending_voucher_id: opts.pendingVoucherId ?? null,
+      // Default to the normal start; the CHIP path passes "awaiting_payment".
+      status: opts.status ?? "pending",
     })
     .select()
     .single();
@@ -197,6 +210,8 @@ export async function listOrdersPage(opts: {
   let query = db
     .from("orders")
     .select("*, order_items(*)")
+    // Unpaid CHIP orders (awaiting_payment) never appear on the staff board.
+    .neq("status", "awaiting_payment")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit);
 
@@ -228,7 +243,11 @@ async function countOrders(
   payment?: string,
 ): Promise<number> {
   const db = await createClient();
-  let query = db.from("orders").select("id", { count: "exact", head: true });
+  let query = db
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    // Unpaid CHIP orders (awaiting_payment) never count toward staff tabs.
+    .neq("status", "awaiting_payment");
   const statuses = statusesForFilter(filter);
   if (statuses) query = query.in("status", statuses);
   const { fromIso, toIso } = rangeBounds(range);
@@ -737,6 +756,101 @@ export async function setOrderPayment(
     .eq("token", token);
   if (error) return null;
   return getOrderByToken(token);
+}
+
+// Record the CHIP purchase link for an order (checkout action, after creating
+// the awaiting_payment order + CHIP purchase). Service-role: chip_purchases has
+// no member INSERT policy. `amount` is the sen total charged (order total + fee).
+export async function insertChipPurchase(input: {
+  // Order token (the domain Order has no DB id); resolved to order_id here.
+  orderToken: string;
+  chipPurchaseId: string;
+  checkoutUrl: string;
+  amount: number;
+  isTest: boolean;
+}): Promise<void> {
+  const db = createAdminClient();
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id")
+    .eq("token", input.orderToken)
+    .maybeSingle();
+  if (!orderRow) throw new Error("Order not found for CHIP purchase.");
+  const { error } = await db.from("chip_purchases").insert({
+    order_id: orderRow.id,
+    chip_purchase_id: input.chipPurchaseId,
+    checkout_url: input.checkoutUrl,
+    amount: input.amount,
+    is_test: input.isTest,
+  });
+  if (error) throw new Error(error.message);
+}
+
+// The CHIP purchase link for an order token — for the review + status screens.
+// Service-role read (bypasses RLS timing concerns; the order token already gates
+// the page). Returns null when the order has no CHIP purchase.
+export async function getChipPurchaseByToken(
+  token: string,
+): Promise<{ chipPurchaseId: string; checkoutUrl: string; status: string } | null> {
+  const db = createAdminClient();
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id")
+    .eq("token", token)
+    .maybeSingle();
+  if (!orderRow) return null;
+  const { data } = await db
+    .from("chip_purchases")
+    .select("chip_purchase_id, checkout_url, status")
+    .eq("order_id", orderRow.id)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    chipPurchaseId: data.chip_purchase_id,
+    checkoutUrl: data.checkout_url,
+    status: data.status,
+  };
+}
+
+// Flip a CHIP-paid order to pending (the normal fulfilment start) + mark its
+// chip_purchases row paid. Matched by CHIP purchase id (the webhook's key).
+// Idempotent: only acts on an order still in awaiting_payment, and the UPDATE is
+// guarded on that status so a concurrent double-webhook flips it exactly once.
+// Returns the order when THIS call flipped it, else null (already paid/missing) —
+// so the caller settles rewards exactly once. Service-role (no cookie session).
+export async function markOrderPaid(chipPurchaseId: string): Promise<Order | null> {
+  const db = createAdminClient();
+
+  const { data: purchase } = await db
+    .from("chip_purchases")
+    .select("order_id")
+    .eq("chip_purchase_id", chipPurchaseId)
+    .maybeSingle();
+  if (!purchase) return null;
+
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("token, status")
+    .eq("id", purchase.order_id)
+    .maybeSingle();
+  if (!orderRow || orderRow.status !== "awaiting_payment") return null;
+
+  const { data: updated, error } = await db
+    .from("orders")
+    .update({ status: "pending" })
+    .eq("id", purchase.order_id)
+    .eq("status", "awaiting_payment") // guard against a concurrent double-webhook
+    .select("id");
+  if (error || !updated || updated.length === 0) return null;
+
+  // Best-effort: stamp the purchase paid. The order flip above is the source of
+  // truth; a failure here doesn't undo payment.
+  await db
+    .from("chip_purchases")
+    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .eq("chip_purchase_id", chipPurchaseId);
+
+  return getOrderByToken(orderRow.token);
 }
 
 // Cancel an order via the service-role client, for server-side rollback paths

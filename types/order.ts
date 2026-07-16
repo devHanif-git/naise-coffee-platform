@@ -111,6 +111,9 @@ export type Order = {
   // Display name of the attached member (userId), resolved on the manage read
   // path so staff see who the stamp goes to. Absent for guest orders.
   memberName?: string;
+  // Gateway fee (sen) charged on top of `total` for a CHIP-paid order. 0/absent
+  // for cash and manual orders. Maps to orders.gateway_fee.
+  gatewayFee?: number;
 };
 
 // The fields a caller supplies when placing an order. The store fills in the
