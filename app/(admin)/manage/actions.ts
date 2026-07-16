@@ -6,6 +6,7 @@ import { reverseOrderRewards } from "@/lib/rewards/store";
 import { grantOrderStamp, reverseOrderStamp } from "@/lib/stamps/store";
 import { attachOrderMember, searchMembers } from "@/lib/stamps/member";
 import { verifyStorePasscode } from "@/lib/auth/store-passcode";
+import { requireOpenShift } from "@/lib/shifts/require-open";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
 import { UNPAID_PAYMENT_METHOD, isKnownPaymentValue } from "@/data/payment-methods";
 import {
@@ -94,6 +95,9 @@ export async function updateDrinkStatus(
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
   }
+  if (!(await requireOpenShift())) {
+    return { ok: false, error: "Open a shift before making drinks." };
+  }
   const updated = await setItemStatus(token, itemIndex, status);
   if (!updated) return { ok: false, error: "Order not found." };
 
@@ -109,6 +113,9 @@ export async function markReadyAndNotify(
 ): Promise<OrderActionResult> {
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
+  }
+  if (!(await requireOpenShift())) {
+    return { ok: false, error: "Open a shift before making drinks." };
   }
   const order = await getOrderByToken(token);
   if (!order) return { ok: false, error: "Order not found." };

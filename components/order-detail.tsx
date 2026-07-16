@@ -44,6 +44,7 @@ export function OrderDetail({
   paymentOptions = [],
   categories = [],
   products = [],
+  hasOpenShift = true,
 }: {
   order: Order;
   persist?: boolean;
@@ -56,6 +57,11 @@ export function OrderDetail({
   // Menu catalog for the swap picker. Empty on a non-persisting render (no swaps).
   categories?: Category[];
   products?: Product[];
+  // Whether a cash-drawer shift is currently open. Drink-making (advancing a
+  // drink, completing the order) is gated on this — the server actions enforce
+  // it too. Defaults true so non-manage renders (which don't pass it) are
+  // unaffected.
+  hasOpenShift?: boolean;
 }) {
   // Per-drink status, keyed by line index, seeded from the order's own lines.
   // Held locally for optimistic updates; the server action persists in parallel.
@@ -152,6 +158,7 @@ export function OrderDetail({
   // completion is already in flight (the finished/confirm modals cover it).
   const needsManualComplete =
     persist &&
+    hasOpenShift &&
     allDone &&
     !isCompleted &&
     order.status !== "cancelled" &&
@@ -190,8 +197,11 @@ export function OrderDetail({
     }
   }
 
-  // Advance a single drink one step along pending -> preparing -> done.
+  // Advance a single drink one step along pending -> preparing -> done. Gated on
+  // an open shift — the server action enforces it too, this just avoids a wasted
+  // round-trip and keeps the UI honest.
   function advanceDrink(index: number) {
+    if (!hasOpenShift) return;
     const current = statuses[index];
     applyStatus(index, current === "pending" ? "preparing" : "done");
   }
@@ -265,6 +275,7 @@ export function OrderDetail({
   // automatic flow: counter orders complete directly; online orders open the
   // confirm modal so staff still get the notify step.
   function completeNow() {
+    if (!hasOpenShift) return;
     setCompleteError(null);
     setShowComplete(true);
   }
@@ -552,15 +563,31 @@ export function OrderDetail({
         </section>
       )}
 
+      {/* No shift open -> drink-making is gated (server + UI). Show staff how to
+          proceed without blocking the rest of the order view. */}
+      {!hasOpenShift && order.status !== "cancelled" && !isCompleted && (
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Open a shift to start making drinks.{" "}
+          <a
+            href="/admin/shift"
+            className="font-semibold underline underline-offset-2"
+          >
+            Open shift
+          </a>
+        </div>
+      )}
+
       <section className="mt-7 flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider">Drinks</h2>
           <span className="text-[0.6875rem] text-muted-foreground">
             {order.status === "cancelled"
               ? "Order cancelled"
-              : canAmend
-                ? "Swipe ← to update · → to amend"
-                : "Swipe each drink to update"}
+              : !hasOpenShift
+                ? "Shift closed"
+                : canAmend
+                  ? "Swipe ← to update · → to amend"
+                  : "Swipe each drink to update"}
           </span>
         </div>
         <ul className="flex flex-col">
@@ -571,11 +598,12 @@ export function OrderDetail({
               status={statuses[i]}
               amendable={
                 canAmend &&
+                hasOpenShift &&
                 !voided[i] &&
                 statuses[i] !== "done" &&
                 !item.isReward
               }
-              locked={order.status === "cancelled"}
+              locked={order.status === "cancelled" || !hasOpenShift}
               onAdvance={() => advanceDrink(i)}
               onSwap={() => handleSwap(i)}
               onVoid={() => handleVoid(i)}
