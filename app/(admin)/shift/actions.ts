@@ -15,7 +15,7 @@ export async function openShiftAction(openingFloatRm: number): Promise<Result> {
   if (!(await canManageOrders())) return { ok: false, error: "Not authorized." };
   const res = await openShift(toSen(openingFloatRm));
   if (!res.ok) return res;
-  revalidatePath("/admin/shift");
+  revalidatePath("/shift");
   return { ok: true };
 }
 
@@ -34,7 +34,7 @@ export async function addMovementAction(input: {
   );
   const res = await addMovement(input.kind, cashDelta, qrDelta, input.note);
   if (!res.ok) return res;
-  revalidatePath("/admin/shift");
+  revalidatePath("/shift");
   return { ok: true };
 }
 
@@ -48,6 +48,6 @@ export async function closeShiftAction(
   if (!(await canManageOrders())) return { ok: false, error: "Not authorized." };
   const res = await closeShift(toSen(countedCashRm), note);
   if (!res.ok) return res;
-  revalidatePath("/admin/shift");
+  revalidatePath("/shift");
   return res;
 }

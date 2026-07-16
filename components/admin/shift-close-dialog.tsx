@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { formatPrice } from "@/lib/format";
 import type { ShiftSummary } from "@/types/shift";
-import { closeShiftAction } from "@/app/(admin)/admin/shift/actions";
+import { closeShiftAction } from "@/app/(admin)/shift/actions";
 
 // Inline close panel: shows the reconciliation statement, takes a whole-RM
 // counted-cash count, and reveals over/short live. Confirming closes the shift.

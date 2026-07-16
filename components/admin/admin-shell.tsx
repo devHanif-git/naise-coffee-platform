@@ -14,6 +14,7 @@ import {
   BarChart3,
   Settings,
   Store,
+  Wallet,
 } from "lucide-react";
 import {
   Sheet,
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/manage", label: "Orders", icon: ClipboardList },
+  { href: "/shift", label: "Shift", icon: Wallet },
   { href: "/admin/menu", label: "Menu", icon: Coffee },
   { href: "/admin/promotions", label: "Promotions", icon: Tag },
   { href: "/admin/rewards", label: "Rewards", icon: Star },
@@ -95,15 +97,46 @@ function ExitToApp({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+// Compact shift-state chip. Links to /shift; green when a shift is open.
+function ShiftChip({ openSince }: { openSince: string | null }) {
+  return (
+    <GuardedLink
+      href="/shift"
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+        openSince
+          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+          : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200",
+      )}
+    >
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          openSince ? "bg-emerald-500" : "bg-neutral-400",
+        )}
+        aria-hidden
+      />
+      {openSince ? "Shift open" : "No shift open"}
+    </GuardedLink>
+  );
+}
+
+export function AdminShell({
+  children,
+  openSince,
+}: {
+  children: React.ReactNode;
+  openSince: string | null;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <div className="min-h-dvh bg-background">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
-        <div className="flex h-16 items-center border-b border-sidebar-border px-5">
+        <div className="flex h-16 items-center justify-between gap-2 border-b border-sidebar-border px-5">
           <Wordmark />
+          <ShiftChip openSince={openSince} />
         </div>
         <div className="flex-1 overflow-y-auto">
           <NavLinks />
@@ -138,6 +171,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
         <Wordmark />
+        <div className="ml-auto">
+          <ShiftChip openSince={openSince} />
+        </div>
       </header>
 
       <div className="lg:pl-60">

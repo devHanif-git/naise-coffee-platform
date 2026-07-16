@@ -23,7 +23,7 @@ import type { ExchangeDirection } from "@/lib/shifts/reconcile";
 import {
   openShiftAction,
   addMovementAction,
-} from "@/app/(admin)/admin/shift/actions";
+} from "@/app/(admin)/shift/actions";
 import { ShiftClosePanel } from "@/components/admin/shift-close-dialog";
 
 // Parse a whole-RM text input into a non-negative integer ringgit value, or null.

@@ -569,7 +569,7 @@ export function OrderDetail({
         <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Open a shift to start making drinks.{" "}
           <a
-            href="/admin/shift"
+            href="/shift"
             className="font-semibold underline underline-offset-2"
           >
             Open shift

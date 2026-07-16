@@ -15,6 +15,7 @@ import {
   Settings,
   Star,
   User,
+  Wallet,
 } from "lucide-react";
 import type { Order } from "@/types/order";
 import type {
@@ -371,6 +372,12 @@ export function ProfileScreen({
                   label="Manage"
                   description="Live order board"
                   href="/manage?from=profile"
+                />
+                <StaffRow
+                  icon={Wallet}
+                  label="Shift"
+                  description="Open, close & count the drawer"
+                  href="/shift?from=profile"
                 />
                 {canViewDashboard && (
                   <StaffRow
