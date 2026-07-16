@@ -297,7 +297,7 @@ export async function placeOrder(
       quantity: l.quantity,
     }));
     if (fee > 0) {
-      products.push({ name: "Payment gateway fee", price: fee, quantity: 1 });
+      products.push({ name: "Processing fee", price: fee, quantity: 1 });
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";

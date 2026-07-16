@@ -123,7 +123,7 @@ export function PaymentReview({
             <dd className="tabular-nums">{rm(amount)}</dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">Payment gateway fee</dt>
+            <dt className="text-muted-foreground">Processing fee</dt>
             <dd className="tabular-nums">{rm(fee)}</dd>
           </div>
         </dl>

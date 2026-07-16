@@ -170,8 +170,9 @@ export function PaymentSettingsForm({ initial }: { initial: PaymentSettings }) {
           <div className="flex min-w-0 flex-col gap-1">
             <span className="font-heading text-sm font-semibold">Collect DuitNow QR via CHIP</span>
             <span className="text-xs text-muted-foreground">
-              Online DuitNow QR is paid through the CHIP gateway. The fee below is
-              added on top of the order total and shown to the customer before they pay.
+              Online DuitNow QR is paid through the CHIP gateway. The processing
+              fee below is added on top of the order total and shown to the
+              customer before they pay.
             </span>
           </div>
           <Switch
