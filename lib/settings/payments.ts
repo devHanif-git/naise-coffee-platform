@@ -19,6 +19,10 @@ export type PaymentSettings = {
   duitnowQrUrl: string | null;
   // When true, the kiosk offers a "Pay later" option (store orders only).
   payLaterEnabled: boolean;
+  // CHIP payment-gateway config. enabled routes DuitNow QR through CHIP;
+  // feeFlat (sen) + feePercent (basis points, 150 = 1.50%) size the fee added
+  // on top of the order total on the CHIP path.
+  chip: { enabled: boolean; feeFlat: number; feePercent: number };
 };
 
 // Safe defaults if the row is missing or unreadable. Payment config FAILS OPEN
@@ -39,6 +43,9 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   bank: { name: "", accountNumber: "", accountHolder: "" },
   duitnowQrUrl: null,
   payLaterEnabled: false,
+  // CHIP defaults OFF — unlike the fail-open method toggles, the gateway must be
+  // explicitly enabled by an admin.
+  chip: { enabled: false, feeFlat: 0, feePercent: 0 },
 };
 
 type Row = {
@@ -60,13 +67,17 @@ type Row = {
   bank_account_holder: string;
   duitnow_qr_url: string | null;
   pay_later_enabled: boolean;
+  chip_enabled: boolean;
+  chip_fee_flat: number;
+  chip_fee_percent: number;
 };
 
 const COLUMNS =
   "cash_enabled, qr_enabled, card_enabled, ewallet_enabled, bank_enabled, " +
   "cash_method_enabled, duitnow_qr_enabled, apple_pay_enabled, google_pay_enabled, " +
   "tng_ewallet_enabled, boost_enabled, grabpay_enabled, bank_transfer_enabled, " +
-  "bank_name, bank_account_number, bank_account_holder, duitnow_qr_url, pay_later_enabled";
+  "bank_name, bank_account_number, bank_account_holder, duitnow_qr_url, pay_later_enabled, " +
+  "chip_enabled, chip_fee_flat, chip_fee_percent";
 
 function map(row: Row): PaymentSettings {
   return {
@@ -94,6 +105,11 @@ function map(row: Row): PaymentSettings {
     },
     duitnowQrUrl: row.duitnow_qr_url,
     payLaterEnabled: row.pay_later_enabled,
+    chip: {
+      enabled: row.chip_enabled,
+      feeFlat: row.chip_fee_flat,
+      feePercent: row.chip_fee_percent,
+    },
   };
 }
 
