@@ -46,12 +46,13 @@ export function OrderCompleteModal({
     };
   }, [busy, onCancel]);
 
-  // Change = cash received − amount due. null until a valid amount is typed.
+  // Change = cash received − amount due. A blank field means "exact cash" —
+  // received equals the total, so change is RM 0 (staff can just complete).
   const cashReceivedSen =
     cashReceived.trim() === ""
-      ? null
+      ? total
       : Math.max(Math.round(Number(cashReceived)), 0) * 100;
-  const changeDue = cashReceivedSen === null ? null : cashReceivedSen - total;
+  const changeDue = cashReceivedSen - total;
 
   return (
     <div
@@ -114,21 +115,19 @@ export function OrderCompleteModal({
                 />
               </div>
             </div>
-            {changeDue !== null && (
-              <div className="flex items-baseline justify-between border-t border-border pt-3">
-                <span className="text-sm font-semibold">
-                  {changeDue < 0 ? "Short by" : "Change"}
-                </span>
-                <span
-                  className={
-                    "text-lg font-bold tabular-nums " +
-                    (changeDue < 0 ? "text-rose-600" : "text-emerald-700")
-                  }
-                >
-                  {formatPrice(Math.abs(changeDue))}
-                </span>
-              </div>
-            )}
+            <div className="flex items-baseline justify-between border-t border-border pt-3">
+              <span className="text-sm font-semibold">
+                {changeDue < 0 ? "Short by" : "Change"}
+              </span>
+              <span
+                className={
+                  "text-lg font-bold tabular-nums " +
+                  (changeDue < 0 ? "text-rose-600" : "text-emerald-700")
+                }
+              >
+                {formatPrice(Math.abs(changeDue))}
+              </span>
+            </div>
           </div>
         )}
 
