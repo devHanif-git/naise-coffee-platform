@@ -53,6 +53,18 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
     return { ok: false, error: "Account number can only contain digits, spaces, or dashes." };
   }
 
+  // CHIP gateway fee: flat is sen, percent is basis points (0–10000 = 0–100%).
+  if (input.chip.feeFlat < 0 || !Number.isInteger(input.chip.feeFlat)) {
+    return { ok: false, error: "Flat fee must be a whole number of sen." };
+  }
+  if (
+    input.chip.feePercent < 0 ||
+    input.chip.feePercent > 10000 ||
+    !Number.isInteger(input.chip.feePercent)
+  ) {
+    return { ok: false, error: "Percentage fee must be between 0 and 100%." };
+  }
+
   const db = await createClient();
   const { data, error } = await db
     .from("payment_settings")
@@ -76,6 +88,9 @@ export async function updatePaymentSettings(input: PaymentSettings): Promise<Act
       // Empty/blank normalizes to null so checkout falls back to the bundled QR.
       duitnow_qr_url: input.duitnowQrUrl?.trim() ? input.duitnowQrUrl.trim() : null,
       pay_later_enabled: input.payLaterEnabled,
+      chip_enabled: input.chip.enabled,
+      chip_fee_flat: input.chip.feeFlat,
+      chip_fee_percent: input.chip.feePercent,
     })
     .eq("id", true)
     .select("id")
