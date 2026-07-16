@@ -13,6 +13,11 @@ const toSen = (rm: number) => Math.max(Math.round(rm), 0) * 100;
 
 export async function openShiftAction(openingFloatRm: number): Promise<Result> {
   if (!(await canManageOrders())) return { ok: false, error: "Not authorized." };
+  // A finite, non-negative float is required. RM 0 is allowed (empty drawer);
+  // NaN/Infinity/negative is not.
+  if (!Number.isFinite(openingFloatRm) || openingFloatRm < 0) {
+    return { ok: false, error: "Enter the starting cash (whole ringgit)." };
+  }
   const res = await openShift(toSen(openingFloatRm));
   if (!res.ok) return res;
   revalidatePath("/shift");

@@ -26,8 +26,11 @@ import {
 } from "@/app/(admin)/shift/actions";
 import { ShiftClosePanel } from "@/components/admin/shift-close-dialog";
 
-// Parse a whole-RM text input into a non-negative integer ringgit value, or null.
+// Parse a whole-RM text input into a non-negative integer ringgit value, or
+// null. A blank/whitespace-only string is null (not 0) so an empty field is
+// rejected — Number("") is 0, which would otherwise pass as a valid amount.
 function parseRm(value: string): number | null {
+  if (value.trim() === "") return null;
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n);
