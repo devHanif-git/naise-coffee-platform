@@ -762,15 +762,22 @@ export async function setOrderPayment(
 // the awaiting_payment order + CHIP purchase). Service-role: chip_purchases has
 // no member INSERT policy. `amount` is the sen total charged (order total + fee).
 export async function insertChipPurchase(input: {
-  orderId: string;
+  // Order token (the domain Order has no DB id); resolved to order_id here.
+  orderToken: string;
   chipPurchaseId: string;
   checkoutUrl: string;
   amount: number;
   isTest: boolean;
 }): Promise<void> {
   const db = createAdminClient();
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id")
+    .eq("token", input.orderToken)
+    .maybeSingle();
+  if (!orderRow) throw new Error("Order not found for CHIP purchase.");
   const { error } = await db.from("chip_purchases").insert({
-    order_id: input.orderId,
+    order_id: orderRow.id,
     chip_purchase_id: input.chipPurchaseId,
     checkout_url: input.checkoutUrl,
     amount: input.amount,

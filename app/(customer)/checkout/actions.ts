@@ -1,6 +1,12 @@
 "use server";
 
-import { cancelOrderAsSystem, createOrder } from "@/lib/orders/store";
+import {
+  cancelOrderAsSystem,
+  createOrder,
+  getOrderByToken,
+  insertChipPurchase,
+} from "@/lib/orders/store";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { signReceiptPath } from "@/lib/orders/receipt-server";
 import { applyOrderRewards } from "@/lib/rewards/store";
 import type { OrderRewardsResult } from "@/types/reward";
@@ -9,10 +15,13 @@ import { buildOrderMessage } from "@/lib/orders/message";
 import { sendTelegramMessage } from "@/lib/telegram";
 import type { OrderLine } from "@/types/order";
 import { getStoreSettingsForCheckout } from "@/lib/settings/store";
+import { getPaymentSettings } from "@/lib/settings/payments";
 import { normalizeMyPhone } from "@/lib/phone";
 import { redeemVoucher } from "@/lib/stamps/voucher-store";
 import { listProductsFresh } from "@/lib/menu/store";
 import { repriceLine } from "@/lib/promotions/reprice";
+import { computeGatewayFee } from "@/lib/payments/chip/fee";
+import { createPurchase } from "@/lib/payments/chip/client";
 
 type PlaceOrderItem = {
   // Always present for storefront orders (every line is a menu product); typed
@@ -53,6 +62,9 @@ export type PlaceOrderInput = {
 
 export type PlaceOrderResult =
   | { ok: true; orderNumber: string; rewards?: OrderRewardsResult; voucherDiscount?: number }
+  // CHIP path: the order is created as awaiting_payment; the customer is sent to
+  // the payment review screen instead of seeing the "order confirmed" state.
+  | { ok: true; redirectTo: string }
   | { ok: false; error: string };
 
 export async function placeOrder(
@@ -239,6 +251,92 @@ export async function placeOrder(
   // silently dropped and the customer overcharged.
   const discountedTotal = Math.max(0, total - voucherDiscount);
 
+  // CHIP gateway path: DuitNow QR routed through CHIP. Create the order as
+  // awaiting_payment (hidden from staff), create the CHIP purchase, record the
+  // link, and hand the customer to the review screen. Rewards/voucher/Telegram
+  // are deferred to the webhook (settlePaidOrder) — the order isn't real until
+  // paid, so an abandoned attempt burns nothing.
+  const paymentSettings = await getPaymentSettings();
+  if (input.paymentMethod === "duitnow-qr" && paymentSettings.chip.enabled) {
+    const fee = computeGatewayFee(
+      discountedTotal,
+      paymentSettings.chip.feeFlat,
+      paymentSettings.chip.feePercent,
+    );
+
+    let pendingOrder;
+    try {
+      pendingOrder = await createOrder(
+        {
+          ownerId: userId,
+          paymentMethod: "duitnow-qr",
+          items: lines,
+          subtotal,
+          total: discountedTotal,
+          notes: input.notes?.trim() || undefined,
+          contactPhone,
+          gatewayFee: fee,
+        },
+        {
+          userId,
+          status: "awaiting_payment",
+          pendingVoucherId: voucherToRedeem ?? undefined,
+        },
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      return { ok: false, error: `Couldn't start payment: ${reason}` };
+    }
+
+    // Itemised CHIP products: one line per drink, plus a fee line. Money is sen.
+    const email = user?.email ?? `${userId}@no-email.naise`;
+    const products = lines.map((l) => ({
+      name: [l.name, l.sizeName, ...(l.addonNames ?? [])].filter(Boolean).join(" · "),
+      price: l.unitPrice,
+      quantity: l.quantity,
+    }));
+    if (fee > 0) {
+      products.push({ name: "Payment gateway fee", price: fee, quantity: 1 });
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    let purchase;
+    try {
+      purchase = await createPurchase({
+        email,
+        products,
+        reference: pendingOrder.orderNumber,
+        successCallback: `${baseUrl}/api/payments/chip/webhook`,
+        successRedirect: `${baseUrl}/profile/orders/${pendingOrder.token}`,
+        failureRedirect: `${baseUrl}/profile/orders/${pendingOrder.token}`,
+        cancelRedirect: `${baseUrl}/checkout/pay/${pendingOrder.token}`,
+      });
+    } catch (err) {
+      // Couldn't reach CHIP — cancel the just-created pending order so it doesn't
+      // linger, then surface the failure.
+      await cancelOrderAsSystem(pendingOrder.token);
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      return { ok: false, error: `Couldn't start payment: ${reason}` };
+    }
+
+    // Record the purchase link so the webhook + review/status screens can find it.
+    try {
+      await insertChipPurchase({
+        orderToken: pendingOrder.token,
+        chipPurchaseId: purchase.id,
+        checkoutUrl: purchase.checkout_url,
+        amount: discountedTotal + fee,
+        isTest: purchase.is_test,
+      });
+    } catch (err) {
+      await cancelOrderAsSystem(pendingOrder.token);
+      const reason = err instanceof Error ? err.message : "Unknown error";
+      return { ok: false, error: `Couldn't start payment: ${reason}` };
+    }
+
+    return { ok: true, redirectTo: `/checkout/pay/${pendingOrder.token}` };
+  }
+
   let order;
   try {
     order = await createOrder(
@@ -349,5 +447,68 @@ function isLocalUrl(url: string): boolean {
     );
   } catch {
     return true;
+  }
+}
+
+// Post-payment settlement, called by the CHIP webhook after purchase.paid. The
+// order already exists and is PAID, so — unlike the synchronous cash path — a
+// reward/voucher failure here is LOGGED, not rolled back: the drink is paid for,
+// and an unsettled reward is a staff concern, never a customer error. The voucher
+// the customer chose was stored on the order (pending_voucher_id) at checkout and
+// is redeemed here. Telegram is best-effort. Safe to call once per order.
+export async function settlePaidOrder(token: string): Promise<void> {
+  const order = await getOrderByToken(token);
+  if (!order) {
+    console.error(`settlePaidOrder: order ${token} not found`);
+    return;
+  }
+
+  const admin = createAdminClient();
+  const { data: row } = await admin
+    .from("orders")
+    .select("pending_voucher_id")
+    .eq("token", token)
+    .maybeSingle();
+  const voucherId = row?.pending_voucher_id ?? null;
+
+  let voucherLabel: string | undefined;
+  if (voucherId) {
+    const redeemed = await redeemVoucher(voucherId, token);
+    if (!redeemed.ok) {
+      console.error(
+        `settlePaidOrder: voucher ${voucherId} redeem failed for paid order ${order.orderNumber}`,
+      );
+    } else {
+      const { data: v } = await admin
+        .from("vouchers")
+        .select("type, discount_amount")
+        .eq("id", voucherId)
+        .maybeSingle();
+      if (v) {
+        voucherLabel =
+          v.type === "free_drink"
+            ? "Free Drink"
+            : `RM${(v.discount_amount / 100).toFixed(0)} Off`;
+      }
+    }
+  }
+
+  // Settle Beans + streak. Log (don't roll back) on failure — the order is paid.
+  const applied = await applyOrderRewards(token);
+  if (!applied.ok) {
+    console.error(`settlePaidOrder: rewards failed for paid order ${order.orderNumber}`);
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const manageUrl = `${baseUrl}/manage/${order.token}`;
+  const canUseButton = /^https:\/\//i.test(manageUrl) && !isLocalUrl(manageUrl);
+  try {
+    await sendTelegramMessage(
+      buildOrderMessage({ ...order, voucherLabel }, manageUrl, !canUseButton),
+      canUseButton ? { buttons: [[{ text: "📋 Manage Order", url: manageUrl }]] } : {},
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Unknown error";
+    console.error(`Order ${order.orderNumber} paid but Telegram notice failed: ${reason}`);
   }
 }
