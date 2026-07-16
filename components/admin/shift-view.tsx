@@ -366,32 +366,51 @@ function MovementsSection({ movements }: { movements: ShiftMovement[] }) {
   );
 }
 
+function HistoryStat({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "font-mono text-sm font-semibold tabular-nums",
+          muted && "text-muted-foreground",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function ShiftHistory({ history }: { history: ShiftHistoryRow[] }) {
   const closed = history.filter((s) => s.status === "closed");
   if (closed.length === 0) return null;
   return (
     <section className="flex flex-col gap-3">
       <Eyebrow>Past shifts</Eyebrow>
-      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+      <ul className="flex flex-col gap-3">
         {closed.map((s) => {
           const diff = s.cashDifference ?? 0;
           return (
-            <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-semibold">
-                  {formatOrderTime(s.openedAt)}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {s.closedAt ? `Closed ${formatOrderTime(s.closedAt)}` : ""}
-                </span>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-0.5">
-                <span className="font-mono text-sm tabular-nums text-muted-foreground">
-                  {formatPrice(s.countedCash ?? 0)} / {formatPrice(s.expectedCash ?? 0)}
-                </span>
+            <li
+              key={s.id}
+              className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4"
+            >
+              {/* Top row: when it ran + reconciliation outcome pill. */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-sm font-semibold">
+                    {formatOrderTime(s.openedAt)}
+                  </span>
+                  {s.closedAt && (
+                    <span className="text-xs text-muted-foreground">
+                      Closed {formatOrderTime(s.closedAt)}
+                    </span>
+                  )}
+                </div>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold tabular-nums",
+                    "shrink-0 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold tabular-nums",
                     diff === 0
                       ? "bg-neutral-100 text-neutral-600"
                       : diff > 0
@@ -405,6 +424,14 @@ function ShiftHistory({ history }: { history: ShiftHistoryRow[] }) {
                       ? `Over ${formatPrice(diff)}`
                       : `Short ${formatPrice(Math.abs(diff))}`}
                 </span>
+              </div>
+
+              {/* Stats grid: cash reconciliation + the sales split incl. QR. */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3">
+                <HistoryStat label="Counted" value={formatPrice(s.countedCash ?? 0)} />
+                <HistoryStat label="Expected" value={formatPrice(s.expectedCash ?? 0)} />
+                <HistoryStat label="Cash sales" value={formatPrice(s.cashSales)} />
+                <HistoryStat label="QR sales" value={formatPrice(s.qrSales)} muted />
               </div>
             </li>
           );

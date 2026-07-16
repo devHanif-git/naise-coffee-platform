@@ -145,7 +145,36 @@ export async function listShiftHistory(limit = 30): Promise<ShiftHistoryRow[]> {
     .select(SHIFT_COLS)
     .order("opened_at", { ascending: false })
     .limit(limit);
-  return (data ?? []).map((r) => mapShift(r as ShiftRow));
+  const shifts = (data ?? []).map((r) => mapShift(r as ShiftRow));
+  if (shifts.length === 0) return [];
+
+  // Completed cash/QR sales per shift — the shift row only snapshots the cash
+  // reconciliation, so compute the split here. One query for all listed shifts.
+  const ids = shifts.map((s) => s.id);
+  const { data: orderRows } = await db
+    .from("orders")
+    .select("shift_id, total, payment_method")
+    .in("shift_id", ids)
+    .eq("status", "completed");
+
+  const cashByShift = new Map<string, number>();
+  const qrByShift = new Map<string, number>();
+  for (const o of orderRows ?? []) {
+    const sid = o.shift_id as string | null;
+    if (!sid) continue;
+    const method = normalizePaymentMethod(o.payment_method as string);
+    if (method === "cash") {
+      cashByShift.set(sid, (cashByShift.get(sid) ?? 0) + (o.total as number));
+    } else if (method === "duitnow-qr") {
+      qrByShift.set(sid, (qrByShift.get(sid) ?? 0) + (o.total as number));
+    }
+  }
+
+  return shifts.map((s) => ({
+    ...s,
+    cashSales: cashByShift.get(s.id) ?? 0,
+    qrSales: qrByShift.get(s.id) ?? 0,
+  }));
 }
 
 type Rpc = {

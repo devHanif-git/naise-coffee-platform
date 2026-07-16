@@ -39,5 +39,10 @@ export type ShiftSummary = {
   movements: ShiftMovement[];
 };
 
-// A closed (or open) shift row for the history list.
-export type ShiftHistoryRow = Shift;
+// A closed (or open) shift row for the history list. cashSales/qrSales are the
+// completed-order totals for that shift (sen), computed at read time — the shift
+// row only snapshots the cash reconciliation figures, not QR.
+export type ShiftHistoryRow = Shift & {
+  cashSales: number;
+  qrSales: number;
+};
