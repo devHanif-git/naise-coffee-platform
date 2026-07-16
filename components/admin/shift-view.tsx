@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowLeftRight,
   PlusCircle,
@@ -122,7 +122,15 @@ function OpenShiftPanel() {
 
 function OpenShiftSummary({ summary }: { summary: ShiftSummary }) {
   const [closing, setClosing] = useState(false);
+  const closeRef = useRef<HTMLDivElement>(null);
   const { shift } = summary;
+
+  // When the close panel opens, scroll it into view so staff focus on counting.
+  useEffect(() => {
+    if (closing) {
+      closeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [closing]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -177,7 +185,9 @@ function OpenShiftSummary({ summary }: { summary: ShiftSummary }) {
       </section>
 
       {closing ? (
-        <ShiftClosePanel summary={summary} onCancel={() => setClosing(false)} />
+        <div ref={closeRef} className="scroll-mt-4">
+          <ShiftClosePanel summary={summary} onCancel={() => setClosing(false)} />
+        </div>
       ) : (
         <AddMovementForm />
       )}
