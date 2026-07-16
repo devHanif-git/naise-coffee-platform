@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import { retrievePurchase } from "@/lib/payments/chip/client";
 import { settlePaidOrder } from "@/app/(customer)/checkout/actions";
 import { CustomerOrderLive } from "@/components/customer-order-live";
+import { PaymentWaitingPoller } from "@/components/payment-waiting-poller";
 
 export const metadata: Metadata = {
   title: "Order Detail",
@@ -121,6 +122,9 @@ export default async function ProfileOrderDetailPage({
           </h1>
           <div className="size-9" aria-hidden />
         </header>
+        {/* Poll: re-run this server render (which reconciles against CHIP) until
+            the order flips to paid and the tracker replaces this view. */}
+        <PaymentWaitingPoller />
         <main className="flex flex-col items-center justify-center gap-4 px-5 py-16 text-center">
           <div className="flex size-16 items-center justify-center rounded-full bg-yellow-50 text-yellow-700">
             <Clock className="size-8" strokeWidth={2} aria-hidden />
