@@ -34,12 +34,16 @@ export function PaymentReview({
   // Two-step cancel: the first tap arms the confirm prompt, so a single tap
   // never voids the order.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // Set once we start navigating to CHIP — the full-page redirect takes a beat,
+  // so show a spinner instead of a dead button.
+  const [redirecting, setRedirecting] = useState(false);
 
   function onPay() {
     if (!payUrl) {
       setError("Payment link unavailable. Please try again.");
       return;
     }
+    setRedirecting(true);
     // Full navigation to CHIP's hosted DuitNow QR page — never window.open, which
     // mobile/PWA popup blockers kill.
     window.location.href = payUrl;
@@ -122,10 +126,11 @@ export function PaymentReview({
         <button
           type="button"
           onClick={onPay}
-          disabled={pending || confirmingCancel}
-          className="w-full rounded-2xl bg-amber-500 py-3.5 font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
+          disabled={pending || confirmingCancel || redirecting}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 py-3.5 font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
         >
-          Proceed to Pay
+          {redirecting && <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />}
+          {redirecting ? "Redirecting to payment…" : "Proceed to Pay"}
         </button>
 
         {confirmingCancel ? (
@@ -161,7 +166,7 @@ export function PaymentReview({
               setError(null);
               setConfirmingCancel(true);
             }}
-            disabled={pending}
+            disabled={pending || redirecting}
             className="w-full rounded-2xl border border-border py-3.5 font-medium text-muted-foreground transition-colors hover:bg-neutral-50 disabled:opacity-50"
           >
             Cancel
