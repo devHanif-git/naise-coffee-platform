@@ -300,13 +300,26 @@ export async function placeOrder(
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    // CHIP rejects success_callback URLs on custom ports (only 80/443). On
+    // localhost dev we omit it and rely on the order page's retrievePurchase
+    // reconciliation to confirm payment. Production (443) sends it normally.
+    const callbackOk = (() => {
+      try {
+        const port = new URL(baseUrl).port;
+        return port === "" || port === "80" || port === "443";
+      } catch {
+        return false;
+      }
+    })();
     let purchase;
     try {
       purchase = await createPurchase({
         email,
         products,
         reference: pendingOrder.orderNumber,
-        successCallback: `${baseUrl}/api/payments/chip/webhook`,
+        ...(callbackOk
+          ? { successCallback: `${baseUrl}/api/payments/chip/webhook` }
+          : {}),
         successRedirect: `${baseUrl}/profile/orders/${pendingOrder.token}`,
         failureRedirect: `${baseUrl}/profile/orders/${pendingOrder.token}`,
         cancelRedirect: `${baseUrl}/checkout/pay/${pendingOrder.token}`,

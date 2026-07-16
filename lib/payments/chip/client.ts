@@ -18,8 +18,10 @@ export type CreatePurchaseInput = {
   products: ChipProduct[];
   // Our order number, stored on the CHIP purchase for cross-reference.
   reference: string;
-  // Server-to-server webhook (source of truth).
-  successCallback: string;
+  // Server-to-server webhook (source of truth). Optional: CHIP rejects callback
+  // URLs on non-80/443 ports (i.e. localhost dev), so it's omitted there and the
+  // order page's retrievePurchase reconciliation confirms payment instead.
+  successCallback?: string;
   // Browser redirects after the hosted payment page.
   successRedirect: string;
   failureRedirect: string;
@@ -59,7 +61,9 @@ export async function createPurchase(
     reference: input.reference,
     // Restrict the hosted page to DuitNow QR only.
     payment_method_whitelist: ["duitnow_qr"],
-    success_callback: input.successCallback,
+    // Only send the webhook callback when we have one (omitted on localhost —
+    // CHIP rejects non-80/443 callback ports).
+    ...(input.successCallback ? { success_callback: input.successCallback } : {}),
     success_redirect: input.successRedirect,
     failure_redirect: input.failureRedirect,
     cancel_redirect: input.cancelRedirect,
