@@ -31,6 +31,9 @@ export function PaymentReview({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Two-step cancel: the first tap arms the confirm prompt, so a single tap
+  // never voids the order.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   function onPay() {
     if (!payUrl) {
@@ -119,20 +122,51 @@ export function PaymentReview({
         <button
           type="button"
           onClick={onPay}
-          disabled={pending}
+          disabled={pending || confirmingCancel}
           className="w-full rounded-2xl bg-amber-500 py-3.5 font-semibold text-black transition-colors hover:bg-amber-400 disabled:opacity-50"
         >
           Proceed to Pay
         </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3.5 font-medium text-muted-foreground transition-colors hover:bg-neutral-50 disabled:opacity-50"
-        >
-          {pending && <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />}
-          {pending ? "Cancelling…" : "Cancel"}
-        </button>
+
+        {confirmingCancel ? (
+          <div className="rounded-2xl border border-border bg-neutral-50 p-4">
+            <p className="text-sm font-medium">Cancel this payment?</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your order won&rsquo;t be placed and you&rsquo;ll return to checkout.
+            </p>
+            <div className="mt-3 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmingCancel(false)}
+                disabled={pending}
+                className="flex-1 rounded-2xl border border-border py-2.5 text-sm font-medium transition-colors hover:bg-white disabled:opacity-50"
+              >
+                Keep paying
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={pending}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 disabled:opacity-50"
+              >
+                {pending && <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />}
+                {pending ? "Cancelling…" : "Yes, cancel"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setConfirmingCancel(true);
+            }}
+            disabled={pending}
+            className="w-full rounded-2xl border border-border py-3.5 font-medium text-muted-foreground transition-colors hover:bg-neutral-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </main>
   );
