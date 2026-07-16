@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Apple,
@@ -13,7 +11,6 @@ import {
   Coffee,
   Copy,
   CreditCard,
-  Flame,
   Ticket,
   Landmark,
   Loader2,
@@ -28,7 +25,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { formatPrice } from "@/lib/format";
-import { images } from "@/constants/images";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/store/cart";
 import { useAuth } from "@/store/auth";
@@ -41,6 +37,7 @@ import { StoreClosedBanner } from "@/components/store-closed-banner";
 import { PhonePromptSheet } from "@/components/phone-prompt-sheet";
 import { VoucherPickerSheet } from "@/components/stamps/voucher-picker-sheet";
 import { placeOrder as placeOrderAction } from "@/app/(customer)/checkout/actions";
+import { OrderConfirmed } from "@/components/order-confirmed";
 import { uploadReceipt } from "@/lib/orders/receipt";
 import { useProfile } from "@/store/profile";
 import { useRepriceCart } from "@/hooks/use-reprice-cart";
@@ -66,12 +63,16 @@ export function CheckoutScreen({
   bank,
   duitnowQrUrl,
   vouchers,
+  chipEnabled,
 }: {
   closedMessage?: string | null;
   methods: PaymentMethod[];
   bank: BankDetails;
   duitnowQrUrl: string | null;
   vouchers: Voucher[];
+  // When true, DuitNow QR is collected via the CHIP gateway: hide the manual QR
+  // card + receipt upload, and route to the payment review screen on submit.
+  chipEnabled: boolean;
 }) {
   const router = useRouter();
   const { items, hydrated, totalPrice, totalOriginal, totalSaving, notes, clear } =
@@ -102,16 +103,21 @@ export function CheckoutScreen({
   // Whether the voucher picker sheet is open. Selecting + confirming there is
   // the one-time-use step; the inline warning lives in the sheet.
   const [voucherSheetOpen, setVoucherSheetOpen] = useState(false);
+  // Set true right before the CHIP path clears the cart and navigates to the
+  // review screen. Without it, clearing the cart makes it empty and the
+  // empty-cart guard below races router.push and wins, bouncing to /menu.
+  const [leavingToPayment, setLeavingToPayment] = useState(false);
 
   const hasItems = items.length > 0;
 
   // Nothing to check out: once the persisted cart has loaded and is empty,
   // send the customer back to the cart rather than showing a dead screen.
-  // Skipped after a successful order — the cart is intentionally cleared then
-  // and the confirmation view takes over.
+  // Skipped after a successful order (confirmation view takes over) and while
+  // handing off to the CHIP review screen (cart is intentionally cleared then).
   useEffect(() => {
-    if (hydrated && !hasItems && !placedNumber) router.replace("/menu");  // no cart for now redirect to menu
-  }, [hydrated, hasItems, placedNumber, router]);
+    if (hydrated && !hasItems && !placedNumber && !leavingToPayment)
+      router.replace("/menu"); // no cart for now redirect to menu
+  }, [hydrated, hasItems, placedNumber, leavingToPayment, router]);
 
   // Re-price against the live catalogue when checkout mounts, so a promo toggled
   // in the CMS since the item was added is reflected here without a page refresh.
@@ -129,6 +135,10 @@ export function CheckoutScreen({
   // The currently selected method (null when nothing is selectable). Drives the
   // method-specific blocks below (QR card, bank details, receipt upload).
   const selectedMethod = methods.find((m) => m.id === selected) ?? null;
+  // True when the selected method is collected via the CHIP gateway (only
+  // DuitNow QR this phase). Drives hiding the manual QR + receipt UI and the
+  // redirect-to-review submit behaviour.
+  const isChipPath = chipEnabled && selected === "duitnow-qr";
   const featured = methods.filter((m) => m.featured);
   const others = methods.filter((m) => !m.featured);
   const hasSaving = totalSaving > 0;
@@ -200,7 +210,8 @@ export function CheckoutScreen({
       return;
     }
 
-    if (method.requiresReceipt && !receiptFile) {
+    // The CHIP gateway path collects payment on CHIP's page — no manual receipt.
+    if (method.requiresReceipt && !isChipPath && !receiptFile) {
       setError("Please attach your payment receipt.");
       return;
     }
@@ -213,7 +224,7 @@ export function CheckoutScreen({
       // prefix matches this id.
       const ownerId = user.id;
       let proofOfPaymentPath: string | undefined;
-      if (method.requiresReceipt && receiptFile) {
+      if (method.requiresReceipt && !isChipPath && receiptFile) {
         proofOfPaymentPath = await uploadReceipt(receiptFile, ownerId);
       }
 
@@ -250,6 +261,17 @@ export function CheckoutScreen({
         return;
       }
 
+      // CHIP path: go to the payment review screen instead of showing the
+      // confirmation view. Set the leaving flag BEFORE clearing so the empty-cart
+      // guard doesn't race the push and bounce us to /menu. The order is
+      // awaiting_payment until paid.
+      if ("redirectTo" in result) {
+        setLeavingToPayment(true);
+        clear();
+        router.push(result.redirectTo);
+        return;
+      }
+
       // Beans + streak are settled server-side at placement (members only).
       // Surface any streak-milestone bonuses the server granted.
       if (result.rewards && result.rewards.bonuses.length > 0) {
@@ -265,59 +287,7 @@ export function CheckoutScreen({
   }
 
   if (placedNumber) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center px-5 py-16 text-center">
-        <div className="relative size-32 naise-pop sm:size-36">
-          <Image
-            src={images.celebration}
-            alt="A cup celebrating with confetti"
-            fill
-            sizes="(min-width: 640px) 144px, 128px"
-            className="object-contain"
-          />
-        </div>
-        <p className="mt-4 text-[0.625rem] font-semibold uppercase tracking-[0.25em] text-muted-foreground naise-rise [animation-delay:60ms]">
-          Order Confirmed
-        </p>
-        <h1 className="mt-2 font-heading text-2xl font-bold tracking-tight naise-rise [animation-delay:120ms]">
-          You&rsquo;re all set!
-        </h1>
-        <p className="mt-2 max-w-[17rem] text-xs leading-relaxed text-muted-foreground naise-rise [animation-delay:180ms]">
-          The store has been notified and is brewing your order. Show this
-          reference when you collect it.
-        </p>
-
-        <div className="mt-6 inline-flex flex-col items-center rounded-2xl bg-black px-6 py-3 text-white naise-rise [animation-delay:240ms]">
-          <span className="text-[0.5625rem] font-semibold uppercase tracking-[0.2em] text-white/50">
-            Order Ref
-          </span>
-          <span className="mt-0.5 font-heading text-xl font-bold tracking-tight tabular-nums">
-            {placedNumber}
-          </span>
-        </div>
-
-        {streakAwards.length > 0 && (
-          <div className="mt-4 flex flex-col items-center gap-1.5 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 naise-rise [animation-delay:270ms]">
-            <span className="flex items-center gap-1.5 text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              <Flame className="size-3.5" strokeWidth={2.5} aria-hidden />
-              Streak Bonus
-            </span>
-            {streakAwards.map((award) => (
-              <span key={award.label} className="text-xs font-semibold text-emerald-800">
-                +{award.beans.toLocaleString()} Beans · {award.label}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <Link
-          href="/menu"
-          className="mt-7 flex h-12 items-center justify-center rounded-2xl bg-black px-7 text-xs font-bold uppercase tracking-wider text-white transition-transform hover:scale-[1.02] active:scale-[0.98] outline-none focus-visible:ring-3 focus-visible:ring-ring/50 naise-rise [animation-delay:300ms]"
-        >
-          Back to menu
-        </Link>
-      </main>
-    );
+    return <OrderConfirmed orderNumber={placedNumber} streakAwards={streakAwards} />;
   }
 
   return (
@@ -446,9 +416,18 @@ export function CheckoutScreen({
           })}
         </ul>
 
-        {selected === "duitnow-qr" && (
+        {selected === "duitnow-qr" && !isChipPath && (
           <div className="mt-4">
             <DuitnowQrCard src={duitnowQrUrl ?? undefined} />
+          </div>
+        )}
+
+        {isChipPath && (
+          <div className="mt-4 rounded-2xl border border-border bg-white px-4 py-3">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              You&rsquo;ll review the payment details and pay securely with DuitNow
+              QR on the next screen.
+            </p>
           </div>
         )}
 
@@ -510,7 +489,7 @@ export function CheckoutScreen({
             </div>
           ))}
 
-        {selectedMethod?.requiresReceipt && (
+        {selectedMethod?.requiresReceipt && !isChipPath && (
           <div className="mt-2.5 flex flex-col gap-2 rounded-2xl bg-neutral-50 px-4 py-3">
             <label
               htmlFor="receipt"
@@ -749,7 +728,7 @@ export function CheckoutScreen({
         ) : (
           <>
             <span className="text-xs font-bold uppercase tracking-wider">
-              Place Order
+              {isChipPath ? "Continue to Payment" : "Place Order"}
             </span>
             <span className="text-xs font-bold tabular-nums">
               {formatPrice(totalAfterVoucher)}

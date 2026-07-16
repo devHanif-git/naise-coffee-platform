@@ -59,5 +59,6 @@ export function rowToOrder(order: OrderRow, items: OrderItemRow[]): Order {
     createdAt: order.created_at,
     completedAt: order.completed_at ?? undefined,
     source: order.source,
+    gatewayFee: order.gateway_fee ?? undefined,
   };
 }
