@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Download, Share, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Download, Share } from "lucide-react";
+import { images } from "@/constants/images";
+import Image from "next/image";
 import { useAuth } from "@/store/auth";
 
 // Session-scoped dismissal flag. Cleared automatically when the tab/session
@@ -75,20 +77,40 @@ export default function InstallPrompt() {
     };
   }, []);
 
-  const dismiss = () => {
+  // Gate: logged-in, not installed, not dismissed, and a platform we can act on.
+  const canAct = deferredPrompt !== null || isIos;
+  const open = hydrated && isAuthenticated && !installed && !dismissed && canAct;
+
+  const dismiss = useCallback(() => {
     try {
       sessionStorage.setItem(DISMISS_KEY, "1");
     } catch {
       // Non-fatal; still hide for this render.
     }
     setDismissed(true);
-  };
+  }, []);
+
+  // Lock body scroll and wire Esc-to-dismiss while the modal is open. Kept in an
+  // effect (not inline) so cleanup restores scroll on unmount/close.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open, dismiss]);
 
   const install = async () => {
     if (deferredPrompt) {
       await deferredPrompt.prompt();
       await deferredPrompt.userChoice;
-      // Whether accepted or dismissed, retire the toast for this session.
+      // Whether accepted or dismissed, retire the prompt for this session.
       setDeferredPrompt(null);
       dismiss();
       return;
@@ -98,45 +120,75 @@ export default function InstallPrompt() {
     }
   };
 
-  // Gate: logged-in, not installed, not dismissed, and a platform we can act on.
-  const canAct = deferredPrompt !== null || isIos;
-  if (!hydrated || !isAuthenticated || installed || dismissed || !canAct) {
-    return null;
-  }
+  if (!open) return null;
 
   return (
     <div
       role="dialog"
-      aria-label="Install Naise Coffee"
-      className="fixed left-1/2 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.75rem)] z-[70] flex w-[calc(100%-2.5rem)] max-w-[calc(28rem-2.5rem)] -translate-x-1/2 items-center gap-3 rounded-2xl bg-black px-4 py-3 text-left text-xs font-medium text-white shadow-lg naise-rise"
+      aria-modal="true"
+      aria-labelledby="install-title"
+      onClick={dismiss}
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 naise-fade"
     >
-      {iosExpanded ? (
-        <span className="flex flex-1 items-center gap-1.5">
-          Tap the
-          <Share className="inline size-3.5" aria-hidden />
-          Share icon, then &ldquo;Add to Home Screen&rdquo;.
-        </span>
-      ) : (
-        <>
-          <span className="flex-1">Install Naise for faster ordering.</span>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white naise-pop"
+      >
+        <div className="relative flex flex-col items-center overflow-hidden bg-black px-6 pb-8 pt-9 text-center text-white">
+          <div className="relative size-24 naise-pop">
+            <Image
+              src={images.logo}
+              alt="Naise Coffee"
+              fill
+              sizes="96px"
+              className="object-contain"
+            />
+          </div>
+          <p className="mt-3 text-[0.625rem] font-semibold uppercase tracking-[0.25em] text-white/60">
+            Add to home screen
+          </p>
+          <h2
+            id="install-title"
+            className="mt-2 font-heading text-3xl font-bold leading-none tracking-tight"
+          >
+            Install Naise
+          </h2>
+        </div>
+
+        <div className="px-6 py-6">
+          {iosExpanded ? (
+            <p className="flex flex-wrap items-center justify-center gap-1.5 text-center text-sm leading-relaxed text-muted-foreground">
+              Tap the
+              <Share className="inline size-4 text-foreground" aria-hidden />
+              Share icon, then &ldquo;Add to Home Screen&rdquo;.
+            </p>
+          ) : (
+            <p className="text-center text-sm leading-relaxed text-muted-foreground">
+              Install Naise for faster ordering, quick access from your home
+              screen, and a smoother checkout.
+            </p>
+          )}
+
+          {!iosExpanded && (
+            <button
+              type="button"
+              onClick={install}
+              className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <Download className="size-4" aria-hidden />
+              Install
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={install}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-black outline-none focus-visible:ring-3 focus-visible:ring-white/30"
+            onClick={dismiss}
+            className="mt-3 h-11 w-full rounded-full text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <Download className="size-3.5" aria-hidden />
-            Install
+            {iosExpanded ? "Got it" : "Not now"}
           </button>
-        </>
-      )}
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Dismiss"
-        className="flex size-6 shrink-0 items-center justify-center rounded-full text-white/70 outline-none hover:text-white focus-visible:ring-3 focus-visible:ring-white/30"
-      >
-        <X className="size-4" aria-hidden />
-      </button>
+        </div>
+      </div>
     </div>
   );
 }
