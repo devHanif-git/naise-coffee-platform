@@ -44,29 +44,32 @@ export function ShiftClosePanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-      <h3 className="text-xs font-bold uppercase tracking-wide">Close &amp; count the drawer</h3>
+    <section className="naise-rise flex flex-col gap-4 rounded-3xl border border-amber-200 bg-amber-50/60 p-5 sm:p-6">
+      <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-amber-800">
+        Close &amp; count the drawer
+      </span>
 
       <div className="flex flex-col divide-y divide-amber-200/70">
         <Line label="Opening float" value={formatPrice(summary.shift.openingFloat)} />
         <Line label="+ Cash sales" value={formatPrice(summary.cashSales)} />
         <Line label="± Movements" value={formatPrice(summary.movementsCash)} />
-        <Line label="= Expected cash" value={formatPrice(summary.expectedCash)} strong />
+        <Line label="Expected cash" value={formatPrice(summary.expectedCash)} strong />
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="counted-cash" className="text-xs font-semibold uppercase tracking-wide">
+        <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Counted cash
-        </label>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-muted-foreground">RM</span>
+        </span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-base font-bold text-muted-foreground">RM</span>
           <Input
             id="counted-cash"
             inputMode="numeric"
+            pattern="[0-9]*"
             value={countedRm}
             onChange={(e) => setCountedRm(e.target.value.replace(/[^0-9]/g, ""))}
             placeholder="0"
-            className="max-w-[8rem] bg-white"
+            className="h-12 max-w-[9rem] bg-white font-mono text-lg font-bold tabular-nums"
           />
         </div>
       </div>
@@ -74,7 +77,7 @@ export function ShiftClosePanel({
       {diff !== null && (
         <div
           className={cn(
-            "rounded-lg px-3 py-2 text-sm font-semibold",
+            "flex items-baseline justify-between rounded-2xl px-4 py-3 font-semibold",
             diff === 0
               ? "bg-neutral-100 text-neutral-700"
               : diff > 0
@@ -82,11 +85,12 @@ export function ShiftClosePanel({
                 : "bg-rose-100 text-rose-800",
           )}
         >
-          {diff === 0
-            ? "Balanced — counts match."
-            : diff > 0
-              ? `Over by ${formatPrice(diff)}`
-              : `Short by ${formatPrice(Math.abs(diff))}`}
+          <span className="text-sm">
+            {diff === 0 ? "Balanced" : diff > 0 ? "Over" : "Short"}
+          </span>
+          <span className="font-mono text-lg tabular-nums">
+            {diff === 0 ? "—" : formatPrice(Math.abs(diff))}
+          </span>
         </div>
       )}
 
@@ -100,24 +104,29 @@ export function ShiftClosePanel({
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       <div className="flex flex-wrap gap-2">
-        <PendingButton pending={pending} onClick={submit}>
+        <PendingButton pending={pending} onClick={submit} className="h-11 px-6">
           Close shift
         </PendingButton>
-        <Button variant="ghost" onClick={onCancel} disabled={pending}>
+        <Button variant="ghost" onClick={onCancel} disabled={pending} className="h-11">
           Cancel
         </Button>
       </div>
-    </div>
+    </section>
   );
 }
 
 function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1.5">
+    <div className="flex items-center justify-between py-2">
       <span className={cn("text-sm", strong ? "font-bold" : "text-muted-foreground")}>
         {label}
       </span>
-      <span className={cn("text-sm tabular-nums", strong ? "font-bold" : "font-medium")}>
+      <span
+        className={cn(
+          "font-mono tabular-nums",
+          strong ? "text-base font-bold" : "text-sm font-medium",
+        )}
+      >
         {value}
       </span>
     </div>

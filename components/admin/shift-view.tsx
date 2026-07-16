@@ -6,9 +6,7 @@ import {
   PlusCircle,
   MinusCircle,
   Wallet,
-  Clock,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PendingButton } from "@/components/ui/pending-button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -36,6 +34,19 @@ function parseRm(value: string): number | null {
   return Math.round(n);
 }
 
+function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function ShiftView({
   summary,
   history,
@@ -43,17 +54,9 @@ export function ShiftView({
   summary: ShiftSummary | null;
   history: ShiftHistoryRow[];
 }) {
-  if (!summary) {
-    return (
-      <div className="flex flex-col gap-6">
-        <OpenShiftPanel />
-        <ShiftHistory history={history} />
-      </div>
-    );
-  }
   return (
-    <div className="flex flex-col gap-6">
-      <OpenShiftSummary summary={summary} />
+    <div className="flex flex-col gap-7">
+      {summary ? <OpenShiftSummary summary={summary} /> : <OpenShiftPanel />}
       <ShiftHistory history={history} />
     </div>
   );
@@ -79,50 +82,41 @@ function OpenShiftPanel() {
   }
 
   return (
-    <section className="flex flex-col gap-4 rounded-2xl border border-border p-5">
-      <div className="flex items-center gap-2">
-        <Wallet className="size-5 text-emerald-600" strokeWidth={2} aria-hidden />
-        <h2 className="font-heading text-lg font-bold tracking-tight">
-          Open a shift
-        </h2>
+    <section className="naise-rise flex flex-col gap-5 rounded-3xl border border-border bg-card p-6 sm:p-7">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+          <Wallet className="size-4.5" strokeWidth={2} aria-hidden />
+        </span>
+        <div className="flex flex-col leading-tight">
+          <h2 className="font-heading text-lg font-bold tracking-tight">Open a shift</h2>
+          <span className="text-xs text-muted-foreground">
+            Enter the cash already in the drawer (whole ringgit — no coins).
+          </span>
+        </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Enter the cash already in the drawer to start (whole ringgit — no coins).
-      </p>
+
       <div className="flex flex-col gap-2">
-        <label htmlFor="opening-float" className="text-xs font-semibold uppercase tracking-wide">
-          Opening float
-        </label>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-muted-foreground">RM</span>
+        <Eyebrow>Opening float</Eyebrow>
+        <div className="flex items-center gap-2.5">
+          <span className="text-base font-bold text-muted-foreground">RM</span>
           <Input
             id="opening-float"
             inputMode="numeric"
+            pattern="[0-9]*"
             value={floatRm}
             onChange={(e) => setFloatRm(e.target.value.replace(/[^0-9]/g, ""))}
             placeholder="50"
-            className="max-w-[8rem]"
+            className="h-12 max-w-[9rem] font-mono text-lg font-bold tabular-nums"
           />
         </div>
       </div>
+
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <PendingButton pending={pending} onClick={submit} className="self-start">
+
+      <PendingButton pending={pending} onClick={submit} className="h-11 self-start px-6">
         Open shift
       </PendingButton>
     </section>
-  );
-}
-
-function StatRow({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className="flex items-center justify-between py-1">
-      <span className={cn("text-sm", muted ? "text-muted-foreground" : "font-medium")}>
-        {label}
-      </span>
-      <span className={cn("text-sm tabular-nums", muted ? "text-muted-foreground" : "font-semibold")}>
-        {value}
-      </span>
-    </div>
   );
 }
 
@@ -131,41 +125,69 @@ function OpenShiftSummary({ summary }: { summary: ShiftSummary }) {
   const { shift } = summary;
 
   return (
-    <section className="flex flex-col gap-5 rounded-2xl border border-border p-5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-full bg-emerald-500" aria-hidden />
-          <h2 className="font-heading text-lg font-bold tracking-tight">Shift open</h2>
+    <div className="flex flex-col gap-5">
+      {/* Hero: expected cash headline with a live pulse, matching the dashboard. */}
+      <section className="naise-rise relative overflow-hidden rounded-3xl bg-black px-6 py-7 text-white sm:px-8 sm:py-8">
+        <div className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-white/55">
+            <span className="relative flex size-2.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-70 motion-reduce:hidden" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+            </span>
+            Shift open
+          </span>
+          <span className="text-xs text-white/55">
+            since {formatOrderTime(shift.openedAt)}
+          </span>
         </div>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Clock className="size-3.5" aria-hidden />
-          since {formatOrderTime(shift.openedAt)}
-        </span>
-      </div>
 
-      <div className="flex flex-col divide-y divide-border">
-        <StatRow label="Opening float" value={formatPrice(shift.openingFloat)} />
-        <StatRow label="Cash sales" value={formatPrice(summary.cashSales)} />
-        <StatRow label="QR sales" value={formatPrice(summary.qrSales)} muted />
-        <StatRow label="Drawer movements (cash)" value={formatPrice(summary.movementsCash)} />
-        <StatRow label="Expected cash" value={formatPrice(summary.expectedCash)} />
-      </div>
-
-      {!closing && (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setClosing(true)}>
-            Close shift
-          </Button>
+        <div className="mt-5 flex flex-col gap-1">
+          <span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-white/55">
+            Expected cash
+          </span>
+          <span className="font-mono text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">
+            {formatPrice(summary.expectedCash)}
+          </span>
+          <span className="mt-1 text-sm text-white/65">
+            float {formatPrice(shift.openingFloat)}
+            <span className="px-1.5 text-white/30">·</span>
+            cash {formatPrice(summary.cashSales)}
+            <span className="px-1.5 text-white/30">·</span>
+            moves {formatPrice(summary.movementsCash)}
+          </span>
         </div>
-      )}
+      </section>
 
-      {closing && (
+      {/* Stat tiles: the breakdown that feeds expected cash + informational QR. */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Opening float" value={formatPrice(shift.openingFloat)} />
+        <StatTile label="Cash sales" value={formatPrice(summary.cashSales)} />
+        <StatTile label="Movements (cash)" value={formatPrice(summary.movementsCash)} />
+        <StatTile label="QR sales" value={formatPrice(summary.qrSales)} muted />
+      </section>
+
+      {closing ? (
         <ShiftClosePanel summary={summary} onCancel={() => setClosing(false)} />
+      ) : (
+        <AddMovementForm onClose={() => setClosing(true)} />
       )}
 
-      <AddMovementForm />
-      <MovementsList movements={summary.movements} />
-    </section>
+      <MovementsSection movements={summary.movements} />
+    </div>
+  );
+}
+
+function StatTile({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-1 rounded-2xl border border-border bg-card p-4",
+        muted && "opacity-70",
+      )}
+    >
+      <Eyebrow>{label}</Eyebrow>
+      <span className="font-mono text-xl font-bold tabular-nums tracking-tight">{value}</span>
+    </div>
   );
 }
 
@@ -175,7 +197,7 @@ const MOVEMENT_TABS: { kind: MovementKind; label: string; icon: typeof ArrowLeft
   { kind: "cash_out", label: "Cash out", icon: MinusCircle },
 ];
 
-function AddMovementForm() {
+function AddMovementForm({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<MovementKind>("exchange");
   const [direction, setDirection] = useState<ExchangeDirection>("qr_to_cash");
   const [amountRm, setAmountRm] = useState("");
@@ -201,9 +223,20 @@ function AddMovementForm() {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
-      <h3 className="text-xs font-bold uppercase tracking-wide">Add drawer movement</h3>
-      <div className="flex flex-wrap gap-1.5">
+    <section className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-5 sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <Eyebrow>Add drawer movement</Eyebrow>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-muted-foreground outline-none transition-colors hover:bg-neutral-100 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          Close shift →
+        </button>
+      </div>
+
+      {/* Movement kind — full-width segmented control. */}
+      <div className="grid grid-cols-3 gap-1.5">
         {MOVEMENT_TABS.map((t) => {
           const Icon = t.icon;
           const active = kind === t.kind;
@@ -213,7 +246,7 @@ function AddMovementForm() {
               type="button"
               onClick={() => setKind(t.kind)}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors",
                 active
                   ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                   : "border-border text-muted-foreground hover:bg-neutral-50",
@@ -227,7 +260,7 @@ function AddMovementForm() {
       </div>
 
       {kind === "exchange" && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           {(
             [
               { dir: "qr_to_cash", label: "QR → Cash" },
@@ -239,9 +272,9 @@ function AddMovementForm() {
               type="button"
               onClick={() => setDirection(d.dir)}
               className={cn(
-                "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                "rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
                 direction === d.dir
-                  ? "border-neutral-800 bg-neutral-900 text-white"
+                  ? "border-neutral-900 bg-neutral-900 text-white"
                   : "border-border text-muted-foreground hover:bg-neutral-50",
               )}
             >
@@ -251,14 +284,15 @@ function AddMovementForm() {
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-muted-foreground">RM</span>
+      <div className="flex items-center gap-2.5">
+        <span className="text-base font-bold text-muted-foreground">RM</span>
         <Input
           inputMode="numeric"
+          pattern="[0-9]*"
           value={amountRm}
           onChange={(e) => setAmountRm(e.target.value.replace(/[^0-9]/g, ""))}
           placeholder="0"
-          className="max-w-[8rem]"
+          className="h-12 max-w-[9rem] font-mono text-lg font-bold tabular-nums"
         />
       </div>
       <Input
@@ -267,10 +301,10 @@ function AddMovementForm() {
         placeholder="Note (optional)"
       />
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <PendingButton pending={pending} onClick={submit} variant="outline" className="self-start">
+      <PendingButton pending={pending} onClick={submit} variant="outline" className="h-11 self-start px-6">
         Record movement
       </PendingButton>
-    </div>
+    </section>
   );
 }
 
@@ -280,38 +314,44 @@ const MOVEMENT_LABEL: Record<MovementKind, string> = {
   cash_out: "Cash out",
 };
 
-function MovementsList({ movements }: { movements: ShiftMovement[] }) {
-  if (movements.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No drawer movements yet.</p>
-    );
-  }
+function MovementsSection({ movements }: { movements: ShiftMovement[] }) {
   return (
-    <ul className="flex flex-col divide-y divide-border">
-      {movements.map((m) => (
-        <li key={m.id} className="flex items-center justify-between py-2.5">
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{MOVEMENT_LABEL[m.kind]}</span>
-            {m.note && <span className="text-xs text-muted-foreground">{m.note}</span>}
-            <span className="text-[0.6875rem] text-muted-foreground">
-              {formatOrderTime(m.createdAt)}
-            </span>
-          </div>
-          <div className="flex flex-col items-end text-sm tabular-nums">
-            <span className={cn(m.cashDelta < 0 ? "text-rose-600" : "text-emerald-700")}>
-              {m.cashDelta < 0 ? "−" : "+"}
-              {formatPrice(Math.abs(m.cashDelta))} cash
-            </span>
-            {m.qrDelta !== 0 && (
-              <span className="text-xs text-muted-foreground">
-                {m.qrDelta < 0 ? "−" : "+"}
-                {formatPrice(Math.abs(m.qrDelta))} QR
-              </span>
-            )}
-          </div>
-        </li>
-      ))}
-    </ul>
+    <section className="flex flex-col gap-3">
+      <Eyebrow>Drawer movements</Eyebrow>
+      {movements.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          No drawer movements yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
+          {movements.map((m) => (
+            <li key={m.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="flex min-w-0 flex-col">
+                <span className="text-sm font-semibold">{MOVEMENT_LABEL[m.kind]}</span>
+                {m.note && (
+                  <span className="truncate text-xs text-muted-foreground">{m.note}</span>
+                )}
+                <span className="text-[0.6875rem] text-muted-foreground">
+                  {formatOrderTime(m.createdAt)}
+                </span>
+              </div>
+              <div className="flex shrink-0 flex-col items-end font-mono text-sm tabular-nums">
+                <span className={cn(m.cashDelta < 0 ? "text-rose-600" : "text-emerald-700")}>
+                  {m.cashDelta < 0 ? "−" : "+"}
+                  {formatPrice(Math.abs(m.cashDelta))} cash
+                </span>
+                {m.qrDelta !== 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {m.qrDelta < 0 ? "−" : "+"}
+                    {formatPrice(Math.abs(m.qrDelta))} QR
+                  </span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -320,35 +360,39 @@ function ShiftHistory({ history }: { history: ShiftHistoryRow[] }) {
   if (closed.length === 0) return null;
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-xs font-bold uppercase tracking-wide">Past shifts</h2>
-      <ul className="flex flex-col divide-y divide-border rounded-2xl border border-border">
+      <Eyebrow>Past shifts</Eyebrow>
+      <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
         {closed.map((s) => {
           const diff = s.cashDifference ?? 0;
           return (
-            <li key={s.id} className="flex items-center justify-between px-4 py-3">
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">
+            <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div className="flex min-w-0 flex-col">
+                <span className="text-sm font-semibold">
                   {formatOrderTime(s.openedAt)}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {s.closedAt ? `Closed ${formatOrderTime(s.closedAt)}` : ""}
                 </span>
               </div>
-              <div className="flex flex-col items-end text-sm tabular-nums">
-                <span>
+              <div className="flex shrink-0 flex-col items-end gap-0.5">
+                <span className="font-mono text-sm tabular-nums text-muted-foreground">
                   {formatPrice(s.countedCash ?? 0)} / {formatPrice(s.expectedCash ?? 0)}
                 </span>
                 <span
                   className={cn(
-                    "text-xs",
+                    "rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold tabular-nums",
                     diff === 0
-                      ? "text-muted-foreground"
+                      ? "bg-neutral-100 text-neutral-600"
                       : diff > 0
-                        ? "text-emerald-700"
-                        : "text-rose-600",
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-rose-100 text-rose-700",
                   )}
                 >
-                  {diff === 0 ? "Balanced" : diff > 0 ? `Over ${formatPrice(diff)}` : `Short ${formatPrice(Math.abs(diff))}`}
+                  {diff === 0
+                    ? "Balanced"
+                    : diff > 0
+                      ? `Over ${formatPrice(diff)}`
+                      : `Short ${formatPrice(Math.abs(diff))}`}
                 </span>
               </div>
             </li>
