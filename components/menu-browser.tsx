@@ -241,11 +241,14 @@ export function MenuBrowser({
               No drinks match your search.
             </p>
           ) : (
+            // No Reveal here: search results must appear instantly. The
+            // scroll-reveal observer needs a card to cross its visibility
+            // threshold, but with the mobile keyboard open the viewport
+            // shrinks and results below the sticky header never cross it,
+            // leaving them invisible-but-tappable until the keyboard closes.
             <div className="flex flex-col divide-y divide-border px-5 pt-2">
-              {searchResults.map((product, i) => (
-                <Reveal key={product.id} delay={Math.min(i, 5) * 70}>
-                  <MenuCard product={product} />
-                </Reveal>
+              {searchResults.map((product) => (
+                <MenuCard key={product.id} product={product} />
               ))}
             </div>
           )
