@@ -107,6 +107,7 @@ export function OrderCompleteModal({
                   id="cash-received"
                   type="text"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   autoFocus
                   value={cashReceived}
                   onChange={(e) =>
