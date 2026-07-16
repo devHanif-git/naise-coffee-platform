@@ -59,8 +59,10 @@ export async function createPurchase(
       })),
     },
     reference: input.reference,
-    // Restrict the hosted page to DuitNow QR only.
-    payment_method_whitelist: ["duitnow_qr"],
+    // Restrict the hosted page to DuitNow QR only. Our live brand serves the
+    // working QR checkout under the `dnqr` identifier; `duitnow_qr` returns an
+    // invoice/receipt URL instead (CHIP's documented migration caveat).
+    payment_method_whitelist: ["dnqr"],
     // Only send the webhook callback when we have one (omitted on localhost —
     // CHIP rejects non-80/443 callback ports).
     ...(input.successCallback ? { success_callback: input.successCallback } : {}),
@@ -103,9 +105,9 @@ export async function retrievePurchase(id: string): Promise<ChipPurchase> {
 }
 
 // Append the DuitNow-QR direct-post param so the hosted page skips method
-// selection and lands straight on the QR screen. `duitnow_qr` is the canonical
-// value (the docs note `dnqr` as a migration fallback).
+// selection and lands straight on the QR screen. Our live brand uses `dnqr`
+// (the docs' migration value); plain `duitnow_qr` returns an invoice page.
 export function duitnowQrCheckoutUrl(checkoutUrl: string): string {
   const sep = checkoutUrl.includes("?") ? "&" : "?";
-  return `${checkoutUrl}${sep}preferred=duitnow_qr`;
+  return `${checkoutUrl}${sep}preferred=dnqr`;
 }
