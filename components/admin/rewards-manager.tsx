@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { filterDigits } from "@/lib/input";
 import { capitalizeWords, capitalizeFirst } from "@/lib/format";
 import { ImageUpload } from "@/components/admin/image-upload";
-import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
+import { useUnsavedChanges, useIntentionalReload } from "@/components/admin/unsaved-changes";
 import type {
   AdminLoyaltySettings,
   AdminMilestone,
@@ -75,6 +75,9 @@ function serialize(s: SettingsDraft, t: TierDraft[], m: MilestoneDraft[], r: Rew
 
 export function RewardsManager({ initial, products }: { initial: Initial; products: AdminProduct[] }) {
   const activeProducts = products.filter((p) => !p.isArchived);
+  // Menu image per product, so a reward defaults to its product's image (mirrors
+  // the storefront fallback: reward image → product image → generic placeholder).
+  const productImage = new Map(products.map((p) => [p.id, p.imageUrl]));
 
   const [settings, setSettings] = useState<SettingsDraft>(() => seedSettings(initial.settings));
   const [tiers, setTiers] = useState<TierDraft[]>(() => seedTiers(initial.tiers));
@@ -82,6 +85,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
   const [rewards, setRewards] = useState<RewardDraft[]>(() => seedRewards(initial.rewards));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const intentionalReload = useIntentionalReload();
 
   const keyRef = useRef(0);
   const nextKey = () => `new-${++keyRef.current}`;
@@ -158,7 +162,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
           })),
       });
       // Reload to re-pull fresh rows (with new ids) and clear the dirty state.
-      if (res.ok) window.location.reload();
+      if (res.ok) intentionalReload();
       else setError(res.error);
     });
   }
@@ -299,7 +303,12 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
             {rewards.map((r) => (
               <div key={r.key} className={cn("flex flex-col gap-3 rounded-2xl border border-border bg-card p-3", r.isArchived && "opacity-60")}>
                 <div className="flex items-center justify-between gap-2">
-                  <ImageUpload value={r.imageUrl} onChange={(url) => updateReward(r.key, { imageUrl: url })} alt={r.name || "Reward image"} />
+                  <ImageUpload
+                    value={r.imageUrl}
+                    onChange={(url) => updateReward(r.key, { imageUrl: url })}
+                    placeholder={productImage.get(r.productId) ?? undefined}
+                    alt={r.name || "Reward image"}
+                  />
                   {!r.id && <NewPill />}
                 </div>
                 <div className="flex gap-2">
