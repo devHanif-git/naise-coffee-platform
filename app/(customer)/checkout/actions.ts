@@ -22,6 +22,7 @@ import { listProductsFresh } from "@/lib/menu/store";
 import { repriceLine } from "@/lib/promotions/reprice";
 import { computeGatewayFee } from "@/lib/payments/chip/fee";
 import { createPurchase } from "@/lib/payments/chip/client";
+import { getOpenShiftIdAdmin } from "@/lib/shifts/store";
 
 type PlaceOrderItem = {
   // Always present for storefront orders (every line is a menu product); typed
@@ -256,6 +257,13 @@ export async function placeOrder(
   // link, and hand the customer to the review screen. Rewards/voucher/Telegram
   // are deferred to the webhook (settlePaidOrder) — the order isn't real until
   // paid, so an abandoned attempt burns nothing.
+  // Attribute the order to the open shift (if any) for drawer reconciliation —
+  // online Cash is "pay at the counter on pickup", so it lands in the same
+  // physical drawer the shift counts; QR/CHIP feeds the shift's informational QR
+  // total. Members have no staff session (shift SELECT is staff-only under RLS),
+  // so read the open shift id via the admin client, same as the kiosk path.
+  const shiftId = await getOpenShiftIdAdmin(createAdminClient());
+
   const paymentSettings = await getPaymentSettings();
   if (input.paymentMethod === "duitnow-qr" && paymentSettings.chip.enabled) {
     const fee = computeGatewayFee(discountedTotal, {
@@ -277,6 +285,7 @@ export async function placeOrder(
           notes: input.notes?.trim() || undefined,
           contactPhone,
           gatewayFee: fee,
+          shiftId: shiftId ?? undefined,
         },
         {
           userId,
@@ -368,6 +377,7 @@ export async function placeOrder(
         notes: input.notes?.trim() || undefined,
         contactPhone,
         proofOfPaymentUrl,
+        shiftId: shiftId ?? undefined,
       },
       { userId },
     );
