@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Loader2, PackageX } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, PackageX, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   orderFilters,
@@ -55,12 +55,22 @@ export function ManageOrdersScreen({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-8">
       <header className="flex flex-col gap-1">
-        <Link
-          href={backHref}
-          className="mb-2 flex w-fit items-center gap-1 rounded-sm text-sm font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <ChevronLeft className="size-4" aria-hidden /> {backLabel}
-        </Link>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <Link
+            href={backHref}
+            className="flex w-fit items-center gap-1 rounded-sm text-sm font-semibold text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <ChevronLeft className="size-4" aria-hidden /> {backLabel}
+          </Link>
+          {/* Quick jump to the drawer/shift screen so staff don't have to detour
+              through the dashboard. Returns straight back here via ?from=manage. */}
+          <Link
+            href="/shift?from=manage"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Wallet className="size-4" aria-hidden /> Shift
+          </Link>
+        </div>
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           NAISE Coffee
         </span>

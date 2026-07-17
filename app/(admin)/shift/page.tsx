@@ -11,11 +11,17 @@ export default async function ShiftPage(props: PageProps<"/shift">) {
   if (!(await canManageOrders())) redirect("/");
 
   // Back link follows where the staffer came from: the customer profile passes
-  // ?from=profile; everything else (admin sidebar) returns to the dashboard.
+  // ?from=profile, the orders board passes ?from=manage; everything else (admin
+  // sidebar) returns to the dashboard.
   const { from } = await props.searchParams;
-  const fromProfile = from === "profile";
-  const backHref = fromProfile ? "/profile" : "/admin";
-  const backLabel = fromProfile ? "Profile" : "Dashboard";
+  const backHref =
+    from === "profile" ? "/profile" : from === "manage" ? "/manage" : "/admin";
+  const backLabel =
+    from === "profile"
+      ? "Profile"
+      : from === "manage"
+        ? "Manage Orders"
+        : "Dashboard";
 
   const [summary, history] = await Promise.all([
     getShiftSummary(),
