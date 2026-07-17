@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { filterDigits } from "@/lib/input";
 import { capitalizeWords, capitalizeFirst } from "@/lib/format";
 import { ImageUpload } from "@/components/admin/image-upload";
-import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
+import { useUnsavedChanges, useIntentionalReload } from "@/components/admin/unsaved-changes";
 import type {
   AdminLoyaltySettings,
   AdminMilestone,
@@ -85,6 +85,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
   const [rewards, setRewards] = useState<RewardDraft[]>(() => seedRewards(initial.rewards));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const intentionalReload = useIntentionalReload();
 
   const keyRef = useRef(0);
   const nextKey = () => `new-${++keyRef.current}`;
@@ -161,7 +162,7 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
           })),
       });
       // Reload to re-pull fresh rows (with new ids) and clear the dirty state.
-      if (res.ok) window.location.reload();
+      if (res.ok) intentionalReload();
       else setError(res.error);
     });
   }

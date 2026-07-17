@@ -12,7 +12,7 @@ import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { RecipeBuilder } from "@/components/admin/recipe-builder";
-import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
+import { useUnsavedChanges, useIntentionalReload } from "@/components/admin/unsaved-changes";
 import type { AdminAddon, AdminCategory, AdminCostItem } from "@/lib/menu/types";
 import type { RecipeEntry } from "@/lib/menu/recipe";
 import {
@@ -36,9 +36,10 @@ export function CategoryManager({
   const [pending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const intentionalReload = useIntentionalReload();
 
   function refreshFromServer() {
-    startTransition(() => window.location.reload());
+    startTransition(() => intentionalReload());
   }
 
   function add() {

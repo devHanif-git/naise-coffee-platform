@@ -15,7 +15,7 @@ import { promotionStatus, type PromotionStatus } from "@/lib/promotions/pricing"
 import type { AdminPromotion } from "@/lib/promotions/types";
 import type { AdminProduct, AdminCategory } from "@/lib/menu/types";
 import { savePromotion, setPromotionActive, deletePromotion } from "@/app/(admin)/admin/promotions/actions";
-import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
+import { useUnsavedChanges, useIntentionalReload } from "@/components/admin/unsaved-changes";
 
 // datetime-local helpers: input value is local "YYYY-MM-DDTHH:mm".
 function toLocalInput(iso: string | null): string {
@@ -40,7 +40,8 @@ export function PromotionsManager({
 }: { initial: AdminPromotion[]; products: AdminProduct[]; categories: AdminCategory[] }) {
   const [creating, setCreating] = useState(false);
   const [, startTransition] = useTransition();
-  function reload() { startTransition(() => window.location.reload()); }
+  const intentionalReload = useIntentionalReload();
+  function reload() { startTransition(() => intentionalReload()); }
 
   return (
     <div className="flex flex-col gap-6">

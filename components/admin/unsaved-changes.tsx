@@ -7,6 +7,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -29,6 +30,9 @@ type Ctx = {
   unregister: (id: string) => void;
   // Returns true if navigation may proceed now; false if intercepted.
   requestNavigation: (href: string) => boolean;
+  // Reload the page without tripping the beforeunload prompt (used after a save
+  // commits, while the draft is momentarily still dirty).
+  intentionalReload: () => void;
   // Dialog state (read by UnsavedChangesDialog).
   pending: string | null;
   confirm: () => void;
@@ -52,6 +56,8 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
   const [pending, setPending] = useState<string | null>(null);
 
   const anyDirty = dirtyIds.size > 0;
+  // Armed by intentionalReload so the beforeunload handler lets the reload through.
+  const reloadingRef = useRef(false);
 
   const register = useCallback((id: string) => {
     setDirtyIds((prev) => {
@@ -90,10 +96,17 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
 
   const cancel = useCallback(() => setPending(null), []);
 
+  const intentionalReload = useCallback(() => {
+    reloadingRef.current = true;
+    window.location.reload();
+  }, []);
+
   // Native prompt for tab close / reload / hard back while anything is dirty.
   useEffect(() => {
     if (!anyDirty) return;
     const handler = (e: BeforeUnloadEvent) => {
+      // A post-save reload is deliberate — don't prompt for it.
+      if (reloadingRef.current) return;
       e.preventDefault();
       // Older engines gate the native prompt on returnValue rather than
       // preventDefault; set both so the prompt fires everywhere.
@@ -104,8 +117,8 @@ export function UnsavedChangesProvider({ children }: { children: React.ReactNode
   }, [anyDirty]);
 
   const value = useMemo<Ctx>(
-    () => ({ anyDirty, register, unregister, requestNavigation, pending, confirm, cancel }),
-    [anyDirty, register, unregister, requestNavigation, pending, confirm, cancel],
+    () => ({ anyDirty, register, unregister, requestNavigation, intentionalReload, pending, confirm, cancel }),
+    [anyDirty, register, unregister, requestNavigation, intentionalReload, pending, confirm, cancel],
   );
 
   return (
@@ -123,6 +136,11 @@ export function useUnsavedChanges(dirty: boolean): void {
     else unregister(id);
   }, [dirty, id, register, unregister]);
   useEffect(() => () => unregister(id), [id, unregister]);
+}
+
+// Reload the page after a save without tripping the beforeunload prompt.
+export function useIntentionalReload(): () => void {
+  return useCtx().intentionalReload;
 }
 
 // For imperative navigation inside forms (Cancel buttons, post-action pushes).

@@ -9,7 +9,7 @@ import { filterDecimal } from "@/lib/input";
 import { capitalizeWords } from "@/lib/format";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
-import { useUnsavedChanges } from "@/components/admin/unsaved-changes";
+import { useUnsavedChanges, useIntentionalReload } from "@/components/admin/unsaved-changes";
 import type { AdminAddon } from "@/lib/menu/types";
 import { saveAddon, setAddonArchived } from "@/app/(admin)/admin/addons/actions";
 
@@ -24,9 +24,10 @@ export function AddonManager({ initial }: { initial: AdminAddon[] }) {
 
   // A partially-typed new add-on is unsaved work; reloads on save.
   useUnsavedChanges(name.trim() !== "" || price.trim() !== "");
+  const intentionalReload = useIntentionalReload();
 
   function reload() {
-    startTransition(() => window.location.reload());
+    startTransition(() => intentionalReload());
   }
 
   function add() {
