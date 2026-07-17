@@ -75,6 +75,9 @@ function serialize(s: SettingsDraft, t: TierDraft[], m: MilestoneDraft[], r: Rew
 
 export function RewardsManager({ initial, products }: { initial: Initial; products: AdminProduct[] }) {
   const activeProducts = products.filter((p) => !p.isArchived);
+  // Menu image per product, so a reward defaults to its product's image (mirrors
+  // the storefront fallback: reward image → product image → generic placeholder).
+  const productImage = new Map(products.map((p) => [p.id, p.imageUrl]));
 
   const [settings, setSettings] = useState<SettingsDraft>(() => seedSettings(initial.settings));
   const [tiers, setTiers] = useState<TierDraft[]>(() => seedTiers(initial.tiers));
@@ -299,7 +302,12 @@ export function RewardsManager({ initial, products }: { initial: Initial; produc
             {rewards.map((r) => (
               <div key={r.key} className={cn("flex flex-col gap-3 rounded-2xl border border-border bg-card p-3", r.isArchived && "opacity-60")}>
                 <div className="flex items-center justify-between gap-2">
-                  <ImageUpload value={r.imageUrl} onChange={(url) => updateReward(r.key, { imageUrl: url })} alt={r.name || "Reward image"} />
+                  <ImageUpload
+                    value={r.imageUrl}
+                    onChange={(url) => updateReward(r.key, { imageUrl: url })}
+                    placeholder={productImage.get(r.productId) ?? undefined}
+                    alt={r.name || "Reward image"}
+                  />
                   {!r.id && <NewPill />}
                 </div>
                 <div className="flex gap-2">
