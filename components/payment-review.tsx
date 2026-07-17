@@ -175,7 +175,7 @@ export function PaymentReview({
                 type="button"
                 onClick={() => setConfirmingCancel(false)}
                 disabled={pending}
-                className="flex h-11 flex-1 items-center justify-center rounded-2xl border border-border bg-white text-xs font-bold uppercase tracking-wider text-foreground transition-colors outline-none hover:bg-neutral-50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                className="flex h-11 flex-1 items-center justify-center rounded-2xl border border-border bg-white text-xs font-bold uppercase tracking-wider text-foreground transition-[transform,colors] outline-none hover:scale-[1.01] hover:bg-neutral-50 active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 disabled:hover:scale-100"
               >
                 Keep paying
               </button>
@@ -183,7 +183,7 @@ export function PaymentReview({
                 type="button"
                 onClick={onCancel}
                 disabled={pending}
-                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 text-xs font-bold uppercase tracking-wider text-white transition-colors outline-none hover:bg-rose-500 focus-visible:ring-3 focus-visible:ring-rose-600/40 disabled:opacity-50"
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-rose-600 text-xs font-bold uppercase tracking-wider text-white transition-[transform,colors] outline-none hover:scale-[1.01] hover:bg-rose-500 active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-rose-600/40 disabled:opacity-50 disabled:hover:scale-100"
               >
                 {pending && <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />}
                 {pending ? "Cancelling" : "Yes, cancel"}
@@ -198,7 +198,7 @@ export function PaymentReview({
               setConfirmingCancel(true);
             }}
             disabled={pending || redirecting}
-            className="flex h-12 w-full items-center justify-center rounded-2xl border border-border bg-white text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors outline-none hover:bg-neutral-50 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-12 w-full items-center justify-center rounded-2xl border border-border bg-white text-xs font-bold uppercase tracking-wider text-muted-foreground transition-[transform,colors] outline-none hover:scale-[1.01] hover:bg-neutral-50 active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 naise-rise [animation-delay:300ms]"
           >
             Cancel
           </button>
