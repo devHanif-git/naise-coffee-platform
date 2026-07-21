@@ -171,7 +171,7 @@ export function MenuBrowser({
             containerClassName="mt-3"
             iconClassName="left-4 text-neutral-400"
             clearClassName="text-neutral-400 hover:bg-neutral-700 hover:text-white"
-            className="h-11 rounded-2xl border-0 bg-neutral-800 pl-11 text-sm text-white placeholder:text-neutral-400 focus-visible:ring-3 focus-visible:ring-white/30"
+            className="h-11 rounded-2xl border-0 bg-neutral-800 pl-11 text-base text-white placeholder:text-neutral-400 focus-visible:ring-3 focus-visible:ring-white/30 md:text-sm"
           />
         </header>
 
