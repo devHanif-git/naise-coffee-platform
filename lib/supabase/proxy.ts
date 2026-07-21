@@ -31,7 +31,16 @@ export async function updateSession(request: NextRequest) {
             request: { headers: requestHeaders },
           });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              // Force Secure in prod (HTTPS behind Cloudflare) so the session
+              // token never rides plaintext. Left untouched in dev so
+              // http://localhost keeps working. HttpOnly is intentionally NOT
+              // set: the @supabase/ssr browser client reads this token from
+              // document.cookie for realtime/OAuth, so HttpOnly would break
+              // client-side auth.
+              secure: process.env.NODE_ENV === "production" ? true : options.secure,
+            }),
           );
         },
       },
