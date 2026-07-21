@@ -118,6 +118,35 @@ export async function retrievePurchase(id: string): Promise<ChipPurchase> {
   return (await res.json()) as ChipPurchase;
 }
 
+// Refund a paid purchase. Full refund when `amount` is omitted; pass integer sen
+// for a partial (unused today, kept for the signature). CHIP settles DuitNow QR
+// refunds asynchronously, so a 2xx returning "pending_refund" is as good as
+// "refunded" — callers decide via isRefundAccepted. Throws with the CHIP error
+// body on non-2xx so the caller can record the failure. Endpoint path is
+// cross-checked against the CHIP Collect OpenAPI spec.
+export async function refundPurchase(
+  purchaseId: string,
+  amount?: number,
+): Promise<{ status: string }> {
+  const { baseUrl, secretKey } = getChipConfig();
+  const res = await fetch(`${baseUrl}/purchases/${purchaseId}/refund/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
+    },
+    // Empty body = full refund; { amount } for a partial.
+    body: JSON.stringify(amount !== undefined ? { amount } : {}),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`CHIP refund failed (${res.status}): ${detail}`);
+  }
+  const data = (await res.json()) as { status?: string };
+  return { status: data.status ?? "" };
+}
+
 // Append the DuitNow-QR direct-post param so the hosted page skips method
 // selection and lands straight on the QR screen. Our live brand uses `dnqr`
 // (the docs' migration value); plain `duitnow_qr` returns an invoice page.
