@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Ban, ChevronLeft, ChevronRight, CheckCircle2, Loader2, MessageCircle, Minus, Pencil, Plus, Receipt, TriangleAlert } from "lucide-react";
 import { formatPrice, formatOrderTime } from "@/lib/format";
 import { buildWhatsAppReadyLink } from "@/lib/orders/message";
+import { deriveRefundState, type RefundState } from "@/lib/payments/chip/refund";
 import { DrinkRow, type DrinkStatus } from "@/components/drink-row";
 import { SwapPicker } from "@/components/swap-picker";
 import { ReceiptModal } from "@/components/receipt-modal";
@@ -14,6 +15,7 @@ import {
   cancelOrderAction,
   changeOrderPaymentAction,
   markReadyAndNotify,
+  retryChipRefundAction,
   setOrderPaymentAction,
   swapDrinkAction,
   updateDrinkStatus,
@@ -23,6 +25,7 @@ import {
 import { OrderCompleteModal } from "@/components/order-complete-modal";
 import { OrderFinishedModal } from "@/components/order-finished-modal";
 import { ChangePaymentModal } from "@/components/change-payment-modal";
+import { RefundPasscodeModal } from "@/components/refund-passcode-modal";
 import type { Category, Product } from "@/types/menu";
 import type { Order, OrderAdjustment } from "@/types/order";
 import { AttachMember } from "@/components/stamps/attach-member";
@@ -45,6 +48,7 @@ export function OrderDetail({
   categories = [],
   products = [],
   hasOpenShift = true,
+  chipRefund = null,
 }: {
   order: Order;
   persist?: boolean;
@@ -62,6 +66,13 @@ export function OrderDetail({
   // it too. Defaults true so non-manage renders (which don't pass it) are
   // unaffected.
   hasOpenShift?: boolean;
+  // CHIP refund context for a paid gateway order; null for manual/non-CHIP orders.
+  // Drives the two-button cancel dialog and the failed-refund retry affordance.
+  chipRefund?: {
+    amount: number;
+    refundedAt: string | null;
+    refundError: string | null;
+  } | null;
 }) {
   // Per-drink status, keyed by line index, seeded from the order's own lines.
   // Held locally for optimistic updates; the server action persists in parallel.
@@ -95,6 +106,12 @@ export function OrderDetail({
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  // Passcode-gated refund (money-out). refundIntent names which flow the passcode
+  // modal confirms: "cancel" = cancel-and-refund, "retry" = retry a failed refund.
+  const [refundIntent, setRefundIntent] = useState<"cancel" | "retry" | null>(null);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundPasscodeError, setRefundPasscodeError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState(order.paymentMethod);
   const [settingPayment, setSettingPayment] = useState<"cash" | "duitnow-qr" | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -327,14 +344,14 @@ export function OrderDetail({
     setLastDoneIndex(null);
   }
 
-  // Cancel the whole order (staff override). This also reverses any Beans the
-  // order earned for a member (server-side, via cancelOrderAction). On success
-  // we return to the board, where the order moves to the Cancelled filter.
-  function confirmCancelOrder() {
+  // Cancel the whole order WITHOUT a refund — a plain staff override, or a
+  // non-CHIP order. No passcode needed. On success, return to the board. (The
+  // refund path goes through submitRefund, gated by the manager passcode.)
+  function runCancel() {
     setCancelError(null);
     setCancelling(true);
     startTransition(async () => {
-      const result = await cancelOrderAction(order.token);
+      const result = await cancelOrderAction(order.token, false);
       setCancelling(false);
       if (!result.ok) {
         setCancelError(result.error);
@@ -342,6 +359,49 @@ export function OrderDetail({
       }
       setShowCancel(false);
       router.push(backHref);
+    });
+  }
+
+  // Confirm a passcode-gated refund from the RefundPasscodeModal. `refundIntent`
+  // says which flow: "cancel" cancels-and-refunds (the passcode is verified before
+  // the cancel commits, so a wrong passcode aborts everything — nothing is
+  // cancelled); "retry" re-attempts a failed refund on an already-cancelled order.
+  // A wrong passcode or refund error is surfaced in the modal so staff can
+  // re-enter; success closes it and refreshes (or returns to the board on a clean
+  // cancel-and-refund).
+  function submitRefund(passcode: string) {
+    const intent = refundIntent;
+    if (!intent) return;
+    setRefundPasscodeError(null);
+    setRefundBusy(true);
+    startTransition(async () => {
+      if (intent === "cancel") {
+        const result = await cancelOrderAction(order.token, true, passcode);
+        setRefundBusy(false);
+        if (!result.ok) {
+          // Passcode rejected (or not authorized) — nothing was cancelled.
+          setRefundPasscodeError(result.error);
+          return;
+        }
+        setRefundIntent(null);
+        if (result.refund?.status === "failed") {
+          // Order is cancelled but CHIP declined — refresh so the failed-refund
+          // banner (with its own retry) shows on the now-cancelled order.
+          setRetryError(result.refund.error ?? null);
+          router.refresh();
+          return;
+        }
+        router.push(backHref);
+      } else {
+        const res = await retryChipRefundAction(order.token, passcode);
+        setRefundBusy(false);
+        if (!res.ok) {
+          setRefundPasscodeError(res.error);
+          return;
+        }
+        setRefundIntent(null);
+        router.refresh();
+      }
     });
   }
 
@@ -399,6 +459,12 @@ export function OrderDetail({
   // already finished. A non-persisting (persist=false) render never shows it.
   const canCancel =
     persist && order.status !== "completed" && order.status !== "cancelled";
+
+  // Refund state derived straight from the prop, so a router.refresh() after a
+  // refund/retry re-renders the right affordance without stale local state.
+  const refundState: RefundState = chipRefund
+    ? deriveRefundState(chipRefund)
+    : "none";
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8">
@@ -527,6 +593,52 @@ export function OrderDetail({
           )}
         </div>
       </dl>
+
+      {/* CHIP refund status on a cancelled gateway order. */}
+      {chipRefund && order.status === "cancelled" && refundState !== "none" && (
+        <section
+          className={
+            "mt-3 flex flex-col gap-3 rounded-2xl border p-4 " +
+            (refundState === "refunded"
+              ? "border-emerald-200 bg-emerald-50/60"
+              : "border-rose-200 bg-rose-50/60")
+          }
+        >
+          {refundState === "refunded" ? (
+            <p className="text-xs font-medium text-emerald-700">
+              Refunded {formatPrice(chipRefund.amount)} to the customer via CHIP.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-0.5">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-rose-700">
+                  Refund failed
+                </h2>
+                <p className="text-xs text-rose-700/90">
+                  The order is cancelled but the {formatPrice(chipRefund.amount)}{" "}
+                  refund didn&apos;t go through. Retry below, or refund it manually
+                  in the CHIP portal.
+                </p>
+                {(retryError ?? chipRefund.refundError) && (
+                  <p className="mt-1 text-[0.6875rem] text-rose-600">
+                    {retryError ?? chipRefund.refundError}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRefundPasscodeError(null);
+                  setRefundIntent("retry");
+                }}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+              >
+                Retry refund
+              </button>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Resolve a pay-later order. Full-width so the method labels never wrap
           (a half-grid cell crammed "DuitNow QR" onto two lines). */}
@@ -820,8 +932,9 @@ export function OrderDetail({
                 Cancel {order.orderNumber}?
               </h2>
               <p className="text-sm text-muted-foreground">
-                This marks the order cancelled and refunds any Beans it earned.
-                This can&apos;t be undone.
+                {chipRefund
+                  ? `This marks the order cancelled and refunds any Beans it earned. Choose whether to refund the ${formatPrice(chipRefund.amount)} paid via CHIP. This can't be undone.`
+                  : "This marks the order cancelled and refunds any Beans it earned. This can't be undone."}
               </p>
             </div>
 
@@ -836,21 +949,56 @@ export function OrderDetail({
             )}
 
             <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={confirmCancelOrder}
-                disabled={cancelling}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
-              >
-                {cancelling ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
-                    Cancelling
-                  </>
-                ) : (
-                  "Cancel Order"
-                )}
-              </button>
+              {chipRefund ? (
+                <>
+                  {/* Money-out: hand off to the passcode modal (manager approval)
+                      rather than cancelling straight away. Closing this dialog and
+                      opening the passcode one keeps a single modal on screen. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCancel(false);
+                      setRefundPasscodeError(null);
+                      setRefundIntent("cancel");
+                    }}
+                    disabled={cancelling}
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+                  >
+                    {`Cancel & Refund ${formatPrice(chipRefund.amount)}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runCancel}
+                    disabled={cancelling}
+                    className="flex h-12 w-full items-center justify-center rounded-full border border-rose-200 text-xs font-semibold uppercase tracking-[0.15em] text-rose-600 transition-colors hover:bg-rose-50 outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:opacity-70"
+                  >
+                    {cancelling ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+                        Cancelling
+                      </>
+                    ) : (
+                      "Cancel without Refund"
+                    )}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={runCancel}
+                  disabled={cancelling}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+                >
+                  {cancelling ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
+                      Cancelling
+                    </>
+                  ) : (
+                    "Cancel Order"
+                  )}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowCancel(false)}
@@ -891,6 +1039,15 @@ export function OrderDetail({
           error={changePaymentError}
           onConfirm={changePayment}
           onClose={() => setShowChangePayment(false)}
+        />
+      )}
+      {refundIntent && chipRefund && (
+        <RefundPasscodeModal
+          amount={chipRefund.amount}
+          busy={refundBusy}
+          error={refundPasscodeError}
+          onConfirm={submitRefund}
+          onClose={() => setRefundIntent(null)}
         />
       )}
       {finishState === "success" && waReadyLink && (

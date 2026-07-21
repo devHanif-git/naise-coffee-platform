@@ -265,7 +265,10 @@ export async function placeOrder(
   const shiftId = await getOpenShiftIdAdmin(createAdminClient());
 
   const paymentSettings = await getPaymentSettings();
-  if (input.paymentMethod === "duitnow-qr" && paymentSettings.chip.enabled) {
+  // Skip the gateway when nothing is payable (a voucher covers the whole order,
+  // or an all-reward cart): fall through to the direct-order path below, which
+  // still redeems the voucher and charges no gateway fee. CHIP can't take a 0.
+  if (input.paymentMethod === "duitnow-qr" && paymentSettings.chip.enabled && discountedTotal > 0) {
     const fee = computeGatewayFee(discountedTotal, {
       flat: paymentSettings.chip.feeFlat,
       percentBasisPoints: paymentSettings.chip.feePercent,
@@ -327,6 +330,15 @@ export async function placeOrder(
         email,
         products,
         reference: pendingOrder.orderNumber,
+        // Products itemise the full pre-voucher lines; apply the voucher as an
+        // order-level override so CHIP charges the discounted total (+ fee), not
+        // the product sum. discountedTotal + fee == insertChipPurchase amount.
+        ...(voucherDiscount > 0
+          ? {
+              totalOverride: discountedTotal + fee,
+              totalDiscountOverride: voucherDiscount,
+            }
+          : {}),
         ...(callbackOk
           ? { successCallback: `${baseUrl}/api/payments/chip/webhook` }
           : {}),

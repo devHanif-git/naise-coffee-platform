@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { refundPurchase } from "@/lib/payments/chip/client";
+import { isRefundAccepted } from "@/lib/payments/chip/refund";
 import { getProductCosts } from "@/lib/menu/cost";
 import {
   rowToOrder,
@@ -54,8 +56,13 @@ function drinkLabel(item: {
   return extras.length > 0 ? `${item.name} (${extras.join(", ")})` : item.name;
 }
 
-// Create an order + its lines. Members: userId is set, insert under RLS via the
-// cookie client. Guests: userId is null, insert via the admin client.
+// Create an order + its lines. Always inserts via the service-role client — for
+// members too. The callers (checkout / kiosk server actions) derive userId
+// server-side and re-price every line against the live catalogue, so this is the
+// single trusted chokepoint for order creation. Members have NO direct insert
+// path (the orders/order_items INSERT RLS policies were dropped), which closes
+// the reward-fabrication exploit: a member could otherwise POST an order row with
+// any total via the REST API and mint Beans from it.
 export async function createOrder(
   draft: OrderDraft,
   opts: {
@@ -67,7 +74,7 @@ export async function createOrder(
     pendingVoucherId?: string;
   },
 ): Promise<Order> {
-  const db = opts.userId ? await createClient() : createAdminClient();
+  const db = createAdminClient();
 
   const { data: orderRow, error: orderErr } = await db
     .from("orders")
@@ -786,12 +793,19 @@ export async function insertChipPurchase(input: {
   if (error) throw new Error(error.message);
 }
 
-// The CHIP purchase link for an order token — for the review + status screens.
-// Service-role read (bypasses RLS timing concerns; the order token already gates
+// The CHIP purchase link + refund state for an order token — for the review,
+// status, and manage screens. Service-role read (the order token already gates
 // the page). Returns null when the order has no CHIP purchase.
 export async function getChipPurchaseByToken(
   token: string,
-): Promise<{ chipPurchaseId: string; checkoutUrl: string; status: string } | null> {
+): Promise<{
+  chipPurchaseId: string;
+  checkoutUrl: string;
+  status: string;
+  amount: number;
+  refundedAt: string | null;
+  refundError: string | null;
+} | null> {
   const db = createAdminClient();
   const { data: orderRow } = await db
     .from("orders")
@@ -801,7 +815,7 @@ export async function getChipPurchaseByToken(
   if (!orderRow) return null;
   const { data } = await db
     .from("chip_purchases")
-    .select("chip_purchase_id, checkout_url, status")
+    .select("chip_purchase_id, checkout_url, status, amount, refunded_at, refund_error")
     .eq("order_id", orderRow.id)
     .maybeSingle();
   if (!data) return null;
@@ -809,7 +823,76 @@ export async function getChipPurchaseByToken(
     chipPurchaseId: data.chip_purchase_id,
     checkoutUrl: data.checkout_url,
     status: data.status,
+    amount: data.amount,
+    refundedAt: data.refunded_at,
+    refundError: data.refund_error,
   };
+}
+
+// Refund a CHIP-paid order's captured amount via the gateway, recording the
+// outcome on its chip_purchases row. Refunds only a paid, not-yet-refunded row:
+// an already-refunded row is an idempotent success, and a non-CHIP / unpaid order
+// is a harmless no-op success (nothing to refund). On CHIP failure, stamps
+// refund_error and returns the reason — the caller (cancel) never blocks on this.
+// Service-role: chip_purchases has no member policy. Full refund of `amount`
+// (order total + gateway fee).
+export async function refundChipPurchase(
+  token: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = createAdminClient();
+  const { data: orderRow } = await db
+    .from("orders")
+    .select("id")
+    .eq("token", token)
+    .maybeSingle();
+  if (!orderRow) return { ok: false, error: "Order not found." };
+
+  const { data: purchase } = await db
+    .from("chip_purchases")
+    .select("chip_purchase_id, amount, status, refunded_at")
+    .eq("order_id", orderRow.id)
+    .maybeSingle();
+  // No CHIP purchase, or not paid -> nothing to refund.
+  if (!purchase || purchase.status !== "paid") return { ok: true };
+  // Already refunded -> idempotent success (guards a double refund).
+  if (purchase.refunded_at) return { ok: true };
+
+  try {
+    const { status } = await refundPurchase(purchase.chip_purchase_id, purchase.amount);
+    if (!isRefundAccepted(status)) {
+      throw new Error(`CHIP returned status "${status}".`);
+    }
+    // Money is already refunded at the gateway — that's the source of truth. Stamp
+    // the row so the idempotency guard above blocks any future refund. If the stamp
+    // itself fails we must still report success: returning an error would surface a
+    // "retry refund" affordance that, on retry, re-reads a still-unstamped paid row
+    // and refunds a SECOND time. So log loudly for manual reconciliation and keep ok.
+    const { error: stampErr } = await db
+      .from("chip_purchases")
+      .update({ refunded_at: new Date().toISOString(), refund_error: null })
+      .eq("order_id", orderRow.id);
+    if (stampErr) {
+      console.error(
+        `CHIP refund for order ${token} succeeded but stamping refunded_at failed: ${stampErr.message}. Refund IS done — do not retry; reconcile the row by hand.`,
+      );
+    }
+    return { ok: true };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Unknown refund error.";
+    // Best-effort: persist the reason so the manage view can show it after a reload.
+    // A failure here only costs the persisted message (the caller still gets `reason`
+    // in-memory); the gateway refund did NOT happen, so a retry is safe.
+    const { error: stampErr } = await db
+      .from("chip_purchases")
+      .update({ refund_error: reason })
+      .eq("order_id", orderRow.id);
+    if (stampErr) {
+      console.error(
+        `CHIP refund for order ${token} failed (${reason}); also could not persist refund_error: ${stampErr.message}.`,
+      );
+    }
+    return { ok: false, error: reason };
+  }
 }
 
 // Flip a CHIP-paid order to pending (the normal fulfilment start) + mark its

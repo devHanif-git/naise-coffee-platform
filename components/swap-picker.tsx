@@ -381,7 +381,7 @@ export function SwapPicker({
                 onValueChange={setQuery}
                 placeholder="Search drinks..."
                 aria-label="Search drinks"
-                className="h-11 rounded-2xl border-0 bg-neutral-100 text-sm"
+                className="h-11 rounded-2xl border-0 bg-neutral-100 text-base md:text-sm"
               />
               <div className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {catTabs.map((tab) => {

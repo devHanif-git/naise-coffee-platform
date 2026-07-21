@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { PackageX } from "lucide-react";
 import { OrderDetail } from "@/components/order-detail";
 import { canManageOrders } from "@/lib/auth/session";
-import { getOrderByToken } from "@/lib/orders/store";
+import { getOrderByToken, getChipPurchaseByToken } from "@/lib/orders/store";
 import { getOpenShift } from "@/lib/shifts/store";
 import { listCategories, listProducts } from "@/lib/menu/store";
 import { getPaymentSettings, getEnabledPaymentMethods } from "@/lib/settings/payments";
@@ -119,6 +119,18 @@ export default async function ManageOrderPage({
     getOpenShift(),
   ]);
 
+  // CHIP refund context — only paid gateway orders get the refund UI. Manual
+  // DuitNow-QR orders have no chip_purchases row, so this is null for them.
+  const chip = await getChipPurchaseByToken(token);
+  const chipRefund =
+    chip && chip.status === "paid"
+      ? {
+          amount: chip.amount,
+          refundedAt: chip.refundedAt,
+          refundError: chip.refundError,
+        }
+      : null;
+
   return (
     <OrderDetail
       order={order}
@@ -127,6 +139,7 @@ export default async function ManageOrderPage({
       categories={categories}
       products={products}
       hasOpenShift={!!openShift}
+      chipRefund={chipRefund}
     />
   );
 }

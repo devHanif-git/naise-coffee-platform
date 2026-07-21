@@ -15,6 +15,7 @@ import {
   countOrdersByGroup,
   getOrderByToken,
   listOrdersPage,
+  refundChipPurchase,
   setItemStatus,
   setOrderPayment,
   swapOrderItem,
@@ -50,6 +51,19 @@ export type SearchMembersResult =
 export type AmendActionResult =
   | { ok: true; order: Order }
   | { ok: false; error: string };
+
+// Cancel returns the new status and, when a CHIP refund was requested, its
+// outcome. The cancel always succeeds server-side; refund.status "failed" means
+// the order is cancelled but the money wasn't returned (staff can retry).
+export type CancelOrderResult =
+  | {
+      ok: true;
+      orderStatus: OrderStatus;
+      refund?: { status: "refunded" | "failed"; error?: string };
+    }
+  | { ok: false; error: string };
+
+export type RetryRefundResult = { ok: true } | { ok: false; error: string };
 
 export type LoadOrdersResult =
   | { ok: true; orders: Order[]; hasMore: boolean; counts: OrderGroupCounts }
@@ -160,12 +174,22 @@ export async function markReadyAndNotify(
   return { ok: true, orderStatus: completed.status };
 }
 
-// Cancel the whole order (manual override).
+// Cancel the whole order (manual override). When `refund` is true and the order
+// was CHIP-paid, refund the full captured amount via CHIP AFTER the cancel
+// commits — a refund failure is reported in the result, never blocks the cancel.
+// Refunding is money-out, so it requires the manager store passcode; that's
+// verified BEFORE anything commits, so a wrong passcode aborts the whole action
+// (nothing cancelled) and staff can re-enter or choose "Cancel without Refund".
 export async function cancelOrderAction(
   token: string,
-): Promise<OrderActionResult> {
+  refund = false,
+  passcode?: string,
+): Promise<CancelOrderResult> {
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
+  }
+  if (refund && !(await verifyStorePasscode(passcode ?? ""))) {
+    return { ok: false, error: "Incorrect manager passcode." };
   }
   const updated = await cancelOrder(token);
   if (!updated) return { ok: false, error: "Order not found." };
@@ -175,7 +199,39 @@ export async function cancelOrderAction(
 
   revalidatePath(`/manage/${token}`);
   revalidatePath("/manage");
-  return { ok: true, orderStatus: updated.status };
+
+  if (!refund) {
+    return { ok: true, orderStatus: updated.status };
+  }
+
+  // Cancel already stands; fold the refund outcome in.
+  const res = await refundChipPurchase(token);
+  return {
+    ok: true,
+    orderStatus: updated.status,
+    refund: res.ok
+      ? { status: "refunded" }
+      : { status: "failed", error: res.error },
+  };
+}
+
+// Retry a failed CHIP refund on an already-cancelled order. Money-out, so it
+// takes the manager store passcode like the refund-on-cancel path. Drives the
+// "Refund failed — retry" affordance on the manage detail view.
+export async function retryChipRefundAction(
+  token: string,
+  passcode: string,
+): Promise<RetryRefundResult> {
+  if (!(await canManageOrders())) {
+    return { ok: false, error: "Not authorized." };
+  }
+  if (!(await verifyStorePasscode(passcode))) {
+    return { ok: false, error: "Incorrect manager passcode." };
+  }
+  const res = await refundChipPurchase(token);
+  revalidatePath(`/manage/${token}`);
+  if (!res.ok) return { ok: false, error: res.error };
+  return { ok: true };
 }
 
 // Void drinks on an order line (staff amendment). `count` is how many units to
