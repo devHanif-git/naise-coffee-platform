@@ -177,12 +177,19 @@ export async function markReadyAndNotify(
 // Cancel the whole order (manual override). When `refund` is true and the order
 // was CHIP-paid, refund the full captured amount via CHIP AFTER the cancel
 // commits — a refund failure is reported in the result, never blocks the cancel.
+// Refunding is money-out, so it requires the manager store passcode; that's
+// verified BEFORE anything commits, so a wrong passcode aborts the whole action
+// (nothing cancelled) and staff can re-enter or choose "Cancel without Refund".
 export async function cancelOrderAction(
   token: string,
   refund = false,
+  passcode?: string,
 ): Promise<CancelOrderResult> {
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
+  }
+  if (refund && !(await verifyStorePasscode(passcode ?? ""))) {
+    return { ok: false, error: "Incorrect manager passcode." };
   }
   const updated = await cancelOrder(token);
   if (!updated) return { ok: false, error: "Order not found." };
@@ -208,13 +215,18 @@ export async function cancelOrderAction(
   };
 }
 
-// Retry a failed CHIP refund on an already-cancelled order. Staff-gated. Drives
-// the "Refund failed — retry" affordance on the manage detail view.
+// Retry a failed CHIP refund on an already-cancelled order. Money-out, so it
+// takes the manager store passcode like the refund-on-cancel path. Drives the
+// "Refund failed — retry" affordance on the manage detail view.
 export async function retryChipRefundAction(
   token: string,
+  passcode: string,
 ): Promise<RetryRefundResult> {
   if (!(await canManageOrders())) {
     return { ok: false, error: "Not authorized." };
+  }
+  if (!(await verifyStorePasscode(passcode))) {
+    return { ok: false, error: "Incorrect manager passcode." };
   }
   const res = await refundChipPurchase(token);
   revalidatePath(`/manage/${token}`);

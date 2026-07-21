@@ -25,6 +25,7 @@ import {
 import { OrderCompleteModal } from "@/components/order-complete-modal";
 import { OrderFinishedModal } from "@/components/order-finished-modal";
 import { ChangePaymentModal } from "@/components/change-payment-modal";
+import { RefundPasscodeModal } from "@/components/refund-passcode-modal";
 import type { Category, Product } from "@/types/menu";
 import type { Order, OrderAdjustment } from "@/types/order";
 import { AttachMember } from "@/components/stamps/attach-member";
@@ -105,8 +106,12 @@ export function OrderDetail({
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  // Passcode-gated refund (money-out). refundIntent names which flow the passcode
+  // modal confirms: "cancel" = cancel-and-refund, "retry" = retry a failed refund.
+  const [refundIntent, setRefundIntent] = useState<"cancel" | "retry" | null>(null);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundPasscodeError, setRefundPasscodeError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState(order.paymentMethod);
   const [settingPayment, setSettingPayment] = useState<"cash" | "duitnow-qr" | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -339,44 +344,64 @@ export function OrderDetail({
     setLastDoneIndex(null);
   }
 
-  // Cancel the whole order (staff override). `refund` requests a CHIP refund of
-  // the captured amount (only offered for CHIP-paid orders). The cancel always
-  // commits server-side: on a refund success (or a plain cancel) we return to the
-  // board; on a refund failure we refresh in place so the failed-refund retry
-  // banner shows on the now-cancelled order.
-  function runCancel(refund: boolean) {
+  // Cancel the whole order WITHOUT a refund — a plain staff override, or a
+  // non-CHIP order. No passcode needed. On success, return to the board. (The
+  // refund path goes through submitRefund, gated by the manager passcode.)
+  function runCancel() {
     setCancelError(null);
     setCancelling(true);
     startTransition(async () => {
-      const result = await cancelOrderAction(order.token, refund);
+      const result = await cancelOrderAction(order.token, false);
       setCancelling(false);
       if (!result.ok) {
         setCancelError(result.error);
         return;
       }
       setShowCancel(false);
-      if (result.refund?.status === "failed") {
-        setRetryError(result.refund.error ?? null);
-        router.refresh();
-        return;
-      }
       router.push(backHref);
     });
   }
 
-  // Retry a failed CHIP refund on the cancelled order. On success, refresh so the
-  // banner flips to "Refunded" (chip_purchases.refunded_at is now set).
-  function retryRefund() {
-    setRetryError(null);
-    setRetrying(true);
+  // Confirm a passcode-gated refund from the RefundPasscodeModal. `refundIntent`
+  // says which flow: "cancel" cancels-and-refunds (the passcode is verified before
+  // the cancel commits, so a wrong passcode aborts everything — nothing is
+  // cancelled); "retry" re-attempts a failed refund on an already-cancelled order.
+  // A wrong passcode or refund error is surfaced in the modal so staff can
+  // re-enter; success closes it and refreshes (or returns to the board on a clean
+  // cancel-and-refund).
+  function submitRefund(passcode: string) {
+    const intent = refundIntent;
+    if (!intent) return;
+    setRefundPasscodeError(null);
+    setRefundBusy(true);
     startTransition(async () => {
-      const res = await retryChipRefundAction(order.token);
-      setRetrying(false);
-      if (!res.ok) {
-        setRetryError(res.error);
-        return;
+      if (intent === "cancel") {
+        const result = await cancelOrderAction(order.token, true, passcode);
+        setRefundBusy(false);
+        if (!result.ok) {
+          // Passcode rejected (or not authorized) — nothing was cancelled.
+          setRefundPasscodeError(result.error);
+          return;
+        }
+        setRefundIntent(null);
+        if (result.refund?.status === "failed") {
+          // Order is cancelled but CHIP declined — refresh so the failed-refund
+          // banner (with its own retry) shows on the now-cancelled order.
+          setRetryError(result.refund.error ?? null);
+          router.refresh();
+          return;
+        }
+        router.push(backHref);
+      } else {
+        const res = await retryChipRefundAction(order.token, passcode);
+        setRefundBusy(false);
+        if (!res.ok) {
+          setRefundPasscodeError(res.error);
+          return;
+        }
+        setRefundIntent(null);
+        router.refresh();
       }
-      router.refresh();
     });
   }
 
@@ -602,18 +627,13 @@ export function OrderDetail({
               </div>
               <button
                 type="button"
-                onClick={retryRefund}
-                disabled={retrying}
+                onClick={() => {
+                  setRefundPasscodeError(null);
+                  setRefundIntent("retry");
+                }}
                 className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
               >
-                {retrying ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" strokeWidth={2.5} aria-hidden />
-                    Retrying refund
-                  </>
-                ) : (
-                  "Retry refund"
-                )}
+                Retry refund
               </button>
             </>
           )}
@@ -931,11 +951,26 @@ export function OrderDetail({
             <div className="flex flex-col gap-2">
               {chipRefund ? (
                 <>
+                  {/* Money-out: hand off to the passcode modal (manager approval)
+                      rather than cancelling straight away. Closing this dialog and
+                      opening the passcode one keeps a single modal on screen. */}
                   <button
                     type="button"
-                    onClick={() => runCancel(true)}
+                    onClick={() => {
+                      setShowCancel(false);
+                      setRefundPasscodeError(null);
+                      setRefundIntent("cancel");
+                    }}
                     disabled={cancelling}
                     className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+                  >
+                    {`Cancel & Refund ${formatPrice(chipRefund.amount)}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runCancel}
+                    disabled={cancelling}
+                    className="flex h-12 w-full items-center justify-center rounded-full border border-rose-200 text-xs font-semibold uppercase tracking-[0.15em] text-rose-600 transition-colors hover:bg-rose-50 outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:opacity-70"
                   >
                     {cancelling ? (
                       <>
@@ -943,22 +978,14 @@ export function OrderDetail({
                         Cancelling
                       </>
                     ) : (
-                      `Cancel & Refund ${formatPrice(chipRefund.amount)}`
+                      "Cancel without Refund"
                     )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => runCancel(false)}
-                    disabled={cancelling}
-                    className="flex h-12 w-full items-center justify-center rounded-full border border-rose-200 text-xs font-semibold uppercase tracking-[0.15em] text-rose-600 transition-colors hover:bg-rose-50 outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:opacity-70"
-                  >
-                    Cancel without Refund
                   </button>
                 </>
               ) : (
                 <button
                   type="button"
-                  onClick={() => runCancel(false)}
+                  onClick={runCancel}
                   disabled={cancelling}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-rose-600 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-transform hover:scale-[1.01] active:scale-[0.99] outline-none focus-visible:ring-3 focus-visible:ring-rose-300 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
                 >
@@ -1012,6 +1039,15 @@ export function OrderDetail({
           error={changePaymentError}
           onConfirm={changePayment}
           onClose={() => setShowChangePayment(false)}
+        />
+      )}
+      {refundIntent && chipRefund && (
+        <RefundPasscodeModal
+          amount={chipRefund.amount}
+          busy={refundBusy}
+          error={refundPasscodeError}
+          onConfirm={submitRefund}
+          onClose={() => setRefundIntent(null)}
         />
       )}
       {finishState === "success" && waReadyLink && (
