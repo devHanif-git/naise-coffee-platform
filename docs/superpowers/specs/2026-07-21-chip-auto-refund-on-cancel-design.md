@@ -150,8 +150,11 @@ pay it, cancel with refund, confirm `refunded_at` set and the CHIP portal shows
 the refund; then force a failure (e.g. refund twice) and confirm the retry
 affordance appears and the cancel still stands.
 
-## Open question
+## Resolved decisions
 
-- **Refund auth gate:** currently `canManageOrders()`, same as cancel. Money-out
-  could warrant the manager store-passcode gate (like `changeOrderPaymentAction`).
-  Left at the cancel gate unless we decide otherwise.
+- **Refund auth gate (resolved 2026-07-21):** money-out requires the manager store
+  passcode (`verifyStorePasscode`), matching `changeOrderPaymentAction` — NOT just
+  `canManageOrders()`. Both money-out paths ("Cancel & Refund" and "Retry refund")
+  go through a shared `RefundPasscodeModal`. On the cancel path the passcode is
+  verified BEFORE anything commits, so a wrong passcode aborts the whole action
+  (nothing cancelled). "Cancel without Refund" and non-CHIP cancels need no passcode.
