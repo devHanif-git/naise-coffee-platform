@@ -56,8 +56,13 @@ function drinkLabel(item: {
   return extras.length > 0 ? `${item.name} (${extras.join(", ")})` : item.name;
 }
 
-// Create an order + its lines. Members: userId is set, insert under RLS via the
-// cookie client. Guests: userId is null, insert via the admin client.
+// Create an order + its lines. Always inserts via the service-role client — for
+// members too. The callers (checkout / kiosk server actions) derive userId
+// server-side and re-price every line against the live catalogue, so this is the
+// single trusted chokepoint for order creation. Members have NO direct insert
+// path (the orders/order_items INSERT RLS policies were dropped), which closes
+// the reward-fabrication exploit: a member could otherwise POST an order row with
+// any total via the REST API and mint Beans from it.
 export async function createOrder(
   draft: OrderDraft,
   opts: {
@@ -69,7 +74,7 @@ export async function createOrder(
     pendingVoucherId?: string;
   },
 ): Promise<Order> {
-  const db = opts.userId ? await createClient() : createAdminClient();
+  const db = createAdminClient();
 
   const { data: orderRow, error: orderErr } = await db
     .from("orders")
