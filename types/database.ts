@@ -161,6 +161,8 @@ export type Database = {
           is_test: boolean
           order_id: string
           paid_at: string | null
+          refund_error: string | null
+          refunded_at: string | null
           status: string
           updated_at: string
         }
@@ -173,6 +175,8 @@ export type Database = {
           is_test?: boolean
           order_id: string
           paid_at?: string | null
+          refund_error?: string | null
+          refunded_at?: string | null
           status?: string
           updated_at?: string
         }
@@ -185,6 +189,8 @@ export type Database = {
           is_test?: boolean
           order_id?: string
           paid_at?: string | null
+          refund_error?: string | null
+          refunded_at?: string | null
           status?: string
           updated_at?: string
         }
