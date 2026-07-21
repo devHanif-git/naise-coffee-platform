@@ -728,7 +728,7 @@ export function CheckoutScreen({
         ) : (
           <>
             <span className="text-xs font-bold uppercase tracking-wider">
-              {isChipPath ? "Continue to Payment" : "Place Order"}
+              {isChipPath && totalAfterVoucher > 0 ? "Continue to Payment" : "Place Order"}
             </span>
             <span className="text-xs font-bold tabular-nums">
               {formatPrice(totalAfterVoucher)}
