@@ -857,17 +857,35 @@ export async function refundChipPurchase(
     if (!isRefundAccepted(status)) {
       throw new Error(`CHIP returned status "${status}".`);
     }
-    await db
+    // Money is already refunded at the gateway — that's the source of truth. Stamp
+    // the row so the idempotency guard above blocks any future refund. If the stamp
+    // itself fails we must still report success: returning an error would surface a
+    // "retry refund" affordance that, on retry, re-reads a still-unstamped paid row
+    // and refunds a SECOND time. So log loudly for manual reconciliation and keep ok.
+    const { error: stampErr } = await db
       .from("chip_purchases")
       .update({ refunded_at: new Date().toISOString(), refund_error: null })
       .eq("order_id", orderRow.id);
+    if (stampErr) {
+      console.error(
+        `CHIP refund for order ${token} succeeded but stamping refunded_at failed: ${stampErr.message}. Refund IS done — do not retry; reconcile the row by hand.`,
+      );
+    }
     return { ok: true };
   } catch (err) {
     const reason = err instanceof Error ? err.message : "Unknown refund error.";
-    await db
+    // Best-effort: persist the reason so the manage view can show it after a reload.
+    // A failure here only costs the persisted message (the caller still gets `reason`
+    // in-memory); the gateway refund did NOT happen, so a retry is safe.
+    const { error: stampErr } = await db
       .from("chip_purchases")
       .update({ refund_error: reason })
       .eq("order_id", orderRow.id);
+    if (stampErr) {
+      console.error(
+        `CHIP refund for order ${token} failed (${reason}); also could not persist refund_error: ${stampErr.message}.`,
+      );
+    }
     return { ok: false, error: reason };
   }
 }
