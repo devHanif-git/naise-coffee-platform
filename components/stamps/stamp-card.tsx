@@ -75,12 +75,12 @@ export function StampCard({
       className="relative overflow-hidden rounded-[1.75rem] bg-black px-6 py-7 text-white naise-rise"
     >
       <Image
-        src={images.coffeeWithLogo}
+        src={images.americano}
         alt=""
         width={320}
         height={320}
         aria-hidden
-        className="pointer-events-none absolute -bottom-8 -right-10 z-0 h-auto w-36 object-contain sm:w-40"
+        className="pointer-events-none absolute -bottom-12 -right-16 z-0 h-auto w-52 object-contain sm:w-56"
       />
 
       <div className="relative z-10">
@@ -157,7 +157,7 @@ export function StampCard({
                 </div>
                 {isMilestone && (
                   <span className="text-[0.5rem] font-bold uppercase tracking-wide text-amber-400">
-                    {isFree ? "Free" : `RM${rmOff}`}
+                    {isFree ? "Free Drink" : `RM${rmOff} Off`}
                   </span>
                 )}
               </div>
