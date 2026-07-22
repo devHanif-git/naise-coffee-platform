@@ -5,6 +5,7 @@ import { Download, Share } from "lucide-react";
 import { images } from "@/constants/images";
 import Image from "next/image";
 import { useAuth } from "@/store/auth";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Session-scoped dismissal flag. Cleared automatically when the tab/session
 // ends, so the prompt returns on the next visit (per design: reappear each
@@ -90,20 +91,16 @@ export default function InstallPrompt() {
     setDismissed(true);
   }, []);
 
-  // Lock body scroll and wire Esc-to-dismiss while the modal is open. Kept in an
-  // effect (not inline) so cleanup restores scroll on unmount/close.
+  // Wire Esc-to-dismiss while open. Body scroll is locked via the shared
+  // refcounted hook so it composes when Welcome + Install stack after login.
+  useBodyScrollLock(open);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dismiss();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, dismiss]);
 
   const install = async () => {
