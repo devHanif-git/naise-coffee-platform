@@ -19,6 +19,22 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+// Pure iOS install-environment detection. Exported and kept pure so the
+// framework-free self-check (install-prompt.check.mjs) can exercise every
+// branch. Returns null for non-iOS and already-installed cases.
+export function detectInstallEnv(
+  ua: string,
+  standalone: boolean | undefined,
+): "safari" | "recover" | null {
+  const isIos = /iphone|ipad|ipod/i.test(ua);
+  if (!isIos) return null;
+  if (standalone === true) return null;
+  // Real Mobile Safari DEFINES navigator.standalone (false when not installed).
+  // WKWebView in-app browsers (WhatsApp, Instagram, Chrome/Firefox iOS) leave
+  // it undefined and cannot Add to Home Screen — route them to recovery.
+  return standalone === false ? "safari" : "recover";
+}
+
 // True when the app is running as an installed PWA (Android/desktop standalone
 // display-mode, or iOS home-screen where Safari sets navigator.standalone).
 function isInstalled(): boolean {
