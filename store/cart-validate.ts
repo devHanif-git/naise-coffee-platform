@@ -12,6 +12,10 @@ export function isValidCartItem(x: unknown): x is CartItem {
     typeof i.name === "string" &&
     Number.isInteger(i.unitPrice) &&
     (i.unitPrice as number) >= 0 &&
+    // Optional, but if present it must be a clean integer — a corrupt string
+    // here would flow straight into totalOriginal/totalSaving as NaN.
+    (i.unitOriginalPrice === undefined ||
+      (Number.isInteger(i.unitOriginalPrice) && (i.unitOriginalPrice as number) >= 0)) &&
     Number.isInteger(i.quantity) &&
     (i.quantity as number) > 0 &&
     Array.isArray(i.addonIds) &&
