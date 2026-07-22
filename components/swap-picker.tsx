@@ -144,7 +144,7 @@ export function SwapPicker({
         side="bottom"
         showCloseButton={!busy}
         aria-describedby={undefined}
-        className="mx-auto flex max-h-[88vh] w-full max-w-md flex-col gap-0 rounded-t-3xl p-0"
+        className="mx-auto flex max-h-[88dvh] w-full max-w-md flex-col gap-0 rounded-t-3xl p-0"
       >
         {/* Header — grab handle + step title. In customize mode the title is a
             back control returning to the drink list. */}
@@ -178,7 +178,7 @@ export function SwapPicker({
         {picked ? (
           /* ---- Step 2: customize the picked drink ---- */
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
               <div className="flex flex-col gap-0.5 border-b border-border pb-4">
                 <SheetTitle className="font-heading text-xl font-bold tracking-tight">
                   {picked.name}
@@ -406,7 +406,7 @@ export function SwapPicker({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
               {results.length === 0 ? (
                 <p className="py-16 text-center text-xs text-muted-foreground">
                   No drinks match.

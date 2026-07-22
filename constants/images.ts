@@ -5,6 +5,7 @@ export const images = {
   latteArt: "/brand/latte_art_black_mug.png",
   celebration: "/brand/celebration_in_a_cup.png",
   coffeeWithLogo: "/brand/coffee_with_logo.png",
+  americano: "/brand/americano-assets.png",
   stamp: "/brand/stamp-nobg.png",
   emptyCart: "/brand/empty_cart.png",
   emptyCartNoBg: "/brand/empty_cart_nobg.png",

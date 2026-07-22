@@ -297,7 +297,7 @@ export function CheckoutScreen({
           type="button"
           onClick={() => router.push("/menu")} // no home for now redirect to menu
           aria-label="Go back to cart"
-          className="flex size-9 items-center justify-center justify-self-start rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-11 items-center justify-center justify-self-start rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <ChevronLeft className="size-6" aria-hidden />
         </button>
@@ -625,7 +625,7 @@ export function CheckoutScreen({
                   <button
                     type="button"
                     onClick={() => setVoucherSheetOpen(true)}
-                    className="rounded-lg px-2 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-white/80 outline-none transition-colors hover:text-white focus-visible:ring-3 focus-visible:ring-white/40"
+                    className="min-h-11 rounded-lg px-2 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-white/80 outline-none transition-colors hover:text-white focus-visible:ring-3 focus-visible:ring-white/40"
                   >
                     Change
                   </button>
@@ -633,7 +633,7 @@ export function CheckoutScreen({
                     type="button"
                     onClick={() => setSelectedVoucherId(null)}
                     aria-label="Remove voucher"
-                    className="flex size-7 items-center justify-center rounded-full text-white/70 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-3 focus-visible:ring-white/40"
+                    className="flex size-11 items-center justify-center rounded-full text-white/70 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-3 focus-visible:ring-white/40"
                   >
                     <X className="size-4" strokeWidth={2.5} aria-hidden />
                   </button>

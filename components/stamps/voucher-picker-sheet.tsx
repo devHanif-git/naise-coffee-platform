@@ -57,7 +57,7 @@ export function VoucherPickerSheet({
         aria-describedby={undefined}
         // z-[60] so the sheet (and its "Use now" bar) sits above the fixed tab
         // bar (z-[55]); otherwise the tab bar covers the bottom action button.
-        className="z-[60] mx-auto flex max-h-[85vh] w-full max-w-md flex-col gap-0 rounded-t-3xl p-0"
+        className="z-[60] mx-auto flex max-h-[85dvh] w-full max-w-md flex-col gap-0 rounded-t-3xl p-0"
       >
         <div className="shrink-0 px-5 pb-3 pt-3">
           <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
@@ -69,7 +69,7 @@ export function VoucherPickerSheet({
           </p>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4">
           <ul className="flex flex-col gap-2.5">
             {vouchers.map((v) => {
               const eligible = isEligible(v);

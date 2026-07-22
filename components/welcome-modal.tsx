@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Coffee, Flame, Star } from "lucide-react";
 import { images } from "@/constants/images";
 import { useAuth } from "@/store/auth";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // One-time celebration for a newly-registered member. Rendered once at the
 // customer layout level; it reads the auth store directly and shows itself only
@@ -20,18 +21,14 @@ const perks = [
 export function WelcomeModal() {
   const { showWelcome, dismissWelcome, user } = useAuth();
 
+  useBodyScrollLock(showWelcome);
   useEffect(() => {
     if (!showWelcome) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dismissWelcome();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [showWelcome, dismissWelcome]);
 
   if (!showWelcome) return null;

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Download, Share } from "lucide-react";
+import { Check, Copy, Download, ExternalLink, Plus, Share } from "lucide-react";
 import { images } from "@/constants/images";
 import Image from "next/image";
 import { useAuth } from "@/store/auth";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Session-scoped dismissal flag. Cleared automatically when the tab/session
 // ends, so the prompt returns on the next visit (per design: reappear each
@@ -18,6 +19,22 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
+// Pure iOS install-environment detection. Exported and kept pure so the
+// framework-free self-check (install-prompt.check.mjs) can exercise every
+// branch. Returns null for non-iOS and already-installed cases.
+export function detectInstallEnv(
+  ua: string,
+  standalone: boolean | undefined,
+): "safari" | "recover" | null {
+  const isIos = /iphone|ipad|ipod/i.test(ua);
+  if (!isIos) return null;
+  if (standalone === true) return null;
+  // Real Mobile Safari DEFINES navigator.standalone (false when not installed).
+  // WKWebView in-app browsers (WhatsApp, Instagram, Chrome/Firefox iOS) leave
+  // it undefined and cannot Add to Home Screen — route them to recovery.
+  return standalone === false ? "safari" : "recover";
+}
+
 // True when the app is running as an installed PWA (Android/desktop standalone
 // display-mode, or iOS home-screen where Safari sets navigator.standalone).
 function isInstalled(): boolean {
@@ -29,15 +46,11 @@ function isInstalled(): boolean {
   return standalone || iosStandalone;
 }
 
-// iOS Safari has no install API, so we detect it by user-agent to show manual
-// "Add to Home Screen" instructions. Excludes Chrome/Firefox on iOS (CriOS/FxiOS)
-// which can't add to home screen the same way.
-function isIosSafari(): boolean {
-  if (typeof window === "undefined") return false;
-  const ua = window.navigator.userAgent;
-  const isIos = /iphone|ipad|ipod/i.test(ua);
-  const isSafari = /safari/i.test(ua) && !/crios|fxios/i.test(ua);
-  return isIos && isSafari;
+// Client-only wrapper around the pure detector, reading the live navigator.
+function detectIos(): "safari" | "recover" | null {
+  if (typeof window === "undefined") return null;
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return detectInstallEnv(nav.userAgent, nav.standalone);
 }
 
 export default function InstallPrompt() {
@@ -45,8 +58,10 @@ export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   // Lazy initialisers run on the client after hydration — safe for window APIs.
-  const [isIos] = useState(isIosSafari);
-  const [iosExpanded, setIosExpanded] = useState(false);
+  const [iosMode] = useState(detectIos);
+  const [iosStep, setIosStep] = useState(false); // safari: numbered steps shown
+  const [recovering, setRecovering] = useState(false); // recover: fallback shown
+  const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem(DISMISS_KEY) === "1";
@@ -78,7 +93,7 @@ export default function InstallPrompt() {
   }, []);
 
   // Gate: logged-in, not installed, not dismissed, and a platform we can act on.
-  const canAct = deferredPrompt !== null || isIos;
+  const canAct = deferredPrompt !== null || iosMode !== null;
   const open = hydrated && isAuthenticated && !installed && !dismissed && canAct;
 
   const dismiss = useCallback(() => {
@@ -90,20 +105,16 @@ export default function InstallPrompt() {
     setDismissed(true);
   }, []);
 
-  // Lock body scroll and wire Esc-to-dismiss while the modal is open. Kept in an
-  // effect (not inline) so cleanup restores scroll on unmount/close.
+  // Wire Esc-to-dismiss while open. Body scroll is locked via the shared
+  // refcounted hook so it composes when Welcome + Install stack after login.
+  useBodyScrollLock(open);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") dismiss();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open, dismiss]);
 
   const install = async () => {
@@ -115,8 +126,24 @@ export default function InstallPrompt() {
       dismiss();
       return;
     }
-    if (isIos) {
-      setIosExpanded(true);
+    if (iosMode === "safari") setIosStep(true);
+  };
+
+  const openInSafari = () => {
+    // Reveal the fallback in the SAME tap: if the redirect works the page
+    // backgrounds and the user never sees it; if it silently fails (iOS gives no
+    // success/failure signal either way) the fallback is already here.
+    setRecovering(true);
+    const { host, pathname, search } = window.location;
+    window.location.href = `x-safari-https://${host}${pathname}${search}`;
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+    } catch {
+      // Clipboard can reject (permissions/insecure context); leave button as-is.
     }
   };
 
@@ -156,28 +183,107 @@ export default function InstallPrompt() {
         </div>
 
         <div className="px-6 py-6">
-          {iosExpanded ? (
-            <p className="flex flex-wrap items-center justify-center gap-1.5 text-center text-sm leading-relaxed text-muted-foreground">
-              Tap the
-              <Share className="inline size-4 text-foreground" aria-hidden />
-              Share icon, then &ldquo;Add to Home Screen&rdquo;.
-            </p>
+          {deferredPrompt ? (
+            <>
+              <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                Install Naise for faster ordering, quick access from your home
+                screen, and a smoother checkout.
+              </p>
+              <button
+                type="button"
+                onClick={install}
+                className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <Download className="size-4" aria-hidden />
+                Install
+              </button>
+            </>
+          ) : iosMode === "safari" ? (
+            iosStep ? (
+              <ol className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                <li className="flex items-center gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-black text-[0.625rem] font-bold text-white">
+                    1
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1">
+                    Tap the{" "}
+                    <Share className="inline size-4 text-foreground" aria-hidden />{" "}
+                    Share button in Safari.
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-black text-[0.625rem] font-bold text-white">
+                    2
+                  </span>
+                  <span className="flex flex-wrap items-center gap-1">
+                    Choose{" "}
+                    <Plus className="inline size-4 text-foreground" aria-hidden />{" "}
+                    &ldquo;Add to Home Screen&rdquo;.
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-black text-[0.625rem] font-bold text-white">
+                    3
+                  </span>
+                  <span>Tap &ldquo;Add&rdquo; — Naise lands on your home screen.</span>
+                </li>
+              </ol>
+            ) : (
+              <>
+                <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                  Install Naise for faster ordering and one-tap access from your
+                  home screen.
+                </p>
+                <button
+                  type="button"
+                  onClick={install}
+                  className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <Share className="size-4" aria-hidden />
+                  Show me how
+                </button>
+              </>
+            )
+          ) : recovering ? (
+            <>
+              <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                Still here? In this app, tap the{" "}
+                <span className="font-semibold text-foreground">&hellip;</span> or
+                compass icon and choose &ldquo;Open in Safari&rdquo; — or copy the
+                link and paste it into Safari.
+              </p>
+              <button
+                type="button"
+                onClick={copyLink}
+                className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {copied ? (
+                  <>
+                    <Check className="size-4" aria-hidden />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="size-4" aria-hidden />
+                    Copy link
+                  </>
+                )}
+              </button>
+            </>
           ) : (
-            <p className="text-center text-sm leading-relaxed text-muted-foreground">
-              Install Naise for faster ordering, quick access from your home
-              screen, and a smoother checkout.
-            </p>
-          )}
-
-          {!iosExpanded && (
-            <button
-              type="button"
-              onClick={install}
-              className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              <Download className="size-4" aria-hidden />
-              Install
-            </button>
+            <>
+              <p className="text-center text-sm leading-relaxed text-muted-foreground">
+                To install Naise, open it in Safari first.
+              </p>
+              <button
+                type="button"
+                onClick={openInSafari}
+                className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-black text-xs font-semibold uppercase tracking-[0.15em] text-white outline-none transition-transform hover:scale-[1.01] active:scale-[0.99] focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <ExternalLink className="size-4" aria-hidden />
+                Open in Safari
+              </button>
+            </>
           )}
 
           <button
@@ -185,7 +291,7 @@ export default function InstallPrompt() {
             onClick={dismiss}
             className="mt-3 h-11 w-full rounded-full text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            {iosExpanded ? "Got it" : "Not now"}
+            {iosStep || recovering ? "Got it" : "Not now"}
           </button>
         </div>
       </div>

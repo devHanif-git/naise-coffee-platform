@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { LogOut } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Confirms before ending the session. Hand-rolled like the other modals:
 // closes on backdrop click or Esc, locks body scroll while open.
@@ -12,17 +13,14 @@ export function SignOutConfirmModal({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (

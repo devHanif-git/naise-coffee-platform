@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Lock } from "lucide-react";
 import { formatPrice } from "@/lib/format";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Manager-gated confirmation for a CHIP refund (money-out). Opened from the
 // manage screen for both "Cancel & Refund" and the failed-refund "Retry" — the
@@ -24,17 +25,14 @@ export function RefundPasscodeModal({
 }) {
   const [passcode, setPasscode] = useState("");
 
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
 
   const canSubmit = passcode.length >= 6 && !busy;

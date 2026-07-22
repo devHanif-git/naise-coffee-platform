@@ -41,7 +41,7 @@ export function CategoryTabs({
               aria-selected={active}
               onClick={() => onSelect(tab.id)}
               className={cn(
-                "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-gradient-to-r from-amber-400 to-amber-600 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_2px_8px_rgba(245,158,11,0.45)] transition-all outline-none focus-visible:ring-3 focus-visible:ring-amber-300",
+                "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-gradient-to-r from-amber-400 to-amber-600 px-4 py-1.5 text-xs font-semibold text-white shadow-[0_2px_8px_rgba(245,158,11,0.45)] transition-all outline-none focus-visible:ring-3 focus-visible:ring-amber-300",
                 active && "ring-2 ring-amber-300",
               )}
             >
@@ -58,7 +58,7 @@ export function CategoryTabs({
             aria-selected={active}
             onClick={() => onSelect(tab.id)}
             className={cn(
-              "shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+              "min-h-11 shrink-0 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
               active
                 ? "border-black bg-black text-white"
                 : "border-border bg-white text-foreground hover:bg-muted",

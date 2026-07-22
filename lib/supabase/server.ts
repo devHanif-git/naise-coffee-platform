@@ -19,7 +19,14 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options),
+              // Force Secure in prod so the session token (written here on
+              // sign-in / OAuth callback) never rides plaintext; dev over
+              // http://localhost is left untouched. Matches proxy.ts.
+              cookieStore.set(name, value, {
+                ...options,
+                secure:
+                  process.env.NODE_ENV === "production" ? true : options.secure,
+              }),
             );
           } catch {
             // Called from a Server Component — ignore; proxy handles refresh.

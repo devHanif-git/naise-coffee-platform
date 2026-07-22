@@ -304,7 +304,7 @@ export function DrinkRow({
                   <Info className="size-3.5" strokeWidth={2.5} />
                 </button>
                 <Sheet open={showRecipe} onOpenChange={setShowRecipe}>
-                  <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[55vh] overflow-y-auto rounded-t-2xl px-4 pb-6 pt-4">
+                  <SheetContent side="bottom" aria-describedby={undefined} className="max-h-[55dvh] overflow-y-auto overscroll-contain rounded-t-2xl px-4 pb-6 pt-4">
                     <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />
                     <div className="mb-2 flex items-center gap-2">
                       <SheetTitle className="font-heading text-base font-bold tracking-tight">

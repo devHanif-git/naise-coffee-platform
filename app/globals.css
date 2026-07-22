@@ -128,6 +128,16 @@
   html {
     @apply font-sans;
   }
+  /* iOS: kill the grey tap flash and long-press callout on interactive chrome
+     only. Text, paragraphs, images, and inputs keep native selection/callout. */
+  button,
+  a,
+  label,
+  [role="tab"],
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
 }
 
 @keyframes naise-rise {

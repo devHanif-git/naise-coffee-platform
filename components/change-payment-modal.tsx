@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, Lock } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Manager-gated correction of an order's payment method. Opened from the manage
 // screen when staff record the wrong method (e.g. Cash keyed as DuitNow QR).
@@ -25,17 +26,14 @@ export function ChangePaymentModal({
   const [method, setMethod] = useState(currentMethod);
   const [passcode, setPasscode] = useState("");
 
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
 
   const canSubmit = passcode.length >= 6 && !busy;

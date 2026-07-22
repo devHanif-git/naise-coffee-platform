@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
 import { normalizeMyPhone } from "@/lib/phone";
 import { filterPhone } from "@/lib/input";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Skippable prompt shown at checkout when no number is on file for this order.
 // Collects an unverified MY mobile so the store can message the customer on
@@ -25,17 +26,14 @@ export function PhonePromptSheet({
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
 
   function submit(e: React.FormEvent) {

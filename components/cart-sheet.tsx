@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/format";
 import { useCart } from "@/store/cart";
 import { useOrderRoutes } from "@/store/order-mode";
 import { useRepriceCart } from "@/hooks/use-reprice-cart";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { CustomLineBuilder } from "@/components/store/custom-line-builder";
 import type { CartItem } from "@/types/cart";
 
@@ -121,7 +122,7 @@ function SheetRow({
           type="button"
           onClick={removeReward}
           aria-label={`Remove ${item.name}`}
-          className="flex size-8 shrink-0 items-center justify-center self-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-neutral-100 hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-11 shrink-0 items-center justify-center self-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-neutral-100 hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Trash2 className="size-4" strokeWidth={2} aria-hidden />
         </button>
@@ -131,7 +132,7 @@ function SheetRow({
             type="button"
             onClick={decrement}
             aria-label={lastOne ? `Remove ${item.name}` : "Decrease quantity"}
-            className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Minus className="size-3.5" strokeWidth={2.5} aria-hidden />
           </button>
@@ -142,7 +143,7 @@ function SheetRow({
             type="button"
             onClick={() => incrementItem(item.key)}
             aria-label="Increase quantity"
-            className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Plus className="size-3.5" strokeWidth={2.5} aria-hidden />
           </button>
@@ -162,6 +163,8 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
   const reprice = useRepriceCart();
   const [confirmingClear, setConfirmingClear] = useState(false);
 
+  useBodyScrollLock(true);
+
   // Re-price against the live catalogue when the sheet opens. The sheet is only
   // mounted while open, so this mount-only effect fires on every open — catching
   // a promotion toggled in the CMS since the item was added, without a page
@@ -180,15 +183,6 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
     : "calc(4rem + 0.5rem + 3.5rem + env(safe-area-inset-bottom))";
   // Match the bar/menu column width per mode.
   const widthClass = isStore ? "max-w-5xl" : "max-w-md";
-
-  // Lock background scroll while the sheet is up.
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
 
   // Escape closes the sheet.
   useEffect(() => {
@@ -260,7 +254,7 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
         {/* Scrollable item rows. Bottom padding clears the floating bar so the
             last row can scroll above it (+1rem breathing room). */}
         <div
-          className="flex-1 overflow-y-auto px-5"
+          className="flex-1 overflow-y-auto overscroll-contain px-5"
           style={{ paddingBottom: `calc(${barTop} + 1rem)` }}
         >
           {/* Kiosk: an empty cart is a valid starting point for a custom-only

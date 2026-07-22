@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { X, Check, Lock } from "lucide-react";
 import type { RewardTier } from "@/types/reward";
 import { cn } from "@/lib/utils";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Lists the loyalty tiers and the Beans needed to unlock each. Opened from
 // "View Tiers". Hand-rolled like RewardsInfoModal — closes on backdrop click or
@@ -18,17 +19,14 @@ export function RewardsTiersModal({
   beans: number;
   onClose: () => void;
 }) {
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   // The current tier is the highest one the customer has unlocked.
@@ -46,7 +44,7 @@ export function RewardsTiersModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white naise-pop"
+        className="relative flex max-h-[80dvh] w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white naise-pop"
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
@@ -70,7 +68,7 @@ export function RewardsTiersModal({
           </button>
         </div>
 
-        <ul className="flex flex-col gap-3 overflow-y-auto px-6 py-6">
+        <ul className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-6 py-6">
           {tiers.map((tier) => {
             const unlocked = beans >= tier.threshold;
             const current = tier.id === currentId;
