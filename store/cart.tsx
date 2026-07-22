@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import type { CartItem } from "@/types/cart";
+import { isValidCartItem } from "@/store/cart-validate";
 import { useAuth } from "@/store/auth";
 
 const DEFAULT_STORAGE_KEY = "naise-cart";
@@ -121,8 +122,12 @@ export function CartProvider({
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
-      if (raw) setItems(JSON.parse(raw) as CartItem[]);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const restored = Array.isArray(parsed) ? parsed.filter(isValidCartItem) : [];
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from localStorage
+        setItems(restored);
+      }
       const storedNotes = localStorage.getItem(notesStorageKey);
       if (storedNotes) setNotes(storedNotes);
     } catch {
