@@ -225,7 +225,7 @@ export function MenuBrowser({
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
               aria-label="Sort drinks"
-              className="appearance-none rounded-lg border border-border bg-white py-1.5 pl-3 pr-8 text-xs font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="min-h-11 appearance-none rounded-lg border border-border bg-white py-1.5 pl-3 pr-8 text-xs font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <option value="recommended">Recommended</option>
               <option value="price-asc">Price: Low to High</option>

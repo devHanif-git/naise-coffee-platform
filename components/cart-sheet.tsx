@@ -122,7 +122,7 @@ function SheetRow({
           type="button"
           onClick={removeReward}
           aria-label={`Remove ${item.name}`}
-          className="flex size-8 shrink-0 items-center justify-center self-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-neutral-100 hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-11 shrink-0 items-center justify-center self-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-neutral-100 hover:text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <Trash2 className="size-4" strokeWidth={2} aria-hidden />
         </button>
@@ -132,7 +132,7 @@ function SheetRow({
             type="button"
             onClick={decrement}
             aria-label={lastOne ? `Remove ${item.name}` : "Decrease quantity"}
-            className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Minus className="size-3.5" strokeWidth={2.5} aria-hidden />
           </button>
@@ -143,7 +143,7 @@ function SheetRow({
             type="button"
             onClick={() => incrementItem(item.key)}
             aria-label="Increase quantity"
-            className="flex size-7 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="flex size-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-neutral-100 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Plus className="size-3.5" strokeWidth={2.5} aria-hidden />
           </button>
