@@ -28,7 +28,9 @@ export const metadata: Metadata = {
       "Order coffee from Naise Coffee — browse the menu, customize your drink, and check out over WhatsApp.",
     type: "website",
   },
-  appleWebApp: { capable: true, title: "Naise", statusBarStyle: "default" },
+  // ponytail: no apple-touch-startup-image (splash) — needs a per-device PNG
+  // matrix generated from a source launch design; add when that art exists.
+  appleWebApp: { capable: true, title: "Naise", statusBarStyle: "black" },
   icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
