@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Lightweight receipt viewer for proof-of-payment (DuitNow QR). Hand-rolled
 // rather than pulling in a dialog primitive — closes on backdrop click or Esc,
@@ -16,17 +17,14 @@ export function ReceiptModal({
   orderNumber: string;
   onClose: () => void;
 }) {
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (

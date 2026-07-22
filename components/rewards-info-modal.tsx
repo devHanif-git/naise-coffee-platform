@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { X, Coffee, Gift, Sparkles } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Explains the Naise Rewards program. Opened from the "?" in the Rewards
 // header. Hand-rolled like ReceiptModal — closes on backdrop click or Esc and
@@ -30,17 +31,14 @@ export function RewardsInfoModal({
       body: "Keep a daily streak and level up your tier for bonus Beans.",
     },
   ];
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (

@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/format";
 import { useCart } from "@/store/cart";
 import { useOrderRoutes } from "@/store/order-mode";
 import { useRepriceCart } from "@/hooks/use-reprice-cart";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { CustomLineBuilder } from "@/components/store/custom-line-builder";
 import type { CartItem } from "@/types/cart";
 
@@ -162,6 +163,8 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
   const reprice = useRepriceCart();
   const [confirmingClear, setConfirmingClear] = useState(false);
 
+  useBodyScrollLock(true);
+
   // Re-price against the live catalogue when the sheet opens. The sheet is only
   // mounted while open, so this mount-only effect fires on every open — catching
   // a promotion toggled in the CMS since the item was added, without a page
@@ -180,15 +183,6 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
     : "calc(4rem + 0.5rem + 3.5rem + env(safe-area-inset-bottom))";
   // Match the bar/menu column width per mode.
   const widthClass = isStore ? "max-w-5xl" : "max-w-md";
-
-  // Lock background scroll while the sheet is up.
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
 
   // Escape closes the sheet.
   useEffect(() => {

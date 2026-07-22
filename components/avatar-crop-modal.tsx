@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import { Loader2 } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Draws the chosen crop area onto a square canvas and returns a JPEG File.
 // Capped at 512px so we never upload an oversized avatar; the bucket accepts
@@ -57,17 +58,14 @@ export function AvatarCropModal({
     setArea(pixels);
   }, []);
 
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onCancel();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [busy, onCancel]);
 
   async function confirm() {

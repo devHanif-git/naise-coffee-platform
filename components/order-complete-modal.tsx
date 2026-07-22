@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BellRing } from "lucide-react";
 import { formatPrice } from "@/lib/format";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Auto-opens when the last drink is marked done. Confirm sends the buyer the
 // "ready" notice and completes the order; Cancel reverts the just-completed
@@ -33,17 +34,14 @@ export function OrderCompleteModal({
 }) {
   const [cashReceived, setCashReceived] = useState("");
 
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onCancel();
     };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [busy, onCancel]);
 
   // Change = cash received − amount due. A blank field means "exact cash" —

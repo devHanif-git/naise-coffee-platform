@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { CheckCircle2, MessageCircle } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Shown after an order is completed AND it has a contact number to notify — the
 // WhatsApp handoff. Staff tap "Send on WhatsApp" (opens wa.me with the ready
@@ -17,13 +17,7 @@ export function OrderFinishedModal({
   waReadyLink: string;
   onDone: () => void;
 }) {
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   return (
     <div

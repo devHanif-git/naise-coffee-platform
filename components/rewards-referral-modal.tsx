@@ -4,22 +4,20 @@ import { useEffect } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
 import { images } from "@/constants/images";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // "Coming soon" placeholder for the referral program. Opened from the "Share
 // Referral" CTA in the Rewards invite card. Hand-rolled like RewardsInfoModal —
 // closes on backdrop click or Esc and locks body scroll while open.
 export function RewardsReferralModal({ onClose }: { onClose: () => void }) {
+  useBodyScrollLock(true);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
