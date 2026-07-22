@@ -44,7 +44,7 @@ export function RewardsTiersModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative flex max-h-[80vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white naise-pop"
+        className="relative flex max-h-[80dvh] w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white naise-pop"
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-6">
           <div>
@@ -68,7 +68,7 @@ export function RewardsTiersModal({
           </button>
         </div>
 
-        <ul className="flex flex-col gap-3 overflow-y-auto px-6 py-6">
+        <ul className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-6 py-6">
           {tiers.map((tier) => {
             const unlocked = beans >= tier.threshold;
             const current = tier.id === currentId;

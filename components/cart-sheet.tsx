@@ -254,7 +254,7 @@ export function CartSheet({ closing, onClose }: { closing: boolean; onClose: () 
         {/* Scrollable item rows. Bottom padding clears the floating bar so the
             last row can scroll above it (+1rem breathing room). */}
         <div
-          className="flex-1 overflow-y-auto px-5"
+          className="flex-1 overflow-y-auto overscroll-contain px-5"
           style={{ paddingBottom: `calc(${barTop} + 1rem)` }}
         >
           {/* Kiosk: an empty cart is a valid starting point for a custom-only
